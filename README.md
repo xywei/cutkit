@@ -33,7 +33,7 @@ make dev
 `make dev` will:
 
 - sync the development environment with `uv`
-- install local pre-commit hooks
+- install local `prek` git hooks
 - block direct pushes to `main` via a local pre-push hook
 - run `ruff format --check`, `ruff check`, `mypy`, and `pytest -q`
 

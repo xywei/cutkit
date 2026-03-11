@@ -4,17 +4,17 @@ Thanks for your interest in CUTKIT.
 
 ## Development setup
 
-1. Create a Python 3.12+ environment.
-2. Install in editable mode with test dependencies:
+1. Ensure `uv` is installed and Python 3.12+ is available.
+2. Bootstrap development tooling and run checks:
 
 ```bash
-pip install -e .[test]
+make dev
 ```
 
-3. Run tests:
+3. Run checks manually as needed:
 
 ```bash
-pytest
+uv run prek run --all-files
 ```
 
 ## Pull requests
