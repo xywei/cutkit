@@ -22,6 +22,23 @@ CUTKIT focuses on a geometry/cut layer that complements `meshmode` and `modepy`:
 
 Early bootstrap. APIs may change.
 
+## Development Workflow
+
+CUTKIT uses `uv` for dependency and environment management.
+
+```bash
+make dev
+```
+
+`make dev` will:
+
+- sync the development environment with `uv`
+- install local pre-commit hooks
+- block direct pushes to `main` via a local pre-push hook
+- run `ruff format --check`, `ruff check`, `mypy`, and `pytest -q`
+
+See `docs/entire-transcript-policy.md` for the policy on using Entire session transcripts.
+
 ## License
 
 MIT. See `LICENSE`.
