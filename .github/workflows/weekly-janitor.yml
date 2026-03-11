@@ -1,0 +1,61 @@
+name: Weekly Janitor
+
+on:
+  schedule:
+    - cron: "17 7 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  janitor:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --extra dev
+
+      - name: Refresh hook revisions
+        run: uv run prek auto-update
+
+      - name: Format and synchronize lockfile
+        run: |
+          uv run ruff format .
+          uv sync --extra dev
+
+      - name: Validate repository state
+        run: |
+          uv run python scripts/check_architecture.py
+          uv run python scripts/run_cutpanel_eval.py
+          uv run pytest -q
+
+      - name: Create maintenance PR
+        uses: peter-evans/create-pull-request@v7
+        with:
+          branch: chore/weekly-janitor
+          delete-branch: true
+          title: "chore: weekly janitor maintenance"
+          commit-message: "chore: weekly janitor maintenance"
+          body: |
+            Automated weekly maintenance run.
+
+            Updates include:
+            - `prek` hook revision refreshes
+            - formatting and lockfile synchronization
+            - architecture/eval/test validation run

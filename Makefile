@@ -1,6 +1,6 @@
 UV ?= uv
 
-.PHONY: dev sync hooks lint typecheck test check
+.PHONY: dev sync hooks lint typecheck architecture evals test check
 
 sync:
 	$(UV) sync --extra dev
@@ -15,9 +15,15 @@ lint:
 typecheck:
 	$(UV) run mypy src tests
 
+architecture:
+	$(UV) run python scripts/check_architecture.py
+
+evals:
+	$(UV) run python scripts/run_cutpanel_eval.py
+
 test:
 	$(UV) run pytest -q
 
-check: lint typecheck test
+check: lint typecheck architecture test evals
 
 dev: hooks check
