@@ -6,7 +6,7 @@ sync:
 	$(UV) sync --extra dev
 
 hooks: sync
-	$(UV) run pre-commit install --hook-type pre-commit --hook-type pre-push
+	$(UV) run prek install --overwrite --hook-type pre-commit --hook-type pre-push
 
 lint:
 	$(UV) run ruff format --check .
