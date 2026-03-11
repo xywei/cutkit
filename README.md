@@ -35,9 +35,31 @@ make dev
 - sync the development environment with `uv`
 - install local `prek` git hooks
 - block direct pushes to `main` via a local pre-push hook
-- run `ruff format --check`, `ruff check`, `mypy`, and `pytest -q`
+- run formatting, lint, typing, architecture, tests, and cut-panel eval checks
 
 See `docs/entire-transcript-policy.md` for the policy on using Entire session transcripts.
+
+For cut-panel harness checks:
+
+```bash
+uv run python scripts/run_cutpanel_eval.py
+```
+
+## OpenSpec Workflow
+
+This repository is bootstrapped for OpenSpec-driven changes.
+
+- Run `/opsx-propose <idea>` (OpenCode) or `/opsx:propose <idea>` to define a change.
+- Run `/opsx-apply <change>` (OpenCode) or `/opsx:apply <change>` to implement tasks.
+- Run `/opsx-archive <change>` (OpenCode) or `/opsx:archive <change>` after merge.
+
+See `docs/openspec-setup.md` for setup and command details.
+
+## Repository Knowledge
+
+- Agent map: `AGENTS.md`
+- Documentation index: `docs/index.md`
+- Architecture map: `ARCHITECTURE.md`
 
 ## License
 
