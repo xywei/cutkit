@@ -25,6 +25,12 @@ def test_square_with_hole_metrics() -> None:
     assert metrics.cut_fraction == pytest.approx(0.75)
     assert metrics.outer_orientation == "ccw"
     assert metrics.hole_orientations == ("cw",)
+    assert metrics.folded_triangle_abs_error is not None
+    assert metrics.folded_rule_abs_error is not None
+    assert metrics.folded_max_moment_abs_error is not None
+    assert metrics.folded_triangle_abs_error < 1.0e-12
+    assert metrics.folded_rule_abs_error < 1.0e-12
+    assert metrics.folded_max_moment_abs_error < 1.0e-10
 
 
 def test_orientation_violations_are_reported() -> None:

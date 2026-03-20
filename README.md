@@ -22,6 +22,22 @@ CUTKIT focuses on a geometry/cut layer that complements `meshmode` and `modepy`:
 
 Early bootstrap. APIs may change.
 
+## Folded Decomposition MVP (2D)
+
+Current MVP scope focuses on polygonized 2D trimmed panels:
+
+- loop orientation normalization (outer ccw, holes cw)
+- interior anchor selection
+- folded signed-triangle decomposition
+- Duffy-mapped triangle quadrature aggregation
+- area and low-order moment diagnostics
+
+Current limitations:
+
+- no direct CAD B-rep/NURBS intersection pipeline
+- no 3D folded decomposition yet
+- no singular-kernel-specialized quadrature yet
+
 ## Development Workflow
 
 CUTKIT uses `uv` for dependency and environment management.

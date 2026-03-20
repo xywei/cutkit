@@ -4,6 +4,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from cutkit.diagnostics import area_consistency, moment_report
+from cutkit.geometry import PanelLoop2D, TrimmedPanel2D
+from cutkit.quadrature import folded_quadrature_rule
+
 Point = tuple[float, float]
 Loop = tuple[Point, ...]
 
@@ -27,6 +31,11 @@ class CutPanelMetrics:
     cut_fraction: float
     outer_orientation: str
     hole_orientations: tuple[str, ...]
+    folded_triangle_area: float | None = None
+    folded_rule_area: float | None = None
+    folded_triangle_abs_error: float | None = None
+    folded_rule_abs_error: float | None = None
+    folded_max_moment_abs_error: float | None = None
 
 
 @dataclass(frozen=True)
@@ -87,7 +96,14 @@ def _bbox_area_from_loops(loops: tuple[Loop, ...]) -> float:
     return (xmax - xmin) * (ymax - ymin)
 
 
-def evaluate_case(case: CutPanelCase) -> CutPanelMetrics:
+def _to_trimmed_panel(case: CutPanelCase) -> TrimmedPanel2D:
+    return TrimmedPanel2D(
+        outer=PanelLoop2D(case.outer),
+        holes=tuple(PanelLoop2D(hole) for hole in case.holes),
+    )
+
+
+def evaluate_case(case: CutPanelCase, *, folded_order: int = 6) -> CutPanelMetrics:
     """Compute baseline geometric metrics for one cut-panel case."""
 
     outer_area_abs = abs(signed_area(case.outer))
@@ -97,7 +113,7 @@ def evaluate_case(case: CutPanelCase) -> CutPanelMetrics:
     bbox_area = _bbox_area_from_loops((case.outer, *case.holes))
     cut_fraction = area / bbox_area if bbox_area > 0.0 else 0.0
 
-    return CutPanelMetrics(
+    metrics = CutPanelMetrics(
         name=case.name,
         area=area,
         bbox_area=bbox_area,
@@ -106,8 +122,31 @@ def evaluate_case(case: CutPanelCase) -> CutPanelMetrics:
         hole_orientations=tuple(orientation(hole) for hole in case.holes),
     )
 
+    folded = folded_quadrature_rule(_to_trimmed_panel(case), order=folded_order)
+    area_diag = area_consistency(folded.panel, folded.triangles, folded.rule)
+    moments = moment_report(folded.triangles, folded.rule)
 
-def validate_case(case: CutPanelCase) -> tuple[str, ...]:
+    return CutPanelMetrics(
+        name=metrics.name,
+        area=metrics.area,
+        bbox_area=metrics.bbox_area,
+        cut_fraction=metrics.cut_fraction,
+        outer_orientation=metrics.outer_orientation,
+        hole_orientations=metrics.hole_orientations,
+        folded_triangle_area=area_diag.triangle_area,
+        folded_rule_area=area_diag.rule_area,
+        folded_triangle_abs_error=area_diag.triangle_abs_error,
+        folded_rule_abs_error=area_diag.rule_abs_error,
+        folded_max_moment_abs_error=moments.max_abs_error,
+    )
+
+
+def validate_case(
+    case: CutPanelCase,
+    *,
+    folded_area_tol: float = 1.0e-12,
+    folded_moment_tol: float = 1.0e-10,
+) -> tuple[str, ...]:
     """Validate one case against orientation and positivity invariants."""
 
     metrics = evaluate_case(case)
@@ -125,6 +164,21 @@ def validate_case(case: CutPanelCase) -> tuple[str, ...]:
 
     if metrics.cut_fraction <= 0.0 or metrics.cut_fraction > 1.0:
         errors.append("Cut fraction must be in the interval (0, 1].")
+
+    if metrics.folded_triangle_abs_error is None:
+        errors.append("Folded triangle area diagnostics were not computed.")
+    elif metrics.folded_triangle_abs_error > folded_area_tol:
+        errors.append("Folded triangle area reconstruction error exceeds tolerance.")
+
+    if metrics.folded_rule_abs_error is None:
+        errors.append("Folded quadrature area diagnostics were not computed.")
+    elif metrics.folded_rule_abs_error > folded_area_tol:
+        errors.append("Folded quadrature area error exceeds tolerance.")
+
+    if metrics.folded_max_moment_abs_error is None:
+        errors.append("Folded moment diagnostics were not computed.")
+    elif metrics.folded_max_moment_abs_error > folded_moment_tol:
+        errors.append("Folded moment error exceeds tolerance.")
 
     return tuple(errors)
 
