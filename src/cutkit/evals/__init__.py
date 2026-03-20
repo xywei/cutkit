@@ -21,6 +21,17 @@ from cutkit.evals.antolin_wei_buffa_2022_2d import (
     run_polynomial_experiment,
     section_6_2_integrand,
 )
+from cutkit.evals.antolin_wei_buffa_2022_3d import (
+    General3DExperimentResult,
+    General3DOrderResult,
+    Polynomial3DDegreeResult,
+    Polynomial3DExperimentResult,
+    build_section_6_1_3_boundary_triangles,
+    eval_section_6_1_3_bezier_surface,
+    run_general_function_experiment_3d,
+    run_polynomial_experiment_3d,
+    section_6_2_integrand_3d,
+)
 
 __all__ = [
     "CutPanelCase",
@@ -40,4 +51,13 @@ __all__ = [
     "run_general_function_experiment",
     "run_polynomial_experiment",
     "section_6_2_integrand",
+    "General3DExperimentResult",
+    "General3DOrderResult",
+    "Polynomial3DDegreeResult",
+    "Polynomial3DExperimentResult",
+    "build_section_6_1_3_boundary_triangles",
+    "eval_section_6_1_3_bezier_surface",
+    "run_general_function_experiment_3d",
+    "run_polynomial_experiment_3d",
+    "section_6_2_integrand_3d",
 ]

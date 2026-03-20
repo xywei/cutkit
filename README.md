@@ -38,10 +38,10 @@ Current limitations:
 - no 3D folded decomposition yet
 - no singular-kernel-specialized quadrature yet
 
-Reproduction script for the 2D Antolin-Wei-Buffa (2022) examples:
+Reproduction script for Antolin-Wei-Buffa (2022) Section 6 examples:
 
 ```bash
-uv run python scripts/reproduce_antolin_2022_2d_examples.py
+uv run python scripts/reproduce_antolin_2022_examples.py
 ```
 
 For faster runs, enable NumPy acceleration in your environment:
@@ -60,10 +60,16 @@ Source and credit for the reproduced Section 6 2D protocols:
 
 The default mode is a quick protocol check (fast enough for local iteration).
 
+To run only the 2D parts:
+
+```bash
+uv run python scripts/reproduce_antolin_2022_examples.py --skip-3d
+```
+
 For denser settings closer to the Antolin-Wei-Buffa (2022) sweep:
 
 ```bash
-uv run python scripts/reproduce_antolin_2022_2d_examples.py --antolin-paper
+uv run python scripts/reproduce_antolin_2022_examples.py --antolin-paper
 ```
 
 ## Development Workflow
