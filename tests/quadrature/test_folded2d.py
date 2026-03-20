@@ -42,3 +42,16 @@ def test_anchor_must_be_inside_panel() -> None:
     )
     with pytest.raises(ValueError):
         folded_quadrature_rule(panel, order=4, anchor=(1.5, 0.5))
+
+
+def test_exterior_anchor_allowed_for_folded_experiment() -> None:
+    panel = TrimmedPanel2D(
+        outer=PanelLoop2D(((0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)))
+    )
+    folded = folded_quadrature_rule(
+        panel,
+        order=8,
+        anchor=(1.5, 0.5),
+        require_interior_anchor=False,
+    )
+    assert sum(folded.rule.weights) == pytest.approx(1.0, abs=1.0e-12)

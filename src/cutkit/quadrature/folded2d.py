@@ -64,15 +64,22 @@ def decompose_panel(
     panel: TrimmedPanel2D,
     *,
     anchor: Point2D | None = None,
+    require_interior_anchor: bool = True,
 ) -> tuple[TrimmedPanel2D, Point2D, tuple[SignedTriangle2D, ...]]:
     """Return normalized panel, anchor, and folded signed triangles."""
 
     normalized = normalize_panel_orientations(panel)
     if anchor is None:
-        selected_anchor = select_interior_anchor(normalized)
+        if require_interior_anchor:
+            selected_anchor = select_interior_anchor(normalized)
+        else:
+            xmin, ymin, xmax, ymax = normalized.bbox()
+            selected_anchor = ((xmin + xmax) * 0.5, (ymin + ymax) * 0.5)
     else:
         selected_anchor = (float(anchor[0]), float(anchor[1]))
-        if not point_in_panel(selected_anchor, normalized, include_boundary=False):
+        if require_interior_anchor and not point_in_panel(
+            selected_anchor, normalized, include_boundary=False
+        ):
             raise ValueError("provided anchor must lie strictly inside panel")
 
     triangles: list[SignedTriangle2D] = []
@@ -166,10 +173,15 @@ def folded_quadrature_rule(
     *,
     order: int,
     anchor: Point2D | None = None,
+    require_interior_anchor: bool = True,
 ) -> FoldedQuadratureResult:
     """Build folded decomposition and aggregate to one panel quadrature rule."""
 
-    normalized, selected_anchor, triangles = decompose_panel(panel, anchor=anchor)
+    normalized, selected_anchor, triangles = decompose_panel(
+        panel,
+        anchor=anchor,
+        require_interior_anchor=require_interior_anchor,
+    )
     triangle_rules = tuple(
         triangle_duffy_rule(triangle, order=order) for triangle in triangles
     )

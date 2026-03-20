@@ -38,6 +38,18 @@ Current limitations:
 - no 3D folded decomposition yet
 - no singular-kernel-specialized quadrature yet
 
+Reproduction script for the 2D paper examples:
+
+```bash
+uv run python scripts/reproduce_paper_2d_examples.py
+```
+
+For denser settings closer to the paper's sweep:
+
+```bash
+uv run python scripts/reproduce_paper_2d_examples.py --full
+```
+
 ## Development Workflow
 
 CUTKIT uses `uv` for dependency and environment management.
