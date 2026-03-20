@@ -44,10 +44,12 @@ Reproduction script for the 2D paper examples:
 uv run python scripts/reproduce_paper_2d_examples.py
 ```
 
+The default mode is a quick protocol check (fast enough for local iteration).
+
 For denser settings closer to the paper's sweep:
 
 ```bash
-uv run python scripts/reproduce_paper_2d_examples.py --full
+uv run python scripts/reproduce_paper_2d_examples.py --paper
 ```
 
 ## Development Workflow

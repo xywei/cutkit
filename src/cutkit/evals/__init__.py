@@ -10,6 +10,7 @@ from cutkit.evals.cutpanel import (
     validate_case,
 )
 from cutkit.evals.paper_examples_2d import (
+    GeneralFunctionOrderResult,
     GeneralFunctionResult,
     PolynomialDegreeResult,
     PolynomialExperimentResult,
@@ -28,6 +29,7 @@ __all__ = [
     "evaluate_case",
     "run_default_eval",
     "validate_case",
+    "GeneralFunctionOrderResult",
     "GeneralFunctionResult",
     "PolynomialDegreeResult",
     "PolynomialExperimentResult",

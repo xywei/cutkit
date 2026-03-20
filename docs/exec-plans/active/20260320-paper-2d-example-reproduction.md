@@ -9,6 +9,8 @@ and regression tests in the active PR.
 ## Scope
 
 - Add reusable experiment helpers for Section 6.1.1, 6.1.2, and 6.2 in 2D.
+- Match Section 6 elementwise Cartesian-grid/cell protocol for 2D tests.
+- Implement Eq. (18) error definition for polynomial integration on trimmed cells.
 - Add a script to run and print reproduction tables.
 - Add tests that validate the qualitative behaviors reported in the paper.
 
@@ -26,6 +28,9 @@ and regression tests in the active PR.
 ## Checklist
 
 - [x] Add 2D paper-example helper module in `cutkit.evals`.
+- [x] Implement Cartesian cell clipping/classification for Section 6 protocol.
+- [x] Implement Eq. (18) absolute/relative polynomial error reporting.
+- [x] Implement Section 6.2 elementwise grid-refinement convergence protocol.
 - [x] Add script to run the reproductions and print tabulated errors.
 - [x] Add tests for polynomial and non-polynomial 2D experiments.
 - [x] Run full repository checks.
