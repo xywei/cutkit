@@ -106,23 +106,23 @@ def main() -> int:
     parser.add_argument(
         "--antolin-paper",
         action="store_true",
-        help="use full Antolin-Wei-Buffa 2022 protocol parameters (slower)",
+        help="use denser Antolin-Wei-Buffa 2022 protocol parameters (slower)",
     )
     args = parser.parse_args()
 
     if args.antolin_paper:
-        sample_count = 192
+        sample_count = 160
         sec61_grid_resolution = 8
-        sec61_seed_grid_size = 11
-        sec61_reference_order = 64
-        sec61_1_degrees = tuple(range(1, 11))
+        sec61_seed_grid_size = 7
+        sec61_reference_order = 48
+        sec61_1_degrees = tuple(range(1, 7))
         sec61_2_degrees = (2, 4, 6)
-        sec61_orders = tuple(range(1, 13))
+        sec61_orders = (2, 4, 6, 8, 10)
 
         sec62_orders = (1, 2, 3, 4, 5)
-        sec62_grids = (2, 4, 8, 16, 32, 64, 128)
-        sec62_reference_grid = 128
-        sec62_reference_order = 64
+        sec62_grids = (2, 4, 8, 16, 32, 64)
+        sec62_reference_grid = 64
+        sec62_reference_order = 48
     else:
         sample_count = 128
         sec61_grid_resolution = 8
