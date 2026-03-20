@@ -9,7 +9,7 @@ from cutkit.evals.cutpanel import (
     run_default_eval,
     validate_case,
 )
-from cutkit.evals.paper_examples_2d import (
+from cutkit.evals.antolin_wei_buffa_2022_2d import (
     GeneralFunctionOrderResult,
     GeneralFunctionResult,
     PolynomialDegreeResult,

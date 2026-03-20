@@ -1,10 +1,13 @@
-"""Section 6 protocol reproductions for folded decomposition (2D).
+"""Section 6 protocol reproductions for Antolin-Wei-Buffa (2022, 2D).
 
 This module implements the grid/cell protocol and error definitions described
 in Section 6 of:
 
-Antolin, Wei, Buffa (2022), "Robust Numerical Integration on Curved
-Polyhedra Based on Folded Decompositions".
+Pablo Antolin, Xiaodong Wei, Annalisa Buffa (2022),
+"Robust Numerical Integration on Curved Polyhedra Based on Folded
+Decompositions", Computer Methods in Applied Mechanics and Engineering.
+DOI: 10.1016/j.cma.2022.114948.
+arXiv: https://arxiv.org/abs/2109.03734.
 
 The implementation is CUTKIT-oriented and targets the 2D examples from
 Sections 6.1.1, 6.1.2, and 6.2.
@@ -550,7 +553,8 @@ def run_polynomial_experiment(
 
         Err = max_{K in G, K cap Gamma != empty} max_i |I^h_{K,i} - I^ref_{K,i}|.
 
-    The folded path follows the paper's 2D seed-vertex sweep in Section 6.1:
+    The folded path follows the Antolin-Wei-Buffa 2022 seed-vertex sweep in
+    Section 6.1:
     for each trimmed cell, a uniform ``seed_grid_size x seed_grid_size`` seed set
     is evaluated and the worst error is retained.
     """

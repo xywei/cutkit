@@ -1,5 +1,13 @@
 #!/usr/bin/env python3
-"""Reproduce Section 6 2D experiments with paper-style protocols."""
+"""Reproduce 2D Section 6 experiments from Antolin-Wei-Buffa (2022).
+
+Source and credit:
+- Pablo Antolin, Xiaodong Wei, Annalisa Buffa.
+- "Robust Numerical Integration on Curved Polyhedra Based on Folded Decompositions".
+- Computer Methods in Applied Mechanics and Engineering, 2022.
+- DOI: 10.1016/j.cma.2022.114948
+- arXiv: https://arxiv.org/abs/2109.03734
+"""
 
 from __future__ import annotations
 
@@ -90,16 +98,19 @@ def _print_general_function_result(
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Reproduce 2D Section 6 protocols from folded decomposition paper"
+        description=(
+            "Reproduce 2D Section 6 protocols from "
+            "Antolin-Wei-Buffa (CMAME 2022, DOI 10.1016/j.cma.2022.114948)"
+        )
     )
     parser.add_argument(
-        "--paper",
+        "--antolin-paper",
         action="store_true",
-        help="use paper-level protocol parameters (slower)",
+        help="use full Antolin-Wei-Buffa 2022 protocol parameters (slower)",
     )
     args = parser.parse_args()
 
-    if args.paper:
+    if args.antolin_paper:
         sample_count = 192
         sec61_grid_resolution = 8
         sec61_seed_grid_size = 11

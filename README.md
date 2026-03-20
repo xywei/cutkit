@@ -38,18 +38,26 @@ Current limitations:
 - no 3D folded decomposition yet
 - no singular-kernel-specialized quadrature yet
 
-Reproduction script for the 2D paper examples:
+Reproduction script for the 2D Antolin-Wei-Buffa (2022) examples:
 
 ```bash
-uv run python scripts/reproduce_paper_2d_examples.py
+uv run python scripts/reproduce_antolin_2022_2d_examples.py
 ```
+
+Source and credit for the reproduced Section 6 2D protocols:
+
+- Pablo Antolin, Xiaodong Wei, Annalisa Buffa
+- "Robust Numerical Integration on Curved Polyhedra Based on Folded Decompositions"
+- Computer Methods in Applied Mechanics and Engineering (2022)
+- DOI: `10.1016/j.cma.2022.114948`
+- arXiv: `2109.03734` (`https://arxiv.org/abs/2109.03734`)
 
 The default mode is a quick protocol check (fast enough for local iteration).
 
-For denser settings closer to the paper's sweep:
+For denser settings closer to the Antolin-Wei-Buffa (2022) sweep:
 
 ```bash
-uv run python scripts/reproduce_paper_2d_examples.py --paper
+uv run python scripts/reproduce_antolin_2022_2d_examples.py --antolin-paper
 ```
 
 ## Development Workflow
