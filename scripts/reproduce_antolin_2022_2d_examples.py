@@ -14,6 +14,7 @@ from __future__ import annotations
 import argparse
 
 from cutkit.evals import (
+    NUMPY_ACCELERATION_ENABLED,
     build_section_6_1_1_bspline_panel,
     build_section_6_1_2_rational_panel,
     run_general_function_experiment,
@@ -146,6 +147,12 @@ def main() -> int:
         sec62_reference_grid,
         sec62_reference_order,
     )
+    print("NumPy acceleration enabled =", NUMPY_ACCELERATION_ENABLED)
+    if args.antolin_paper and not NUMPY_ACCELERATION_ENABLED:
+        print(
+            "Warning: --antolin-paper without NumPy can be very slow. "
+            "Install NumPy or run with a Python environment that has NumPy."
+        )
     print()
 
     _print_polynomial_result(

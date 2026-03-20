@@ -44,6 +44,12 @@ Reproduction script for the 2D Antolin-Wei-Buffa (2022) examples:
 uv run python scripts/reproduce_antolin_2022_2d_examples.py
 ```
 
+For faster runs, enable NumPy acceleration in your environment:
+
+```bash
+uv sync --extra perf
+```
+
 Source and credit for the reproduced Section 6 2D protocols:
 
 - Pablo Antolin, Xiaodong Wei, Annalisa Buffa

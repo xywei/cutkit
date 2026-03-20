@@ -17,11 +17,20 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from functools import lru_cache
-from math import comb, cos, exp, sin, sqrt
-from typing import Callable, Literal
+from math import cos, exp, sin, sqrt
+from typing import Any, Callable, Literal, cast
+
+import importlib.util
 
 from cutkit.geometry import PanelLoop2D, Point2D, TrimmedPanel2D
 from cutkit.quadrature import folded_quadrature_rule, gauss_legendre_01
+
+if importlib.util.find_spec("numpy") is not None:
+    import numpy as _np  # type: ignore[import-not-found]
+else:
+    _np = None
+
+NUMPY_ACCELERATION_ENABLED = _np is not None
 
 Polygon2D = tuple[Point2D, ...]
 
@@ -418,8 +427,83 @@ def _cached_rule(
     return folded.rule.points, folded.rule.weights
 
 
-def _bernstein_1d(p: int, i: int, t: float) -> float:
-    return comb(p, i) * (t**i) * ((1.0 - t) ** (p - i))
+@lru_cache(maxsize=65536)
+def _cached_rule_arrays(
+    polygon: Polygon2D,
+    order: int,
+    anchor: Point2D | None,
+    require_interior_anchor: bool,
+) -> tuple[Any, Any]:
+    """Return cached rule as NumPy arrays when NumPy is available."""
+
+    assert _np is not None
+    points, weights = _cached_rule(polygon, order, anchor, require_interior_anchor)
+    return _np.asarray(points, dtype=float), _np.asarray(weights, dtype=float)
+
+
+@lru_cache(maxsize=64)
+def _cached_gauss_arrays(order: int) -> tuple[Any, Any]:
+    """Return Gauss nodes/weights as NumPy arrays when NumPy is available."""
+
+    assert _np is not None
+    nodes, quad_weights = gauss_legendre_01(order)
+    return _np.asarray(nodes, dtype=float), _np.asarray(quad_weights, dtype=float)
+
+
+def _bernstein_all(p: int, t: float) -> tuple[float, ...]:
+    """Return all Bernstein basis values ``B_i^p(t)`` for ``i=0..p``."""
+
+    if t <= 0.0:
+        out = [0.0] * (p + 1)
+        out[0] = 1.0
+        return tuple(out)
+
+    if t >= 1.0:
+        out = [0.0] * (p + 1)
+        out[p] = 1.0
+        return tuple(out)
+
+    one_minus_t = 1.0 - t
+    ratio = t / one_minus_t
+
+    out = [0.0] * (p + 1)
+    value = one_minus_t**p
+    out[0] = value
+    for i in range(p):
+        value *= ratio * (p - i) / (i + 1)
+        out[i + 1] = value
+    return tuple(out)
+
+
+def _bernstein_matrix_numpy(p: int, t_values: Any) -> Any:
+    """Return Bernstein values for all samples (NumPy acceleration path)."""
+
+    assert _np is not None
+
+    t = _np.asarray(t_values, dtype=float)
+    out = _np.zeros((t.size, p + 1), dtype=float)
+
+    mask_low = t <= 0.0
+    mask_high = t >= 1.0
+    mask_mid = ~(mask_low | mask_high)
+
+    out[mask_low, 0] = 1.0
+    out[mask_high, p] = 1.0
+
+    if _np.any(mask_mid):
+        tm = t[mask_mid]
+        one_minus_t = 1.0 - tm
+        ratio = tm / one_minus_t
+        values = one_minus_t**p
+
+        out_mid = out[mask_mid]
+        out_mid[:, 0] = values
+        for i in range(p):
+            values = values * ratio * (p - i) / (i + 1)
+            out_mid[:, i + 1] = values
+        out[mask_mid] = out_mid
+
+    return out
 
 
 def _max_abs(values: tuple[float, ...]) -> float:
@@ -433,18 +517,44 @@ def _max_abs_diff(a: tuple[float, ...], b: tuple[float, ...]) -> float:
 
 
 def _integrate_local_bernstein_over_rule(
-    points: tuple[Point2D, ...],
-    weights: tuple[float, ...],
+    points: tuple[Point2D, ...] | Any,
+    weights: tuple[float, ...] | Any,
     *,
     degree: int,
     cell: CartesianCell2D,
 ) -> tuple[float, ...]:
     count = degree + 1
+
+    if _np is not None:
+        points_arr = cast(Any, points)
+        weights_arr = cast(Any, weights)
+        if not (hasattr(points_arr, "shape") and hasattr(weights_arr, "shape")):
+            points_arr = _np.asarray(points, dtype=float)
+            weights_arr = _np.asarray(weights, dtype=float)
+
+        x0 = cell.x0
+        y0 = cell.y0
+        width = cell.width
+        height = cell.height
+
+        u = _np.clip((points_arr[:, 0] - x0) / width, 0.0, 1.0)
+        v = _np.clip((points_arr[:, 1] - y0) / height, 0.0, 1.0)
+
+        bx = _bernstein_matrix_numpy(degree, u)
+        by = _bernstein_matrix_numpy(degree, v)
+        values = (bx * weights_arr[:, None]).T @ by
+        return tuple(values.reshape(count * count).tolist())
+
     values = [0.0] * (count * count)
 
+    x0 = cell.x0
+    y0 = cell.y0
+    width = cell.width
+    height = cell.height
+
     for (x, y), weight in zip(points, weights):
-        u = (x - cell.x0) / cell.width
-        v = (y - cell.y0) / cell.height
+        u = (x - x0) / width
+        v = (y - y0) / height
         if u < 0.0:
             u = 0.0
         elif u > 1.0:
@@ -454,12 +564,13 @@ def _integrate_local_bernstein_over_rule(
         elif v > 1.0:
             v = 1.0
 
-        bx = [_bernstein_1d(degree, i, u) for i in range(count)]
-        by = [_bernstein_1d(degree, j, v) for j in range(count)]
+        bx = _bernstein_all(degree, u)
+        by = _bernstein_all(degree, v)
         for i in range(count):
             base = i * count
+            bxi_w = bx[i] * weight
             for j in range(count):
-                values[base + j] += weight * bx[i] * by[j]
+                values[base + j] += bxi_w * by[j]
 
     return tuple(values)
 
@@ -473,7 +584,13 @@ def _integrate_bernstein_trimmed_cell(
     anchor: Point2D | None,
     require_interior_anchor: bool,
 ) -> tuple[float, ...]:
-    points, weights = _cached_rule(polygon, order, anchor, require_interior_anchor)
+    if _np is not None:
+        points, weights = _cached_rule_arrays(
+            polygon, order, anchor, require_interior_anchor
+        )
+    else:
+        points, weights = _cached_rule(polygon, order, anchor, require_interior_anchor)
+
     return _integrate_local_bernstein_over_rule(
         points, weights, degree=degree, cell=cell
     )
@@ -485,7 +602,20 @@ def _integrate_function_rectangle(
     cell: CartesianCell2D,
     order: int,
 ) -> float:
+    if _np is not None:
+        nodes_arr, weights_arr = _cached_gauss_arrays(order)
+        xs = cell.x0 + nodes_arr * cell.width
+        ys = cell.y0 + nodes_arr * cell.height
+        xx, yy = _np.meshgrid(xs, ys, indexing="ij")
+        w2 = _np.outer(weights_arr, weights_arr) * cell.area
+        try:
+            values = func(xx, yy)
+            return float(_np.sum(values * w2))
+        except Exception:
+            pass
+
     nodes, quad_weights = gauss_legendre_01(order)
+
     total = 0.0
     for ux, wx in zip(nodes, quad_weights):
         x = cell.x0 + ux * cell.width
@@ -503,9 +633,26 @@ def _integrate_function_trimmed_cell(
     anchor: Point2D | None,
     require_interior_anchor: bool,
 ) -> float:
-    points, weights = _cached_rule(polygon, order, anchor, require_interior_anchor)
+    if _np is not None:
+        points_arr, weights_arr = _cached_rule_arrays(
+            polygon, order, anchor, require_interior_anchor
+        )
+    else:
+        points_arr, weights_arr = _cached_rule(
+            polygon, order, anchor, require_interior_anchor
+        )
+
+    if _np is not None:
+        np_points: Any = cast(Any, points_arr)
+        np_weights: Any = cast(Any, weights_arr)
+        try:
+            values = func(np_points[:, 0], np_points[:, 1])
+            return float(_np.dot(values, np_weights))
+        except Exception:
+            pass
+
     total = 0.0
-    for (x, y), weight in zip(points, weights):
+    for (x, y), weight in zip(points_arr, weights_arr):
         total += func(x, y) * weight
     return total
 
@@ -674,6 +821,8 @@ def run_polynomial_experiment(
 def section_6_2_integrand(x: float, y: float) -> float:
     """2D non-polynomial integrand used in Section 6.2."""
 
+    if _np is not None:
+        return _np.exp(y) * _np.sin(x) * _np.cos(y)
     return exp(y) * sin(x) * cos(y)
 
 

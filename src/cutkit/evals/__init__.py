@@ -12,6 +12,7 @@ from cutkit.evals.cutpanel import (
 from cutkit.evals.antolin_wei_buffa_2022_2d import (
     GeneralFunctionOrderResult,
     GeneralFunctionResult,
+    NUMPY_ACCELERATION_ENABLED,
     PolynomialDegreeResult,
     PolynomialExperimentResult,
     build_section_6_1_1_bspline_panel,
@@ -31,6 +32,7 @@ __all__ = [
     "validate_case",
     "GeneralFunctionOrderResult",
     "GeneralFunctionResult",
+    "NUMPY_ACCELERATION_ENABLED",
     "PolynomialDegreeResult",
     "PolynomialExperimentResult",
     "build_section_6_1_1_bspline_panel",

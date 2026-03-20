@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from functools import lru_cache
 from math import cos, pi
 
 from cutkit.geometry import PanelLoop2D, Point2D, TrimmedPanel2D
@@ -100,6 +101,7 @@ def decompose_panel(
     return normalized, selected_anchor, tuple(triangles)
 
 
+@lru_cache(maxsize=64)
 def gauss_legendre_01(order: int) -> tuple[tuple[float, ...], tuple[float, ...]]:
     """Gauss-Legendre nodes and weights mapped to ``[0, 1]``."""
 
