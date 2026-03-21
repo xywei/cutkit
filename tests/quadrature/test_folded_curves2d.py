@@ -72,3 +72,30 @@ def test_curve_loop_rejects_discontinuous_edges() -> None:
                 CurveEdge2D.line((0.0, 2.0), (0.0, 1.0)),
             )
         )
+
+
+def test_folded_curve_anchor_search_handles_thin_frame() -> None:
+    panel = CurveTrimmedPanel2D(
+        outer=CurveLoop2D(
+            edges=(
+                CurveEdge2D.line((0.0, 0.0), (1.0, 0.0)),
+                CurveEdge2D.line((1.0, 0.0), (1.0, 1.0)),
+                CurveEdge2D.line((1.0, 1.0), (0.0, 1.0)),
+                CurveEdge2D.line((0.0, 1.0), (0.0, 0.0)),
+            )
+        ),
+        holes=(
+            CurveLoop2D(
+                edges=(
+                    CurveEdge2D.line((0.003, 0.997), (0.997, 0.997)),
+                    CurveEdge2D.line((0.997, 0.997), (0.997, 0.003)),
+                    CurveEdge2D.line((0.997, 0.003), (0.003, 0.003)),
+                    CurveEdge2D.line((0.003, 0.003), (0.003, 0.997)),
+                )
+            ),
+        ),
+    )
+
+    folded = folded_curve_quadrature_rule(panel, order=2, require_interior_anchor=True)
+    expected_area = 1.0 - (0.997 - 0.003) ** 2
+    assert sum(folded.rule.weights) == pytest.approx(expected_area, abs=1.0e-8)

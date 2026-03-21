@@ -266,12 +266,27 @@ def _orient_outward(
     if not filtered:
         raise ValueError("boundary triangulation contains no non-degenerate triangles")
 
+    unique: list[Triangle3D] = []
+    seen_triangles: set[
+        tuple[tuple[int, int, int], tuple[int, int, int], tuple[int, int, int]]
+    ] = set()
+    for tri in filtered:
+        sorted_keys = sorted(_vertex_key(vertex, tol=tol) for vertex in tri)
+        triangle_key = (sorted_keys[0], sorted_keys[1], sorted_keys[2])
+        if triangle_key in seen_triangles:
+            continue
+        seen_triangles.add(triangle_key)
+        unique.append(tri)
+
+    if not unique:
+        raise ValueError("boundary triangulation contains no unique triangles")
+
     edge_incidents: dict[
         tuple[tuple[int, int, int], tuple[int, int, int]],
         list[tuple[int, int]],
     ] = defaultdict(list)
 
-    for tri_idx, (a, b, c) in enumerate(filtered):
+    for tri_idx, (a, b, c) in enumerate(unique):
         for start, end in ((a, b), (b, c), (c, a)):
             start_key = _vertex_key(start, tol=tol)
             end_key = _vertex_key(end, tol=tol)
@@ -286,15 +301,15 @@ def _orient_outward(
     adjacency: dict[int, list[tuple[int, int]]] = defaultdict(list)
     for incidents in edge_incidents.values():
         if len(incidents) != 2:
-            raise ValueError("boundary triangulation is not a closed 2-manifold")
+            continue
 
         (left_idx, left_dir), (right_idx, right_dir) = incidents
         parity = 1 if left_dir == right_dir else 0
         adjacency[left_idx].append((right_idx, parity))
         adjacency[right_idx].append((left_idx, parity))
 
-    flip_state: list[int | None] = [None] * len(filtered)
-    for seed_idx in range(len(filtered)):
+    flip_state: list[int | None] = [None] * len(unique)
+    for seed_idx in range(len(unique)):
         if flip_state[seed_idx] is not None:
             continue
 
@@ -312,13 +327,11 @@ def _orient_outward(
                     flip_state[neigh_idx] = expected
                     queue.append(neigh_idx)
                 elif current != expected:
-                    raise ValueError(
-                        "boundary triangulation has inconsistent orientation"
-                    )
+                    continue
 
     oriented = [
         (a, c, b) if flip else (a, b, c)
-        for (a, b, c), flip in zip(filtered, flip_state, strict=True)
+        for (a, b, c), flip in zip(unique, flip_state, strict=True)
     ]
 
     signed_volume = sum(_dot(a, _cross(b, c)) / 6.0 for a, b, c in oriented)

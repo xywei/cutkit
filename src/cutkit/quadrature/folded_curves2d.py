@@ -78,6 +78,31 @@ def _sample_refinement_counts(base: int) -> tuple[int, ...]:
     return tuple(counts)
 
 
+def _probe_anchor_from_outer_vertices(
+    sampled: TrimmedPanel2D,
+    *,
+    tol: float = 1.0e-12,
+) -> Point2D | None:
+    xmin, ymin, xmax, ymax = sampled.bbox()
+    center = ((xmin + xmax) * 0.5, (ymin + ymax) * 0.5)
+
+    for factor in (
+        1.0 / 16.0,
+        1.0 / 32.0,
+        1.0 / 64.0,
+        1.0 / 128.0,
+        1.0 / 256.0,
+        1.0 / 512.0,
+        1.0 / 1024.0,
+        1.0 / 2048.0,
+    ):
+        for vx, vy in sampled.outer.points:
+            candidate = (vx + factor * (center[0] - vx), vy + factor * (center[1] - vy))
+            if point_in_panel(candidate, sampled, include_boundary=False, tol=tol):
+                return candidate
+    return None
+
+
 def _select_interior_anchor_adaptive(
     panel: CurveTrimmedPanel2D,
     *,
@@ -87,7 +112,11 @@ def _select_interior_anchor_adaptive(
 
     for points_per_edge in _sample_refinement_counts(base_points_per_edge):
         sampled = _sampled_trimmed_panel(panel, points_per_edge=points_per_edge)
-        for grid_size in (17, 33, 65, 129):
+        probe_anchor = _probe_anchor_from_outer_vertices(sampled)
+        if probe_anchor is not None:
+            return probe_anchor, sampled
+
+        for grid_size in (17, 33, 65, 129, 257):
             try:
                 anchor = select_interior_anchor(sampled, grid_size=grid_size)
                 return anchor, sampled

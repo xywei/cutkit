@@ -96,3 +96,16 @@ def test_section_6_2_3d_grid_protocol_errors_reduce() -> None:
     assert order_1.folded_abs_error[1] < order_1.folded_abs_error[0]
     assert order_2.folded_abs_error[1] < order_2.folded_abs_error[0]
     assert order_2.folded_abs_error[1] < order_1.folded_abs_error[1]
+
+
+@pytest.mark.parametrize("surface_resolution", [6, 9, 10, 12, 15, 18, 20, 21, 24])
+def test_section_6_1_3_boundary_builder_supports_resolution(
+    surface_resolution: int,
+) -> None:
+    boundary = build_section_6_1_3_boundary_triangles(
+        surface_resolution=surface_resolution
+    )
+    vol_a = _tetra_volume_sum(boundary, (1.0, 1.0, 0.5))
+    vol_b = _tetra_volume_sum(boundary, (0.5, 0.5, 0.5))
+    assert vol_a > 0.0
+    assert vol_a == pytest.approx(vol_b, rel=1.0e-10, abs=1.0e-10)
