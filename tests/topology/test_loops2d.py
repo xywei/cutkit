@@ -54,6 +54,21 @@ def test_anchor_selection_handles_thin_frame_panel() -> None:
     assert point_in_panel(anchor, normalized, include_boundary=False)
 
 
+def test_anchor_selection_handles_ultra_thin_frame_panel() -> None:
+    panel = TrimmedPanel2D(
+        outer=PanelLoop2D(((0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0))),
+        holes=(
+            PanelLoop2D(
+                ((0.003, 0.997), (0.997, 0.997), (0.997, 0.003), (0.003, 0.003))
+            ),
+        ),
+    )
+
+    normalized = normalize_panel_orientations(panel)
+    anchor = select_interior_anchor(normalized)
+    assert point_in_panel(anchor, normalized, include_boundary=False)
+
+
 def test_validate_panel_reports_degenerate_and_orientation_issues() -> None:
     panel = TrimmedPanel2D(
         outer=PanelLoop2D(((0.0, 0.0), (0.0, 1.0), (1.0, 1.0), (1.0, 0.0))),

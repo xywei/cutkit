@@ -218,12 +218,29 @@ def select_interior_anchor(
         if point_in_panel(candidate, panel, include_boundary=False, tol=tol):
             return candidate
 
+    center = ((xmin + xmax) * 0.5, (ymin + ymax) * 0.5)
+    for factor in (
+        1.0 / 16.0,
+        1.0 / 32.0,
+        1.0 / 64.0,
+        1.0 / 128.0,
+        1.0 / 256.0,
+        1.0 / 512.0,
+        1.0 / 1024.0,
+        1.0 / 2048.0,
+        1.0 / 4096.0,
+    ):
+        for vx, vy in outer_points:
+            candidate = (vx + factor * (center[0] - vx), vy + factor * (center[1] - vy))
+            if point_in_panel(candidate, panel, include_boundary=False, tol=tol):
+                return candidate
+
     if grid_size < 2:
         grid_size = 2
 
     x_span = xmax - xmin
     y_span = ymax - ymin
-    for refinement in (1, 2, 4, 8):
+    for refinement in (1, 2, 4, 8, 16, 32):
         current_grid_size = max(2, grid_size * refinement)
         for ix in range(current_grid_size):
             for iy in range(current_grid_size):

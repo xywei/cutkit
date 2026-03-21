@@ -13,7 +13,7 @@ from cutkit.geometry import (
     TrimmedPanel2D,
     curve_loop_signed_area,
 )
-from cutkit.topology import point_in_panel, select_interior_anchor
+from cutkit.topology import point_in_panel, select_interior_anchor, validate_panel
 
 from .folded2d import gauss_legendre_01
 from .rule2d import QuadratureRule2D, concatenate_rules
@@ -183,6 +183,15 @@ def folded_curve_quadrature_rule(
     """
 
     normalized = _normalize_curve_panel_orientations(panel)
+    validation_sampled = _sampled_trimmed_panel(
+        normalized,
+        points_per_edge=max(64, anchor_sample_points),
+    )
+    validation = validate_panel(validation_sampled)
+    if validation.errors:
+        details = "; ".join(validation.errors)
+        raise ValueError(f"invalid curve panel topology: {details}")
+
     if anchor is None:
         if require_interior_anchor:
             selected_anchor, sampled = _select_interior_anchor_adaptive(
