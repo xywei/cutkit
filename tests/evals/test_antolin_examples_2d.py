@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 
+from cutkit.evals import antolin_wei_buffa_2022_2d as awb2d
 from cutkit.evals import (
     OPENCASCADE_CAD_AVAILABLE,
     build_section_6_1_1_bspline_panel,
@@ -11,6 +12,7 @@ from cutkit.evals import (
     run_polynomial_experiment_cad,
     run_polynomial_experiment,
 )
+from cutkit.geometry import CurveEdge2D, CurveLoop2D, CurveTrimmedPanel2D
 from cutkit.geometry import PanelLoop2D, TrimmedPanel2D
 
 
@@ -178,3 +180,61 @@ def test_cad_native_general_protocol_or_unavailable_error() -> None:
     low, high = result.order_results
     assert high.folded_abs_error[-1] <= low.folded_abs_error[-1]
     assert high.jplus_abs_error[-1] <= low.jplus_abs_error[-1]
+
+
+def test_cad_native_rejects_bounds_that_clip_section_geometry() -> None:
+    if not OPENCASCADE_CAD_AVAILABLE:
+        with pytest.raises(RuntimeError):
+            run_polynomial_experiment_cad(
+                label="6.1.1",
+                degrees=(2,),
+                orders=(2,),
+                grid_resolution=2,
+                reference_order=4,
+                seed_grid_size=2,
+            )
+        return
+
+    with pytest.raises(ValueError, match="full Section 6 CAD geometry"):
+        run_polynomial_experiment_cad(
+            label="6.1.1",
+            degrees=(2,),
+            orders=(2,),
+            grid_resolution=2,
+            reference_order=4,
+            seed_grid_size=2,
+            bounds=(0.0, 0.0, 0.5, 0.5),
+        )
+
+
+def test_cad_jplus_anchor_failure_raises_instead_of_silent_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    panel = CurveTrimmedPanel2D(
+        outer=CurveLoop2D(
+            edges=(
+                CurveEdge2D.line((0.0, 0.0), (1.0, 0.0)),
+                CurveEdge2D.line((1.0, 0.0), (1.0, 1.0)),
+                CurveEdge2D.line((1.0, 1.0), (0.0, 1.0)),
+                CurveEdge2D.line((0.0, 1.0), (0.0, 0.0)),
+            )
+        )
+    )
+    cell = awb2d.CartesianCell2D(ix=0, iy=0, x0=0.0, x1=1.0, y0=0.0, y1=1.0)
+
+    def fail_for_jplus(*args: object, **kwargs: object) -> object:
+        if kwargs.get("require_interior_anchor", False):
+            raise ValueError("no interior anchor")
+        raise AssertionError("unexpected fallback path call")
+
+    monkeypatch.setattr(awb2d, "folded_curve_quadrature_rule", fail_for_jplus)
+
+    with pytest.raises(RuntimeError, match="jplus mode"):
+        awb2d._integrate_bernstein_trimmed_cell_cad(
+            (panel,),
+            cell=cell,
+            degree=1,
+            order=2,
+            anchor=None,
+            require_interior_anchor=True,
+        )

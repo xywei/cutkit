@@ -461,6 +461,33 @@ def _h_values_from_bounds(
     return tuple(span / resolution for resolution in grid_resolutions)
 
 
+def _section_bounds_for_label(label: str) -> tuple[float, float, float, float]:
+    if label in {"6.1.1", "6.1.2"}:
+        return (0.0, 0.0, 1.0, 1.0)
+    raise ValueError(f"unsupported Section 6 label for CAD path: {label!r}")
+
+
+def _resolve_cad_bounds(
+    label: str,
+    bounds: tuple[float, float, float, float] | None,
+) -> tuple[float, float, float, float]:
+    section_bounds = _section_bounds_for_label(label)
+    if bounds is None:
+        return section_bounds
+
+    xmin, ymin, xmax, ymax = bounds
+    sxmin, symin, sxmax, symax = section_bounds
+    tol = 1.0e-12
+    if (
+        sxmin < xmin - tol
+        or symin < ymin - tol
+        or sxmax > xmax + tol
+        or symax > ymax + tol
+    ):
+        raise ValueError("bounds must contain the full Section 6 CAD geometry")
+    return bounds
+
+
 @lru_cache(maxsize=65536)
 def _cached_rule(
     polygon: Polygon2D,
@@ -1129,17 +1156,13 @@ def _integrate_bernstein_trimmed_cell_cad(
                 require_interior_anchor=require_interior_anchor,
                 anchor_sample_points=CAD_ANCHOR_SAMPLE_POINTS,
             )
-        except ValueError:
-            if not require_interior_anchor or anchor is not None:
-                raise
-            fallback_anchor = ((cell.x0 + cell.x1) * 0.5, (cell.y0 + cell.y1) * 0.5)
-            folded = folded_curve_quadrature_rule(
-                panel,
-                order=order,
-                anchor=fallback_anchor,
-                require_interior_anchor=False,
-                anchor_sample_points=CAD_ANCHOR_SAMPLE_POINTS,
-            )
+        except ValueError as exc:
+            if require_interior_anchor and anchor is None:
+                raise RuntimeError(
+                    "failed to select interior anchor for CAD trimmed cell "
+                    f"({cell.ix}, {cell.iy}) in jplus mode"
+                ) from exc
+            raise
         values = _integrate_local_bernstein_over_rule(
             folded.rule.points,
             folded.rule.weights,
@@ -1171,17 +1194,13 @@ def _integrate_function_trimmed_cell_cad(
                 require_interior_anchor=require_interior_anchor,
                 anchor_sample_points=CAD_ANCHOR_SAMPLE_POINTS,
             )
-        except ValueError:
-            if not require_interior_anchor or anchor is not None or cell is None:
-                raise
-            fallback_anchor = ((cell.x0 + cell.x1) * 0.5, (cell.y0 + cell.y1) * 0.5)
-            folded = folded_curve_quadrature_rule(
-                panel,
-                order=order,
-                anchor=fallback_anchor,
-                require_interior_anchor=False,
-                anchor_sample_points=CAD_ANCHOR_SAMPLE_POINTS,
-            )
+        except ValueError as exc:
+            if require_interior_anchor and anchor is None and cell is not None:
+                raise RuntimeError(
+                    "failed to select interior anchor for CAD trimmed cell "
+                    f"({cell.ix}, {cell.iy}) in jplus mode"
+                ) from exc
+            raise
 
         if _np is not None:
             points_arr = _np.asarray(folded.rule.points, dtype=float)
@@ -1207,11 +1226,12 @@ def run_polynomial_experiment_cad(
     grid_resolution: int = 8,
     reference_order: int = 64,
     seed_grid_size: int = 11,
-    bounds: tuple[float, float, float, float] = (0.0, 0.0, 1.0, 1.0),
+    bounds: tuple[float, float, float, float] | None = None,
 ) -> PolynomialExperimentResult:
     """Run Section 6.1 polynomial protocol with exact CAD cell clipping."""
 
-    clipped = _cached_cad_clipped_cells(label, grid_resolution, bounds)
+    effective_bounds = _resolve_cad_bounds(label, bounds)
+    clipped = _cached_cad_clipped_cells(label, grid_resolution, effective_bounds)
     trimmed = tuple(result for result in clipped if result.kind == "trimmed")
     if not trimmed:
         raise ValueError("no trimmed cells were found for the requested CAD grid")
@@ -1329,9 +1349,10 @@ def _integrate_general_over_grid_cad(
     order: int,
     mode: Literal["jplus", "folded"],
     folded_anchor_mode: Literal["cell-origin", "cell-center"] = "cell-origin",
-    bounds: tuple[float, float, float, float] = (0.0, 0.0, 1.0, 1.0),
+    bounds: tuple[float, float, float, float] | None = None,
 ) -> float:
-    clipped = _cached_cad_clipped_cells(label, grid_resolution, bounds)
+    effective_bounds = _resolve_cad_bounds(label, bounds)
+    clipped = _cached_cad_clipped_cells(label, grid_resolution, effective_bounds)
 
     total = 0.0
     for clip in clipped:
@@ -1381,9 +1402,11 @@ def run_general_function_experiment_cad(
     reference_grid_resolution: int = 128,
     reference_order: int = 64,
     folded_anchor_mode: Literal["cell-origin", "cell-center"] = "cell-origin",
-    bounds: tuple[float, float, float, float] = (0.0, 0.0, 1.0, 1.0),
+    bounds: tuple[float, float, float, float] | None = None,
 ) -> GeneralFunctionResult:
     """Run Section 6.2 protocol with exact CAD clipping + folded quadrature."""
+
+    effective_bounds = _resolve_cad_bounds(label, bounds)
 
     reference = _integrate_general_over_grid_cad(
         label=label,
@@ -1392,12 +1415,12 @@ def run_general_function_experiment_cad(
         order=reference_order,
         mode="jplus",
         folded_anchor_mode=folded_anchor_mode,
-        bounds=bounds,
+        bounds=effective_bounds,
     )
     reference_scale = max(abs(reference), 1.0e-30)
 
     order_results: list[GeneralFunctionOrderResult] = []
-    h_values = _h_values_from_bounds(grid_resolutions, bounds)
+    h_values = _h_values_from_bounds(grid_resolutions, effective_bounds)
 
     for order in orders:
         folded_abs: list[float] = []
@@ -1411,7 +1434,7 @@ def run_general_function_experiment_cad(
                 order=order,
                 mode="folded",
                 folded_anchor_mode=folded_anchor_mode,
-                bounds=bounds,
+                bounds=effective_bounds,
             )
             jplus_value = _integrate_general_over_grid_cad(
                 label=label,
@@ -1420,7 +1443,7 @@ def run_general_function_experiment_cad(
                 order=order,
                 mode="jplus",
                 folded_anchor_mode=folded_anchor_mode,
-                bounds=bounds,
+                bounds=effective_bounds,
             )
 
             folded_abs.append(abs(folded_value - reference))
