@@ -42,3 +42,14 @@ def test_orientation_violations_are_reported() -> None:
 
     errors = validate_case(case)
     assert any("Hole loop" in error for error in errors)
+
+
+def test_validate_case_reports_invalid_area_without_raising() -> None:
+    case = CutPanelCase(
+        name="zero-area-hole-cancel",
+        outer=((0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)),
+        holes=(((0.0, 1.0), (1.0, 1.0), (1.0, 0.0), (0.0, 0.0)),),
+    )
+
+    errors = validate_case(case)
+    assert "Panel area must be positive." in errors

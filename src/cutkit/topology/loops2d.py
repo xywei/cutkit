@@ -136,16 +136,33 @@ def point_in_panel(
     """Return whether *point* lies inside the trimmed panel."""
 
     panel = _coerce_panel(panel)
-    if not point_in_loop(
-        point, panel.outer, include_boundary=include_boundary, tol=tol
-    ):
+
+    if _point_on_loop_boundary(point, panel.outer, tol=tol):
+        return include_boundary
+
+    if not point_in_loop(point, panel.outer, include_boundary=False, tol=tol):
         return False
 
     for hole in panel.holes:
-        if point_in_loop(point, hole, include_boundary=include_boundary, tol=tol):
+        if _point_on_loop_boundary(point, hole, tol=tol):
+            return include_boundary
+        if point_in_loop(point, hole, include_boundary=False, tol=tol):
             return False
 
     return True
+
+
+def _point_on_loop_boundary(
+    point: Point2D,
+    loop: PanelLoop2D | Iterable[Point2D],
+    *,
+    tol: float = 1.0e-12,
+) -> bool:
+    normalized = _coerce_loop(loop)
+    for a, b in normalized.edges():
+        if _point_on_segment(point, a, b, tol):
+            return True
+    return False
 
 
 def polygon_centroid(
@@ -206,14 +223,16 @@ def select_interior_anchor(
 
     x_span = xmax - xmin
     y_span = ymax - ymin
-    for ix in range(grid_size):
-        for iy in range(grid_size):
-            candidate = (
-                xmin + (ix + 0.5) * x_span / grid_size,
-                ymin + (iy + 0.5) * y_span / grid_size,
-            )
-            if point_in_panel(candidate, panel, include_boundary=False, tol=tol):
-                return candidate
+    for refinement in (1, 2, 4, 8):
+        current_grid_size = max(2, grid_size * refinement)
+        for ix in range(current_grid_size):
+            for iy in range(current_grid_size):
+                candidate = (
+                    xmin + (ix + 0.5) * x_span / current_grid_size,
+                    ymin + (iy + 0.5) * y_span / current_grid_size,
+                )
+                if point_in_panel(candidate, panel, include_boundary=False, tol=tol):
+                    return candidate
 
     raise ValueError("unable to find interior anchor for panel")
 
@@ -231,22 +250,95 @@ def validate_panel(
 ) -> PanelValidationResult:
     """Validate orientation and positive area invariants for a panel."""
 
-    panel = normalize_panel_orientations(_coerce_panel(panel))
+    panel = _coerce_panel(panel)
     errors: list[str] = []
 
-    outer_area = signed_area(panel.outer)
-    if outer_area <= area_tol:
+    outer_orientation = orientation(panel.outer, area_tol=area_tol)
+    outer_area_abs = abs(signed_area(panel.outer))
+    if outer_orientation == "degenerate":
+        errors.append("outer loop must be non-degenerate")
+    elif outer_orientation != "ccw":
+        errors.append("outer loop orientation must be ccw")
+
+    if outer_area_abs <= area_tol:
         errors.append("outer loop area must be positive")
 
+    holes = panel.holes
     hole_area_sum = 0.0
-    for idx, hole in enumerate(panel.holes):
-        hole_signed = signed_area(hole)
-        if hole_signed >= -area_tol:
-            errors.append(f"hole {idx} area must be negative")
-        hole_area_sum += abs(hole_signed)
+    for idx, hole in enumerate(holes):
+        hole_orientation = orientation(hole, area_tol=area_tol)
+        hole_area_abs = abs(signed_area(hole))
 
-    panel_area = outer_area - hole_area_sum
+        if hole_orientation == "degenerate":
+            errors.append(f"hole {idx} must be non-degenerate")
+        elif hole_orientation != "cw":
+            errors.append(f"hole {idx} orientation must be cw")
+
+        if hole_area_abs <= area_tol:
+            errors.append(f"hole {idx} area magnitude must be positive")
+
+        if not _loop_strictly_inside_outer(hole, panel.outer):
+            errors.append(f"hole {idx} must lie strictly inside outer loop")
+
+        if _loops_edge_intersect(hole, panel.outer):
+            errors.append(f"hole {idx} intersects outer loop boundary")
+
+        hole_area_sum += hole_area_abs
+
+    for i in range(len(holes)):
+        for j in range(i + 1, len(holes)):
+            if _loops_overlap_or_touch(holes[i], holes[j]):
+                errors.append(f"holes {i} and {j} overlap or touch")
+
+    panel_area = outer_area_abs - hole_area_sum
     if panel_area <= area_tol:
         errors.append("trimmed panel area must be positive")
 
     return PanelValidationResult(panel=panel, errors=tuple(errors))
+
+
+def _loop_strictly_inside_outer(hole: PanelLoop2D, outer: PanelLoop2D) -> bool:
+    for point in hole.points:
+        if not point_in_loop(point, outer, include_boundary=False):
+            return False
+    return True
+
+
+def _segment_cross(a: Point2D, b: Point2D, c: Point2D) -> float:
+    return (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])
+
+
+def _segments_intersect(a: Point2D, b: Point2D, c: Point2D, d: Point2D) -> bool:
+    o1 = _segment_cross(a, b, c)
+    o2 = _segment_cross(a, b, d)
+    o3 = _segment_cross(c, d, a)
+    o4 = _segment_cross(c, d, b)
+
+    if _point_on_segment(c, a, b, 1.0e-12):
+        return True
+    if _point_on_segment(d, a, b, 1.0e-12):
+        return True
+    if _point_on_segment(a, c, d, 1.0e-12):
+        return True
+    if _point_on_segment(b, c, d, 1.0e-12):
+        return True
+
+    return (o1 > 0.0) != (o2 > 0.0) and (o3 > 0.0) != (o4 > 0.0)
+
+
+def _loops_edge_intersect(loop_a: PanelLoop2D, loop_b: PanelLoop2D) -> bool:
+    for a0, a1 in loop_a.edges():
+        for b0, b1 in loop_b.edges():
+            if _segments_intersect(a0, a1, b0, b1):
+                return True
+    return False
+
+
+def _loops_overlap_or_touch(loop_a: PanelLoop2D, loop_b: PanelLoop2D) -> bool:
+    for point in loop_a.points:
+        if point_in_loop(point, loop_b, include_boundary=True):
+            return True
+    for point in loop_b.points:
+        if point_in_loop(point, loop_a, include_boundary=True):
+            return True
+    return _loops_edge_intersect(loop_a, loop_b)

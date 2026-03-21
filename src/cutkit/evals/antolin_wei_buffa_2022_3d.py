@@ -14,6 +14,7 @@ and provides CUTKIT-adapted polynomial and general-function experiments.
 from __future__ import annotations
 
 import importlib.util
+from collections import defaultdict, deque
 from dataclasses import dataclass
 from functools import lru_cache
 from math import cos, exp, sin
@@ -241,22 +242,89 @@ def _triangulate_grid(points: list[list[Point3D]]) -> list[Triangle3D]:
     return tris
 
 
+def _triangle_area(tri: Triangle3D) -> float:
+    a, b, c = tri
+    normal = _cross(_sub(b, a), _sub(c, a))
+    return (
+        0.5
+        * (normal[0] * normal[0] + normal[1] * normal[1] + normal[2] * normal[2]) ** 0.5
+    )
+
+
+def _vertex_key(point: Point3D, *, tol: float = 1.0e-12) -> tuple[int, int, int]:
+    return (
+        int(round(point[0] / tol)),
+        int(round(point[1] / tol)),
+        int(round(point[2] / tol)),
+    )
+
+
 def _orient_outward(
-    tris: list[Triangle3D], *, interior_point: Point3D
+    tris: list[Triangle3D], *, tol: float = 1.0e-12
 ) -> tuple[Triangle3D, ...]:
-    oriented: list[Triangle3D] = []
-    for a, b, c in tris:
-        normal = _cross(_sub(b, a), _sub(c, a))
-        centroid = (
-            (a[0] + b[0] + c[0]) / 3.0,
-            (a[1] + b[1] + c[1]) / 3.0,
-            (a[2] + b[2] + c[2]) / 3.0,
-        )
-        toward_interior = _dot(normal, _sub(interior_point, centroid))
-        if toward_interior > 0.0:
-            oriented.append((a, c, b))
-        else:
-            oriented.append((a, b, c))
+    filtered = [tri for tri in tris if _triangle_area(tri) > tol]
+    if not filtered:
+        raise ValueError("boundary triangulation contains no non-degenerate triangles")
+
+    edge_incidents: dict[
+        tuple[tuple[int, int, int], tuple[int, int, int]],
+        list[tuple[int, int]],
+    ] = defaultdict(list)
+
+    for tri_idx, (a, b, c) in enumerate(filtered):
+        for start, end in ((a, b), (b, c), (c, a)):
+            start_key = _vertex_key(start, tol=tol)
+            end_key = _vertex_key(end, tol=tol)
+            if start_key <= end_key:
+                edge = (start_key, end_key)
+                direction = 1
+            else:
+                edge = (end_key, start_key)
+                direction = -1
+            edge_incidents[edge].append((tri_idx, direction))
+
+    adjacency: dict[int, list[tuple[int, int]]] = defaultdict(list)
+    for incidents in edge_incidents.values():
+        if len(incidents) != 2:
+            raise ValueError("boundary triangulation is not a closed 2-manifold")
+
+        (left_idx, left_dir), (right_idx, right_dir) = incidents
+        parity = 1 if left_dir == right_dir else 0
+        adjacency[left_idx].append((right_idx, parity))
+        adjacency[right_idx].append((left_idx, parity))
+
+    flip_state: list[int | None] = [None] * len(filtered)
+    for seed_idx in range(len(filtered)):
+        if flip_state[seed_idx] is not None:
+            continue
+
+        flip_state[seed_idx] = 0
+        queue: deque[int] = deque([seed_idx])
+        while queue:
+            idx = queue.popleft()
+            current_flip = flip_state[idx]
+            if current_flip is None:
+                raise RuntimeError("internal orientation state error")
+            for neigh_idx, parity in adjacency[idx]:
+                expected = current_flip ^ parity
+                current = flip_state[neigh_idx]
+                if current is None:
+                    flip_state[neigh_idx] = expected
+                    queue.append(neigh_idx)
+                elif current != expected:
+                    raise ValueError(
+                        "boundary triangulation has inconsistent orientation"
+                    )
+
+    oriented = [
+        (a, c, b) if flip else (a, b, c)
+        for (a, b, c), flip in zip(filtered, flip_state, strict=True)
+    ]
+
+    signed_volume = sum(_dot(a, _cross(b, c)) / 6.0 for a, b, c in oriented)
+    if signed_volume < 0.0:
+        oriented = [(a, c, b) for a, b, c in oriented]
+
     return tuple(oriented)
 
 
@@ -310,10 +378,7 @@ def build_section_6_1_3_boundary_triangles(
     )
 
     all_tris = [*curved, *x1, *z0, *z1, *y1]
-    interior = _lerp(
-        eval_section_6_1_3_bezier_surface(0.5, 0.5), _x1_face_point(0.5, 0.5), 0.5
-    )
-    return _orient_outward(all_tris, interior_point=interior)
+    return _orient_outward(all_tris)
 
 
 @lru_cache(maxsize=64)
@@ -739,15 +804,6 @@ def run_general_function_experiment_3d(
         seed=jplus_seed,
         order=reference_order,
     )
-    folded_refs = {
-        seed: _integrate_general_over_boundary(
-            boundary,
-            seed=seed,
-            order=reference_order,
-        )
-        for seed in seeds
-    }
-
     results: list[General3DOrderResult] = []
     for order in orders:
         j_val = _integrate_general_over_boundary(
@@ -764,7 +820,7 @@ def run_general_function_experiment_3d(
                 seed=seed,
                 order=order,
             )
-            seed_errors.append(abs(val - folded_refs[seed]))
+            seed_errors.append(abs(val - reference))
 
         results.append(
             General3DOrderResult(

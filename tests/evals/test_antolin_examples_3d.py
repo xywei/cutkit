@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+import pytest
+
 from cutkit.evals import (
+    build_section_6_1_3_boundary_triangles,
     run_general_function_experiment_3d_grid,
     run_general_function_experiment_3d,
     run_polynomial_experiment_3d,
 )
+from cutkit.evals.antolin_wei_buffa_2022_3d import _tetra_volume_sum
 
 
 def test_section_6_1_3_domain_volume_is_positive() -> None:
@@ -57,6 +61,27 @@ def test_section_6_2_3d_general_function_errors_reduce_with_order() -> None:
     assert order_3.jplus_abs_error < order_2.jplus_abs_error
     assert order_2.folded_worst_abs_error >= order_2.folded_best_abs_error
     assert order_3.folded_worst_abs_error >= order_3.folded_best_abs_error
+
+
+def test_section_6_1_3_boundary_volume_is_seed_invariant() -> None:
+    boundary = build_section_6_1_3_boundary_triangles(surface_resolution=4)
+    vol_a = _tetra_volume_sum(boundary, (1.0, 1.0, 0.5))
+    vol_b = _tetra_volume_sum(boundary, (0.5, 0.5, 0.5))
+    assert vol_a == pytest.approx(vol_b)
+
+
+def test_section_6_2_3d_folded_errors_use_common_reference() -> None:
+    result = run_general_function_experiment_3d(
+        orders=(7,),
+        seed_grid_size=2,
+        surface_resolution=4,
+        reference_order=7,
+    )
+
+    order_result = result.orders[0]
+    assert order_result.jplus_abs_error == pytest.approx(0.0)
+    assert order_result.folded_worst_abs_error >= order_result.folded_best_abs_error
+    assert order_result.folded_worst_abs_error > 0.0
 
 
 def test_section_6_2_3d_grid_protocol_errors_reduce() -> None:

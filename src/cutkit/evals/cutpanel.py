@@ -149,21 +149,35 @@ def validate_case(
 ) -> tuple[str, ...]:
     """Validate one case against orientation and positivity invariants."""
 
-    metrics = evaluate_case(case)
+    outer_area_abs = abs(signed_area(case.outer))
+    hole_areas_abs = tuple(abs(signed_area(hole)) for hole in case.holes)
+    area = outer_area_abs - sum(hole_areas_abs)
+    bbox_area = _bbox_area_from_loops((case.outer, *case.holes))
+    cut_fraction = area / bbox_area if bbox_area > 0.0 else 0.0
+    outer_orientation = orientation(case.outer)
+    hole_orientations = tuple(orientation(hole) for hole in case.holes)
+
     errors: list[str] = []
 
-    if metrics.outer_orientation != "ccw":
+    if outer_orientation != "ccw":
         errors.append("Outer loop must be oriented ccw.")
 
-    for idx, hole_orientation in enumerate(metrics.hole_orientations):
+    for idx, hole_orientation in enumerate(hole_orientations):
         if hole_orientation != "cw":
             errors.append(f"Hole loop {idx} must be oriented cw.")
 
-    if metrics.area <= 0.0:
+    if area <= 0.0:
         errors.append("Panel area must be positive.")
 
-    if metrics.cut_fraction <= 0.0 or metrics.cut_fraction > 1.0:
+    if cut_fraction <= 0.0 or cut_fraction > 1.0:
         errors.append("Cut fraction must be in the interval (0, 1].")
+
+    try:
+        metrics = evaluate_case(case)
+    except ValueError:
+        if not errors:
+            errors.append("Folded diagnostics failed for panel geometry.")
+        return tuple(errors)
 
     if metrics.folded_triangle_abs_error is None:
         errors.append("Folded triangle area diagnostics were not computed.")

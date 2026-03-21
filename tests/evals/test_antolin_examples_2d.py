@@ -11,6 +11,7 @@ from cutkit.evals import (
     run_polynomial_experiment_cad,
     run_polynomial_experiment,
 )
+from cutkit.geometry import PanelLoop2D, TrimmedPanel2D
 
 
 def _nonincreasing(values: tuple[float, ...]) -> bool:
@@ -94,6 +95,38 @@ def test_section_6_2_elementwise_protocol_convergence() -> None:
     first_order, second_order = result.order_results
     assert second_order.folded_abs_error[-1] < first_order.folded_abs_error[-1]
     assert second_order.jplus_abs_error[-1] < first_order.jplus_abs_error[-1]
+
+
+def test_polynomial_experiment_defaults_to_panel_bbox_bounds() -> None:
+    panel = build_section_6_1_1_bspline_panel(sample_count=96)
+    shifted = TrimmedPanel2D(
+        outer=PanelLoop2D(tuple((x + 1.0, y) for x, y in panel.outer.points))
+    )
+
+    result = run_polynomial_experiment(
+        shifted,
+        label="6.1.1",
+        degrees=(2,),
+        orders=(2, 4),
+        grid_resolution=4,
+        reference_order=12,
+        seed_grid_size=3,
+    )
+    assert result.degree_results[0].trimmed_cell_count > 0
+
+
+def test_general_experiment_h_values_follow_bounds_span() -> None:
+    panel = build_section_6_1_1_bspline_panel(sample_count=96)
+    result = run_general_function_experiment(
+        panel,
+        orders=(1,),
+        grid_resolutions=(2,),
+        reference_grid_resolution=4,
+        reference_order=12,
+        bounds=(0.0, 0.0, 2.0, 2.0),
+    )
+
+    assert result.order_results[0].h_values == pytest.approx((1.0,))
 
 
 def test_cad_native_polynomial_protocol_or_unavailable_error() -> None:

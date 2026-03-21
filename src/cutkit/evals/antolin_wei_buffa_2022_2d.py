@@ -431,6 +431,36 @@ def _seed_grid_for_cell(
     return tuple(seeds)
 
 
+def _resolve_panel_bounds(
+    panel: TrimmedPanel2D,
+    bounds: tuple[float, float, float, float] | None,
+) -> tuple[float, float, float, float]:
+    panel_bounds = panel.bbox()
+    if bounds is None:
+        return panel_bounds
+
+    xmin, ymin, xmax, ymax = bounds
+    pxmin, pymin, pxmax, pymax = panel_bounds
+    tol = 1.0e-12
+    if (
+        pxmin < xmin - tol
+        or pymin < ymin - tol
+        or pxmax > xmax + tol
+        or pymax > ymax + tol
+    ):
+        raise ValueError("panel bounding box must be contained in bounds")
+    return bounds
+
+
+def _h_values_from_bounds(
+    grid_resolutions: tuple[int, ...],
+    bounds: tuple[float, float, float, float],
+) -> tuple[float, ...]:
+    xmin, ymin, xmax, ymax = bounds
+    span = max(xmax - xmin, ymax - ymin)
+    return tuple(span / resolution for resolution in grid_resolutions)
+
+
 @lru_cache(maxsize=65536)
 def _cached_rule(
     polygon: Polygon2D,
@@ -713,7 +743,7 @@ def run_polynomial_experiment(
     grid_resolution: int = 8,
     reference_order: int = 64,
     seed_grid_size: int = 11,
-    bounds: tuple[float, float, float, float] = (0.0, 0.0, 1.0, 1.0),
+    bounds: tuple[float, float, float, float] | None = None,
 ) -> PolynomialExperimentResult:
     """Run Section 6.1 style elementwise Bernstein tests.
 
@@ -728,7 +758,8 @@ def run_polynomial_experiment(
     """
 
     panel_polygon = _panel_polygon(panel)
-    clipped = _cached_clipped_cells(panel_polygon, grid_resolution, bounds)
+    effective_bounds = _resolve_panel_bounds(panel, bounds)
+    clipped = _cached_clipped_cells(panel_polygon, grid_resolution, effective_bounds)
     trimmed = tuple(result for result in clipped if result.kind == "trimmed")
 
     if not trimmed:
@@ -929,7 +960,7 @@ def run_general_function_experiment(
     reference_grid_resolution: int = 128,
     reference_order: int = 64,
     folded_anchor_mode: Literal["cell-origin", "cell-center"] = "cell-origin",
-    bounds: tuple[float, float, float, float] = (0.0, 0.0, 1.0, 1.0),
+    bounds: tuple[float, float, float, float] | None = None,
 ) -> GeneralFunctionResult:
     """Run Section 6.2 style elementwise integration and convergence sweeps.
 
@@ -938,6 +969,8 @@ def run_general_function_experiment(
     ``h = 1 / resolution``.
     """
 
+    effective_bounds = _resolve_panel_bounds(panel, bounds)
+
     reference = _integrate_general_over_grid(
         panel,
         func=section_6_2_integrand,
@@ -945,12 +978,12 @@ def run_general_function_experiment(
         order=reference_order,
         mode="jplus",
         folded_anchor_mode=folded_anchor_mode,
-        bounds=bounds,
+        bounds=effective_bounds,
     )
     reference_scale = max(abs(reference), 1.0e-30)
 
     order_results: list[GeneralFunctionOrderResult] = []
-    h_values = tuple(1.0 / resolution for resolution in grid_resolutions)
+    h_values = _h_values_from_bounds(grid_resolutions, effective_bounds)
 
     for order in orders:
         folded_abs: list[float] = []
@@ -964,7 +997,7 @@ def run_general_function_experiment(
                 order=order,
                 mode="folded",
                 folded_anchor_mode=folded_anchor_mode,
-                bounds=bounds,
+                bounds=effective_bounds,
             )
             jplus_value = _integrate_general_over_grid(
                 panel,
@@ -973,7 +1006,7 @@ def run_general_function_experiment(
                 order=order,
                 mode="jplus",
                 folded_anchor_mode=folded_anchor_mode,
-                bounds=bounds,
+                bounds=effective_bounds,
             )
 
             folded_abs.append(abs(folded_value - reference))
@@ -1364,7 +1397,7 @@ def run_general_function_experiment_cad(
     reference_scale = max(abs(reference), 1.0e-30)
 
     order_results: list[GeneralFunctionOrderResult] = []
-    h_values = tuple(1.0 / resolution for resolution in grid_resolutions)
+    h_values = _h_values_from_bounds(grid_resolutions, bounds)
 
     for order in orders:
         folded_abs: list[float] = []
