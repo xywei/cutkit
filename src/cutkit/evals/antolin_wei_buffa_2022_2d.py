@@ -9,8 +9,10 @@ Decompositions", Computer Methods in Applied Mechanics and Engineering.
 DOI: 10.1016/j.cma.2022.114948.
 arXiv: https://arxiv.org/abs/2109.03734.
 
-The implementation is CUTKIT-oriented and targets the 2D examples from
-Sections 6.1.1, 6.1.2, and 6.2.
+The implementation targets Sections 6.1.1, 6.1.2, and 6.2 with two paths:
+
+- polygonized CUTKIT MVP helpers (fast fallback), and
+- CAD-native helpers with OpenCascade exact cell clipping.
 """
 
 from __future__ import annotations
@@ -22,8 +24,25 @@ from typing import Any, Callable, Literal, cast
 
 import importlib.util
 
-from cutkit.geometry import PanelLoop2D, Point2D, TrimmedPanel2D
-from cutkit.quadrature import folded_quadrature_rule, gauss_legendre_01
+from cutkit.geometry import (
+    CurveTrimmedPanel2D,
+    PanelLoop2D,
+    Point2D,
+    TrimmedPanel2D,
+    curve_loop_signed_area,
+)
+from cutkit.io import (
+    OpenCascadeUnavailableError,
+    build_section_6_1_1_face,
+    build_section_6_1_2_face,
+    intersect_face_with_rectangle,
+    opencascade_available,
+)
+from cutkit.quadrature import (
+    folded_curve_quadrature_rule,
+    folded_quadrature_rule,
+    gauss_legendre_01,
+)
 
 if importlib.util.find_spec("numpy") is not None:
     import numpy as _np  # type: ignore[import-not-found]
@@ -31,6 +50,8 @@ else:
     _np = None
 
 NUMPY_ACCELERATION_ENABLED = _np is not None
+OPENCASCADE_CAD_AVAILABLE = opencascade_available()
+CAD_ANCHOR_SAMPLE_POINTS = 128
 
 Polygon2D = tuple[Point2D, ...]
 
@@ -947,6 +968,420 @@ def run_general_function_experiment(
             )
             jplus_value = _integrate_general_over_grid(
                 panel,
+                func=section_6_2_integrand,
+                grid_resolution=resolution,
+                order=order,
+                mode="jplus",
+                folded_anchor_mode=folded_anchor_mode,
+                bounds=bounds,
+            )
+
+            folded_abs.append(abs(folded_value - reference))
+            jplus_abs.append(abs(jplus_value - reference))
+
+        order_results.append(
+            GeneralFunctionOrderResult(
+                order=order,
+                grid_resolutions=grid_resolutions,
+                h_values=h_values,
+                folded_abs_error=tuple(folded_abs),
+                jplus_abs_error=tuple(jplus_abs),
+                folded_rel_error=tuple(value / reference_scale for value in folded_abs),
+                jplus_rel_error=tuple(value / reference_scale for value in jplus_abs),
+            )
+        )
+
+    return GeneralFunctionResult(
+        reference_value=reference,
+        reference_grid_resolution=reference_grid_resolution,
+        reference_order=reference_order,
+        order_results=tuple(order_results),
+    )
+
+
+@dataclass(frozen=True)
+class CadCellClipResult:
+    """Cell clipping result from OpenCascade exact CAD boolean operations."""
+
+    cell: CartesianCell2D
+    kind: Literal["outside", "inside", "trimmed"]
+    panels: tuple[CurveTrimmedPanel2D, ...]
+    area: float
+
+
+def _section_face_for_label(label: str) -> Any:
+    if label == "6.1.1":
+        return build_section_6_1_1_face()
+    if label == "6.1.2":
+        return build_section_6_1_2_face()
+    raise ValueError(f"unsupported Section 6 label for CAD path: {label!r}")
+
+
+def _integrate_curve_panels_constant(
+    panels: tuple[CurveTrimmedPanel2D, ...],
+    *,
+    order: int,
+) -> float:
+    total = 0.0
+    for panel in panels:
+        outer = abs(curve_loop_signed_area(panel.outer, order=order))
+        holes = sum(
+            abs(curve_loop_signed_area(hole, order=order)) for hole in panel.holes
+        )
+        total += outer - holes
+    return total
+
+
+@lru_cache(maxsize=64)
+def _cached_cad_clipped_cells(
+    label: str,
+    resolution: int,
+    bounds: tuple[float, float, float, float],
+) -> tuple[CadCellClipResult, ...]:
+    try:
+        face = _section_face_for_label(label)
+    except OpenCascadeUnavailableError as exc:
+        raise RuntimeError(
+            "OpenCascade backend is unavailable; install with `uv sync --extra cad` "
+            "and ensure system OpenGL libraries are present"
+        ) from exc
+
+    area_tol = 1.0e-11
+    clipped_results: list[CadCellClipResult] = []
+    for cell in build_cartesian_grid(resolution=resolution, bounds=bounds):
+        panels = intersect_face_with_rectangle(
+            face,
+            x0=cell.x0,
+            x1=cell.x1,
+            y0=cell.y0,
+            y1=cell.y1,
+        )
+        if not panels:
+            clipped_results.append(
+                CadCellClipResult(cell=cell, kind="outside", panels=(), area=0.0)
+            )
+            continue
+
+        area = _integrate_curve_panels_constant(panels, order=8)
+        if abs(area - cell.area) <= area_tol:
+            clipped_results.append(
+                CadCellClipResult(cell=cell, kind="inside", panels=panels, area=area)
+            )
+        else:
+            clipped_results.append(
+                CadCellClipResult(cell=cell, kind="trimmed", panels=panels, area=area)
+            )
+
+    return tuple(clipped_results)
+
+
+def _integrate_bernstein_trimmed_cell_cad(
+    panels: tuple[CurveTrimmedPanel2D, ...],
+    *,
+    cell: CartesianCell2D,
+    degree: int,
+    order: int,
+    anchor: Point2D | None,
+    require_interior_anchor: bool,
+) -> tuple[float, ...]:
+    count = degree + 1
+    total = [0.0] * (count * count)
+
+    for panel in panels:
+        try:
+            folded = folded_curve_quadrature_rule(
+                panel,
+                order=order,
+                anchor=anchor,
+                require_interior_anchor=require_interior_anchor,
+                anchor_sample_points=CAD_ANCHOR_SAMPLE_POINTS,
+            )
+        except ValueError:
+            if not require_interior_anchor or anchor is not None:
+                raise
+            fallback_anchor = ((cell.x0 + cell.x1) * 0.5, (cell.y0 + cell.y1) * 0.5)
+            folded = folded_curve_quadrature_rule(
+                panel,
+                order=order,
+                anchor=fallback_anchor,
+                require_interior_anchor=False,
+                anchor_sample_points=CAD_ANCHOR_SAMPLE_POINTS,
+            )
+        values = _integrate_local_bernstein_over_rule(
+            folded.rule.points,
+            folded.rule.weights,
+            degree=degree,
+            cell=cell,
+        )
+        for idx, value in enumerate(values):
+            total[idx] += value
+
+    return tuple(total)
+
+
+def _integrate_function_trimmed_cell_cad(
+    func: Callable[[float, float], float],
+    panels: tuple[CurveTrimmedPanel2D, ...],
+    *,
+    cell: CartesianCell2D | None,
+    order: int,
+    anchor: Point2D | None,
+    require_interior_anchor: bool,
+) -> float:
+    total = 0.0
+    for panel in panels:
+        try:
+            folded = folded_curve_quadrature_rule(
+                panel,
+                order=order,
+                anchor=anchor,
+                require_interior_anchor=require_interior_anchor,
+                anchor_sample_points=CAD_ANCHOR_SAMPLE_POINTS,
+            )
+        except ValueError:
+            if not require_interior_anchor or anchor is not None or cell is None:
+                raise
+            fallback_anchor = ((cell.x0 + cell.x1) * 0.5, (cell.y0 + cell.y1) * 0.5)
+            folded = folded_curve_quadrature_rule(
+                panel,
+                order=order,
+                anchor=fallback_anchor,
+                require_interior_anchor=False,
+                anchor_sample_points=CAD_ANCHOR_SAMPLE_POINTS,
+            )
+
+        if _np is not None:
+            points_arr = _np.asarray(folded.rule.points, dtype=float)
+            weights_arr = _np.asarray(folded.rule.weights, dtype=float)
+            try:
+                values = func(points_arr[:, 0], points_arr[:, 1])
+                total += float(_np.dot(values, weights_arr))
+                continue
+            except Exception:
+                pass
+
+        for (x, y), weight in zip(folded.rule.points, folded.rule.weights):
+            total += func(x, y) * weight
+
+    return total
+
+
+def run_polynomial_experiment_cad(
+    *,
+    label: str,
+    degrees: tuple[int, ...],
+    orders: tuple[int, ...],
+    grid_resolution: int = 8,
+    reference_order: int = 64,
+    seed_grid_size: int = 11,
+    bounds: tuple[float, float, float, float] = (0.0, 0.0, 1.0, 1.0),
+) -> PolynomialExperimentResult:
+    """Run Section 6.1 polynomial protocol with exact CAD cell clipping."""
+
+    clipped = _cached_cad_clipped_cells(label, grid_resolution, bounds)
+    trimmed = tuple(result for result in clipped if result.kind == "trimmed")
+    if not trimmed:
+        raise ValueError("no trimmed cells were found for the requested CAD grid")
+
+    degree_results: list[PolynomialDegreeResult] = []
+
+    for degree in degrees:
+        jplus_refs: dict[int, tuple[float, ...]] = {}
+        folded_refs: dict[tuple[int, int], tuple[float, ...]] = {}
+        cell_seeds: dict[int, tuple[Point2D, ...]] = {}
+
+        jplus_scale = 0.0
+        folded_scale = 0.0
+
+        for cell_idx, clip in enumerate(trimmed):
+            jref = _integrate_bernstein_trimmed_cell_cad(
+                clip.panels,
+                cell=clip.cell,
+                degree=degree,
+                order=reference_order,
+                anchor=None,
+                require_interior_anchor=True,
+            )
+            jplus_refs[cell_idx] = jref
+            jplus_scale = max(jplus_scale, _max_abs(jref))
+
+            seeds = _seed_grid_for_cell(clip.cell, grid_size=seed_grid_size)
+            cell_seeds[cell_idx] = seeds
+            for seed_idx, seed in enumerate(seeds):
+                ref = _integrate_bernstein_trimmed_cell_cad(
+                    clip.panels,
+                    cell=clip.cell,
+                    degree=degree,
+                    order=reference_order,
+                    anchor=seed,
+                    require_interior_anchor=False,
+                )
+                folded_refs[(cell_idx, seed_idx)] = ref
+                folded_scale = max(folded_scale, _max_abs(ref))
+
+        jplus_abs_curve: list[float] = []
+        folded_abs_curve: list[float] = []
+
+        for order in orders:
+            jplus_err = 0.0
+            folded_err = 0.0
+
+            for cell_idx, clip in enumerate(trimmed):
+                japprox = _integrate_bernstein_trimmed_cell_cad(
+                    clip.panels,
+                    cell=clip.cell,
+                    degree=degree,
+                    order=order,
+                    anchor=None,
+                    require_interior_anchor=True,
+                )
+                jerr_cell = _max_abs_diff(japprox, jplus_refs[cell_idx])
+                if jerr_cell > jplus_err:
+                    jplus_err = jerr_cell
+
+                worst_cell = 0.0
+                seeds = cell_seeds[cell_idx]
+                for seed_idx, seed in enumerate(seeds):
+                    fapprox = _integrate_bernstein_trimmed_cell_cad(
+                        clip.panels,
+                        cell=clip.cell,
+                        degree=degree,
+                        order=order,
+                        anchor=seed,
+                        require_interior_anchor=False,
+                    )
+                    ferr = _max_abs_diff(fapprox, folded_refs[(cell_idx, seed_idx)])
+                    if ferr > worst_cell:
+                        worst_cell = ferr
+
+                if worst_cell > folded_err:
+                    folded_err = worst_cell
+
+            jplus_abs_curve.append(jplus_err)
+            folded_abs_curve.append(folded_err)
+
+        j_scale = max(jplus_scale, 1.0e-30)
+        f_scale = max(folded_scale, 1.0e-30)
+        jplus_rel_curve = tuple(value / j_scale for value in jplus_abs_curve)
+        folded_rel_curve = tuple(value / f_scale for value in folded_abs_curve)
+
+        degree_results.append(
+            PolynomialDegreeResult(
+                degree=degree,
+                orders=orders,
+                trimmed_cell_count=len(trimmed),
+                folded_abs_error=tuple(folded_abs_curve),
+                jplus_abs_error=tuple(jplus_abs_curve),
+                folded_rel_error=folded_rel_curve,
+                jplus_rel_error=jplus_rel_curve,
+                folded_reference_scale=f_scale,
+                jplus_reference_scale=j_scale,
+            )
+        )
+
+    return PolynomialExperimentResult(
+        label=label,
+        grid_resolution=grid_resolution,
+        reference_order=reference_order,
+        seed_grid_size=seed_grid_size,
+        degree_results=tuple(degree_results),
+    )
+
+
+def _integrate_general_over_grid_cad(
+    *,
+    label: str,
+    func: Callable[[float, float], float],
+    grid_resolution: int,
+    order: int,
+    mode: Literal["jplus", "folded"],
+    folded_anchor_mode: Literal["cell-origin", "cell-center"] = "cell-origin",
+    bounds: tuple[float, float, float, float] = (0.0, 0.0, 1.0, 1.0),
+) -> float:
+    clipped = _cached_cad_clipped_cells(label, grid_resolution, bounds)
+
+    total = 0.0
+    for clip in clipped:
+        if clip.kind == "outside":
+            continue
+
+        if clip.kind == "inside":
+            total += _integrate_function_rectangle(func, cell=clip.cell, order=order)
+            continue
+
+        if mode == "jplus":
+            total += _integrate_function_trimmed_cell_cad(
+                func,
+                clip.panels,
+                cell=clip.cell,
+                order=order,
+                anchor=None,
+                require_interior_anchor=True,
+            )
+            continue
+
+        if folded_anchor_mode == "cell-origin":
+            anchor = (clip.cell.x0, clip.cell.y0)
+        else:
+            anchor = (
+                (clip.cell.x0 + clip.cell.x1) * 0.5,
+                (clip.cell.y0 + clip.cell.y1) * 0.5,
+            )
+
+        total += _integrate_function_trimmed_cell_cad(
+            func,
+            clip.panels,
+            cell=clip.cell,
+            order=order,
+            anchor=anchor,
+            require_interior_anchor=False,
+        )
+
+    return total
+
+
+def run_general_function_experiment_cad(
+    *,
+    label: str,
+    orders: tuple[int, ...],
+    grid_resolutions: tuple[int, ...] = (2, 4, 8, 16, 32, 64, 128),
+    reference_grid_resolution: int = 128,
+    reference_order: int = 64,
+    folded_anchor_mode: Literal["cell-origin", "cell-center"] = "cell-origin",
+    bounds: tuple[float, float, float, float] = (0.0, 0.0, 1.0, 1.0),
+) -> GeneralFunctionResult:
+    """Run Section 6.2 protocol with exact CAD clipping + folded quadrature."""
+
+    reference = _integrate_general_over_grid_cad(
+        label=label,
+        func=section_6_2_integrand,
+        grid_resolution=reference_grid_resolution,
+        order=reference_order,
+        mode="jplus",
+        folded_anchor_mode=folded_anchor_mode,
+        bounds=bounds,
+    )
+    reference_scale = max(abs(reference), 1.0e-30)
+
+    order_results: list[GeneralFunctionOrderResult] = []
+    h_values = tuple(1.0 / resolution for resolution in grid_resolutions)
+
+    for order in orders:
+        folded_abs: list[float] = []
+        jplus_abs: list[float] = []
+
+        for resolution in grid_resolutions:
+            folded_value = _integrate_general_over_grid_cad(
+                label=label,
+                func=section_6_2_integrand,
+                grid_resolution=resolution,
+                order=order,
+                mode="folded",
+                folded_anchor_mode=folded_anchor_mode,
+                bounds=bounds,
+            )
+            jplus_value = _integrate_general_over_grid_cad(
+                label=label,
                 func=section_6_2_integrand,
                 grid_resolution=resolution,
                 order=order,

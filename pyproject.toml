@@ -29,6 +29,9 @@ test = [
 perf = [
   "numpy>=2"
 ]
+cad = [
+  "cadquery-ocp>=7.8"
+]
 dev = [
   "mypy>=1.11",
   "prek>=0.3.5",

@@ -6,8 +6,13 @@ This note tracks follow-up work intentionally out of scope for the 2D MVP.
 
 1. 3D folded decomposition for curved polyhedra.
 2. Singular and near-singular kernel quadrature extensions.
-3. CAD-facing adapters for trimmed NURBS/B-rep inputs.
-4. Downstream adapter into `volumential` rule-consumption paths.
+3. Downstream adapter into `volumential` rule-consumption paths.
+
+## CAD Core
+
+OpenCascade is now the designated CAD core for exact 2D Section 6 clipping
+workflows. Remaining follow-ups focus on extending that CAD-native path to
+broader geometry classes and 3D.
 
 ## Rationale
 

@@ -59,6 +59,15 @@ def _bezier_basis_2(t: float) -> tuple[float, float, float]:
     return (omt * omt, 2.0 * t * omt, t * t)
 
 
+def _bezier_basis_2_with_derivative(
+    t: float,
+) -> tuple[tuple[float, float, float], tuple[float, float, float]]:
+    omt = 1.0 - t
+    basis = (omt * omt, 2.0 * t * omt, t * t)
+    deriv = (-2.0 * omt, 2.0 - 4.0 * t, 2.0 * t)
+    return basis, deriv
+
+
 _CONTROL_NET: tuple[tuple[Point3D, Point3D, Point3D], ...] = (
     ((1.0, 0.2, 0.0), (1.0, 0.8, 0.5), (1.0, 0.4, 1.0)),
     ((0.5, 0.5, 0.0), (0.5, 0.5, 0.5), (0.25, 0.25, 1.0)),
@@ -83,6 +92,116 @@ def eval_section_6_1_3_bezier_surface(u: float, v: float) -> Point3D:
             y += coeff * py
             z += coeff * pz
     return (x, y, z)
+
+
+def _eval_surface_with_yz_partials(
+    u: float, v: float
+) -> tuple[float, float, float, float, float, float, float]:
+    """Return x,y,z and yz Jacobian components at (u,v)."""
+
+    bu, dbu = _bezier_basis_2_with_derivative(u)
+    bv, dbv = _bezier_basis_2_with_derivative(v)
+
+    x = 0.0
+    y = 0.0
+    z = 0.0
+    dy_du = 0.0
+    dy_dv = 0.0
+    dz_du = 0.0
+    dz_dv = 0.0
+
+    for i in range(3):
+        for j in range(3):
+            px, py, pz = _CONTROL_NET[i][j]
+            b = bu[i] * bv[j]
+            b_du = dbu[i] * bv[j]
+            b_dv = bu[i] * dbv[j]
+
+            x += b * px
+            y += b * py
+            z += b * pz
+            dy_du += b_du * py
+            dy_dv += b_dv * py
+            dz_du += b_du * pz
+            dz_dv += b_dv * pz
+
+    return (x, y, z, dy_du, dy_dv, dz_du, dz_dv)
+
+
+_Y_MIN = min(pt[1] for row in _CONTROL_NET for pt in row)
+_Y_MAX = max(pt[1] for row in _CONTROL_NET for pt in row)
+_Z_MIN = min(pt[2] for row in _CONTROL_NET for pt in row)
+_Z_MAX = max(pt[2] for row in _CONTROL_NET for pt in row)
+
+
+@lru_cache(maxsize=8)
+def _projection_seed_samples(
+    resolution: int = 17,
+) -> tuple[tuple[float, float, float, float], ...]:
+    samples: list[tuple[float, float, float, float]] = []
+    for i in range(resolution):
+        u = i / (resolution - 1)
+        for j in range(resolution):
+            v = j / (resolution - 1)
+            x, y, z = eval_section_6_1_3_bezier_surface(u, v)
+            samples.append((y, z, u, v))
+    return tuple(samples)
+
+
+@lru_cache(maxsize=200000)
+def _x_surface_from_yz(y_target: float, z_target: float) -> float | None:
+    """Solve for x_s(y,z) on the curved face; return None if outside projection."""
+
+    if y_target < _Y_MIN - 1.0e-10 or y_target > _Y_MAX + 1.0e-10:
+        return None
+    if z_target < _Z_MIN - 1.0e-10 or z_target > _Z_MAX + 1.0e-10:
+        return None
+
+    seeds = _projection_seed_samples()
+    nearest = sorted(
+        seeds,
+        key=lambda item: (item[0] - y_target) ** 2 + (item[1] - z_target) ** 2,
+    )[:6]
+
+    best_x: float | None = None
+    best_res_sq = float("inf")
+
+    for _, _, u0, v0 in nearest:
+        u = u0
+        v = v0
+        for _ in range(30):
+            x, y, z, dy_du, dy_dv, dz_du, dz_dv = _eval_surface_with_yz_partials(u, v)
+            fy = y - y_target
+            fz = z - z_target
+            res_sq = fy * fy + fz * fz
+            if res_sq < best_res_sq:
+                best_res_sq = res_sq
+                best_x = x
+
+            if res_sq <= (1.0e-12) ** 2:
+                return x
+
+            det = dy_du * dz_dv - dy_dv * dz_du
+            if abs(det) <= 1.0e-14:
+                break
+
+            du = (fy * dz_dv - fz * dy_dv) / det
+            dv = (-fy * dz_du + fz * dy_du) / det
+
+            u -= du
+            v -= dv
+            if u < 0.0:
+                u = 0.0
+            elif u > 1.0:
+                u = 1.0
+            if v < 0.0:
+                v = 0.0
+            elif v > 1.0:
+                v = 1.0
+
+    if best_x is not None and best_res_sq <= (5.0e-8) ** 2:
+        return best_x
+    return None
 
 
 def _x1_face_point(u: float, v: float) -> Point3D:
@@ -662,4 +781,161 @@ def run_general_function_experiment_3d(
         surface_resolution=surface_resolution,
         reference_value=reference,
         orders=tuple(results),
+    )
+
+
+def _integrate_general_over_cartesian_grid_3d(
+    *,
+    resolution: int,
+    order: int,
+) -> float:
+    """Integrate the 3D Section 6.2 integrand over Cartesian cut-cells.
+
+    CUTKIT-adapted protocol: the curved boundary is queried via the Section 6.1.3
+    bi-quadratic surface projection ``x = x_s(y, z)`` and each Cartesian cell is
+    integrated elementwise.
+    """
+
+    if resolution < 1:
+        raise ValueError("resolution must be positive")
+
+    nodes, weights = gauss_legendre_01(order)
+    h = 1.0 / resolution
+
+    if _np is not None:
+        nodes_arr = _np.asarray(nodes, dtype=float)
+        weights_arr = _np.asarray(weights, dtype=float)
+    else:
+        nodes_arr = nodes
+        weights_arr = weights
+
+    total = 0.0
+    for iy in range(resolution):
+        y0 = iy * h
+        y_nodes = tuple(y0 + float(node) * h for node in nodes_arr)
+        y_weights = tuple(float(weight) * h for weight in weights_arr)
+
+        for iz in range(resolution):
+            z0 = iz * h
+            z_nodes = tuple(z0 + float(node) * h for node in nodes_arr)
+            z_weights = tuple(float(weight) * h for weight in weights_arr)
+
+            for jy, y in enumerate(y_nodes):
+                wy = y_weights[jy]
+                for jz, z in enumerate(z_nodes):
+                    wz = z_weights[jz]
+                    yz_weight = wy * wz
+
+                    x_surface = _x_surface_from_yz(y, z)
+                    if x_surface is None or x_surface >= 1.0:
+                        continue
+
+                    start_ix = int(x_surface / h)
+                    if start_ix < 0:
+                        start_ix = 0
+                    if start_ix >= resolution:
+                        continue
+
+                    if _np is not None:
+                        nodes_np = cast(Any, nodes_arr)
+                        weights_np = cast(Any, weights_arr)
+                        x0s = _np.arange(start_ix, resolution, dtype=float) * h
+                        left = _np.maximum(x0s, x_surface)
+                        right = x0s + h
+                        widths = right - left
+                        valid = widths > 0.0
+                        if not _np.any(valid):
+                            continue
+
+                        left = left[valid]
+                        widths = widths[valid]
+                        left_np = cast(Any, left)
+                        widths_np = cast(Any, widths)
+                        x_samples = (
+                            left_np[None, :] + nodes_np[:, None] * widths_np[None, :]
+                        )
+                        vals = section_6_2_integrand_3d(x_samples, y, z)
+                        x_integrals = _np.sum(
+                            vals * (weights_np[:, None] * widths_np[None, :]),
+                            axis=0,
+                        )
+                        total += yz_weight * float(_np.sum(x_integrals))
+                    else:
+                        for ix in range(start_ix, resolution):
+                            x0 = ix * h
+                            x1 = x0 + h
+                            left = x0 if x0 >= x_surface else x_surface
+                            if left >= x1:
+                                continue
+                            width = x1 - left
+                            for qx, node in enumerate(nodes_arr):
+                                x = left + float(node) * width
+                                wx = float(weights_arr[qx]) * width
+                                total += (
+                                    yz_weight * wx * section_6_2_integrand_3d(x, y, z)
+                                )
+
+    return total
+
+
+@dataclass(frozen=True)
+class General3DGridOrderResult:
+    order: int
+    grid_resolutions: tuple[int, ...]
+    h_values: tuple[float, ...]
+    folded_abs_error: tuple[float, ...]
+    folded_rel_error: tuple[float, ...]
+
+
+@dataclass(frozen=True)
+class General3DGridExperimentResult:
+    reference_grid_resolution: int
+    reference_order: int
+    reference_value: float
+    order_results: tuple[General3DGridOrderResult, ...]
+
+
+def run_general_function_experiment_3d_grid(
+    *,
+    orders: tuple[int, ...],
+    grid_resolutions: tuple[int, ...] = (2, 4, 8, 16, 32, 64),
+    reference_grid_resolution: int = 64,
+    reference_order: int = 48,
+) -> General3DGridExperimentResult:
+    """Run Section 6.2 3D Cartesian cut-cell refinement protocol."""
+
+    reference = _integrate_general_over_cartesian_grid_3d(
+        resolution=reference_grid_resolution,
+        order=reference_order,
+    )
+    scale = max(abs(reference), 1.0e-30)
+
+    h_values = tuple(1.0 / resolution for resolution in grid_resolutions)
+    order_results: list[General3DGridOrderResult] = []
+
+    for order in orders:
+        abs_errors: list[float] = []
+        for resolution in grid_resolutions:
+            value = _integrate_general_over_cartesian_grid_3d(
+                resolution=resolution,
+                order=order,
+            )
+            abs_errors.append(abs(value - reference))
+
+        rel_errors = tuple(error / scale for error in abs_errors)
+        order_results.append(
+            General3DGridOrderResult(
+                order=order,
+                grid_resolutions=grid_resolutions,
+                h_values=h_values,
+                folded_abs_error=tuple(abs_errors),
+                folded_rel_error=rel_errors,
+            )
+        )
+
+    return General3DGridExperimentResult(
+        reference_grid_resolution=reference_grid_resolution,
+        reference_order=reference_order,
+        reference_value=reference,
+        order_results=tuple(order_results),
     )

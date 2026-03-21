@@ -3,9 +3,12 @@ from __future__ import annotations
 import pytest
 
 from cutkit.evals import (
+    OPENCASCADE_CAD_AVAILABLE,
     build_section_6_1_1_bspline_panel,
     build_section_6_1_2_rational_panel,
+    run_general_function_experiment_cad,
     run_general_function_experiment,
+    run_polynomial_experiment_cad,
     run_polynomial_experiment,
 )
 
@@ -91,3 +94,54 @@ def test_section_6_2_elementwise_protocol_convergence() -> None:
     first_order, second_order = result.order_results
     assert second_order.folded_abs_error[-1] < first_order.folded_abs_error[-1]
     assert second_order.jplus_abs_error[-1] < first_order.jplus_abs_error[-1]
+
+
+def test_cad_native_polynomial_protocol_or_unavailable_error() -> None:
+    if not OPENCASCADE_CAD_AVAILABLE:
+        with pytest.raises(RuntimeError):
+            run_polynomial_experiment_cad(
+                label="6.1.1",
+                degrees=(2,),
+                orders=(2, 3),
+                grid_resolution=2,
+                reference_order=4,
+                seed_grid_size=2,
+            )
+        return
+
+    result = run_polynomial_experiment_cad(
+        label="6.1.1",
+        degrees=(2,),
+        orders=(2, 3),
+        grid_resolution=2,
+        reference_order=4,
+        seed_grid_size=2,
+    )
+    degree_result = result.degree_results[0]
+    assert degree_result.folded_abs_error[1] <= degree_result.folded_abs_error[0]
+    assert degree_result.jplus_abs_error[1] <= degree_result.jplus_abs_error[0]
+
+
+def test_cad_native_general_protocol_or_unavailable_error() -> None:
+    if not OPENCASCADE_CAD_AVAILABLE:
+        with pytest.raises(RuntimeError):
+            run_general_function_experiment_cad(
+                label="6.1.1",
+                orders=(1,),
+                grid_resolutions=(2,),
+                reference_grid_resolution=2,
+                reference_order=3,
+            )
+        return
+
+    result = run_general_function_experiment_cad(
+        label="6.1.1",
+        orders=(1, 2),
+        grid_resolutions=(2, 4),
+        reference_grid_resolution=4,
+        reference_order=4,
+    )
+    assert abs(result.reference_value) > 0.0
+    low, high = result.order_results
+    assert high.folded_abs_error[-1] <= low.folded_abs_error[-1]
+    assert high.jplus_abs_error[-1] <= low.jplus_abs_error[-1]

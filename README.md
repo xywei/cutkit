@@ -22,19 +22,18 @@ CUTKIT focuses on a geometry/cut layer that complements `meshmode` and `modepy`:
 
 Early bootstrap. APIs may change.
 
-## Folded Decomposition MVP (2D)
+## Folded Decomposition (2D)
 
-Current MVP scope focuses on polygonized 2D trimmed panels:
+Current 2D scope is CAD-native first, with a polygonized MVP fallback:
 
 - loop orientation normalization (outer ccw, holes cw)
 - interior anchor selection
-- folded signed-triangle decomposition
-- Duffy-mapped triangle quadrature aggregation
+- folded decomposition on line and curved CAD edges
+- OpenCascade-backed exact cell clipping for Section 6 reproductions
 - area and low-order moment diagnostics
 
 Current limitations:
 
-- no direct CAD B-rep/NURBS intersection pipeline
 - no 3D folded decomposition yet
 - no singular-kernel-specialized quadrature yet
 
@@ -44,11 +43,29 @@ Reproduction script for Antolin-Wei-Buffa (2022) Section 6 examples:
 uv run python scripts/reproduce_antolin_2022_examples.py
 ```
 
+This runs 2D and 3D reproductions by default (including 3D Cartesian
+cut-cell refinement for Section 6.2).
+
+2D runs use `--geometry-mode auto` by default, which selects CAD-native
+OpenCascade when available and otherwise falls back to polygonized mode.
+
+The 3D Section 6.2 path is CUTKIT-adapted and currently may show non-monotonic
+rows for some `(n, h)` combinations.
+
 For faster runs, enable NumPy acceleration in your environment:
 
 ```bash
 uv sync --extra perf
 ```
+
+For CAD-native OpenCascade 2D reproduction support:
+
+```bash
+uv sync --extra cad
+```
+
+Note: OpenCascade wheels may require system OpenGL libraries (for example
+`libGL.so.1`) to be present.
 
 Source and credit for the reproduced Section 6 2D protocols:
 
@@ -64,6 +81,18 @@ To run only the 2D parts:
 
 ```bash
 uv run python scripts/reproduce_antolin_2022_examples.py --skip-3d
+```
+
+To force CAD-native OpenCascade mode for 2D:
+
+```bash
+uv run python scripts/reproduce_antolin_2022_examples.py --geometry-mode cad-native
+```
+
+To force polygonized fallback mode for 2D:
+
+```bash
+uv run python scripts/reproduce_antolin_2022_examples.py --geometry-mode polygonized
 ```
 
 For denser settings closer to the Antolin-Wei-Buffa (2022) sweep:

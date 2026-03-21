@@ -11,9 +11,13 @@ CUTKIT provides a topology-aware geometry and integration layer for trimmed
 domains, designed to work with `meshmode`, `modepy`, and boundary-integral
 workflows.
 
+For CAD-native geometry handling, CUTKIT uses OpenCascade bindings as the
+primary CAD core (with polygonized adapters retained as fallback workflows).
+
 ## Design Goals
 
 - Keep geometry handling explicit and testable.
+- Prefer CAD-native exact geometry over pre-polygonized approximations.
 - Separate topology, clipping, and quadrature concerns.
 - Preserve predictable data flow from CAD trims to integration outputs.
 - Make behavior legible to both human and agent contributors.
@@ -45,6 +49,7 @@ Additional rules:
 ## Data Flow
 
 1. Geometry adapters expose patch parameterizations and trim curves.
+   OpenCascade-backed adapters are the default source for exact trims.
 2. Topology normalizes loops (outer/hole orientation, nesting, seam handling).
 3. Clipping computes active regions and cut cells in parameter space.
 4. Quadrature evaluates integrals on resulting cut panels/cells.

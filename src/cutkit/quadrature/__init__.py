@@ -8,6 +8,10 @@ from cutkit.quadrature.folded2d import (
     gauss_legendre_01,
     triangle_duffy_rule,
 )
+from cutkit.quadrature.folded_curves2d import (
+    FoldedCurveQuadratureResult,
+    folded_curve_quadrature_rule,
+)
 from cutkit.quadrature.rule2d import QuadratureRule2D, concatenate_rules
 
 __all__ = [
@@ -16,6 +20,8 @@ __all__ = [
     "SignedTriangle2D",
     "concatenate_rules",
     "decompose_panel",
+    "FoldedCurveQuadratureResult",
+    "folded_curve_quadrature_rule",
     "folded_quadrature_rule",
     "gauss_legendre_01",
     "triangle_duffy_rule",

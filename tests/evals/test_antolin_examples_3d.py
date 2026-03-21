@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from cutkit.evals import (
+    run_general_function_experiment_3d_grid,
     run_general_function_experiment_3d,
     run_polynomial_experiment_3d,
 )
@@ -56,3 +57,17 @@ def test_section_6_2_3d_general_function_errors_reduce_with_order() -> None:
     assert order_3.jplus_abs_error < order_2.jplus_abs_error
     assert order_2.folded_worst_abs_error >= order_2.folded_best_abs_error
     assert order_3.folded_worst_abs_error >= order_3.folded_best_abs_error
+
+
+def test_section_6_2_3d_grid_protocol_errors_reduce() -> None:
+    result = run_general_function_experiment_3d_grid(
+        orders=(1, 2),
+        grid_resolutions=(2, 4),
+        reference_grid_resolution=8,
+        reference_order=8,
+    )
+
+    order_1, order_2 = result.order_results
+    assert order_1.folded_abs_error[1] < order_1.folded_abs_error[0]
+    assert order_2.folded_abs_error[1] < order_2.folded_abs_error[0]
+    assert order_2.folded_abs_error[1] < order_1.folded_abs_error[1]

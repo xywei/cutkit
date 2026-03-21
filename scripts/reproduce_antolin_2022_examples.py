@@ -15,11 +15,14 @@ import argparse
 
 from cutkit.evals import (
     NUMPY_ACCELERATION_ENABLED,
+    OPENCASCADE_CAD_AVAILABLE,
     build_section_6_1_1_bspline_panel,
     build_section_6_1_2_rational_panel,
-    run_general_function_experiment_3d,
+    run_general_function_experiment_3d_grid,
+    run_general_function_experiment_cad,
     run_general_function_experiment,
     run_polynomial_experiment_3d,
+    run_polynomial_experiment_cad,
     run_polynomial_experiment,
 )
 
@@ -99,6 +102,72 @@ def _print_general_function_result(
             )
 
 
+def _print_polynomial_result_cad(
+    label: str,
+    *,
+    degrees: tuple[int, ...],
+    orders: tuple[int, ...],
+    grid_resolution: int,
+    seed_grid_size: int,
+    reference_order: int,
+) -> None:
+    result = run_polynomial_experiment_cad(
+        label=label,
+        degrees=degrees,
+        orders=orders,
+        grid_resolution=grid_resolution,
+        reference_order=reference_order,
+        seed_grid_size=seed_grid_size,
+    )
+
+    print(f"Section {label} polynomial protocol (CAD-native OpenCascade)")
+    print("degree | order | folded_abs_eq18 | jplus_abs_eq18 | folded_rel | jplus_rel")
+    print("--- | --- | --- | --- | --- | ---")
+    for degree_result in result.degree_results:
+        for idx, order in enumerate(degree_result.orders):
+            print(
+                f"{degree_result.degree} | {order} | "
+                f"{degree_result.folded_abs_error[idx]:.3e} | "
+                f"{degree_result.jplus_abs_error[idx]:.3e} | "
+                f"{degree_result.folded_rel_error[idx]:.3e} | "
+                f"{degree_result.jplus_rel_error[idx]:.3e}"
+            )
+    print()
+
+
+def _print_general_function_result_cad(
+    *,
+    orders: tuple[int, ...],
+    grid_resolutions: tuple[int, ...],
+    reference_grid_resolution: int,
+    reference_order: int,
+) -> None:
+    result = run_general_function_experiment_cad(
+        label="6.1.1",
+        orders=orders,
+        grid_resolutions=grid_resolutions,
+        reference_grid_resolution=reference_grid_resolution,
+        reference_order=reference_order,
+        folded_anchor_mode="cell-origin",
+    )
+
+    print("Section 6.2 general-function protocol (2D CAD-native OpenCascade)")
+    print("reference_value =", f"{result.reference_value:.15e}")
+    for order_result in result.order_results:
+        print()
+        print(f"n = {order_result.order}")
+        print("grid | h | folded_abs | jplus_abs | folded_rel | jplus_rel")
+        print("--- | --- | --- | --- | --- | ---")
+        for idx, resolution in enumerate(order_result.grid_resolutions):
+            print(
+                f"{resolution} | {order_result.h_values[idx]:.6f} | "
+                f"{order_result.folded_abs_error[idx]:.3e} | "
+                f"{order_result.jplus_abs_error[idx]:.3e} | "
+                f"{order_result.folded_rel_error[idx]:.3e} | "
+                f"{order_result.jplus_rel_error[idx]:.3e}"
+            )
+
+
 def _print_polynomial_result_3d(
     *,
     degrees: tuple[int, ...],
@@ -133,28 +202,31 @@ def _print_polynomial_result_3d(
 def _print_general_result_3d(
     *,
     orders: tuple[int, ...],
-    seed_grid_size: int,
-    surface_resolution: int,
+    grid_resolutions: tuple[int, ...],
+    reference_grid_resolution: int,
     reference_order: int,
 ) -> None:
-    result = run_general_function_experiment_3d(
+    result = run_general_function_experiment_3d_grid(
         orders=orders,
-        seed_grid_size=seed_grid_size,
-        surface_resolution=surface_resolution,
+        grid_resolutions=grid_resolutions,
+        reference_grid_resolution=reference_grid_resolution,
         reference_order=reference_order,
     )
 
-    print("Section 6.2-style general-function protocol (3D single-cell)")
+    print("Section 6.2 general-function protocol (3D Cartesian cut-cell refinement)")
+    print("note: CUTKIT-adapted protocol; some (n, h) rows can be non-monotonic")
     print("reference_value =", f"{result.reference_value:.15e}")
-    print("order | folded_worst_abs | folded_best_abs | jplus_abs")
-    print("--- | --- | --- | ---")
-    for order_result in result.orders:
-        print(
-            f"{order_result.order} | "
-            f"{order_result.folded_worst_abs_error:.3e} | "
-            f"{order_result.folded_best_abs_error:.3e} | "
-            f"{order_result.jplus_abs_error:.3e}"
-        )
+    for order_result in result.order_results:
+        print()
+        print(f"n = {order_result.order}")
+        print("grid | h | folded_abs | folded_rel")
+        print("--- | --- | --- | ---")
+        for i, resolution in enumerate(order_result.grid_resolutions):
+            print(
+                f"{resolution} | {order_result.h_values[i]:.6f} | "
+                f"{order_result.folded_abs_error[i]:.3e} | "
+                f"{order_result.folded_rel_error[i]:.3e}"
+            )
     print()
 
 
@@ -175,7 +247,25 @@ def main() -> int:
         action="store_true",
         help="skip Section 6 3D reproductions",
     )
+    parser.add_argument(
+        "--geometry-mode",
+        choices=("auto", "polygonized", "cad-native"),
+        default="auto",
+        help=(
+            "2D geometry backend: auto picks CAD-native when OpenCascade is available "
+            "and otherwise falls back to polygonized MVP"
+        ),
+    )
     args = parser.parse_args()
+
+    geometry_mode = args.geometry_mode
+    if geometry_mode == "auto":
+        geometry_mode = "cad-native" if OPENCASCADE_CAD_AVAILABLE else "polygonized"
+    if geometry_mode == "cad-native" and not OPENCASCADE_CAD_AVAILABLE:
+        raise RuntimeError(
+            "`--geometry-mode cad-native` requested but OpenCascade is unavailable. "
+            "Install with `uv sync --extra cad` and ensure libGL is present."
+        )
 
     if args.antolin_paper:
         sample_count = 160
@@ -197,10 +287,10 @@ def main() -> int:
         sec613_surface_resolution = 8
         sec613_reference_order = 11
 
-        sec623d_orders = (2, 3, 4, 5)
-        sec623d_seed_grid = 5
-        sec623d_surface_resolution = 8
-        sec623d_reference_order = 11
+        sec623d_orders = (2, 3, 4)
+        sec623d_grids = (2, 4, 8, 16)
+        sec623d_reference_grid = 32
+        sec623d_reference_order = 24
     else:
         sample_count = 128
         sec61_grid_resolution = 8
@@ -222,9 +312,9 @@ def main() -> int:
         sec613_reference_order = 7
 
         sec623d_orders = (2, 3)
-        sec623d_seed_grid = 3
-        sec623d_surface_resolution = 5
-        sec623d_reference_order = 7
+        sec623d_grids = (2, 4)
+        sec623d_reference_grid = 16
+        sec623d_reference_order = 12
 
     print("Using sample_count =", sample_count)
     print("Section 6.1 grid resolution =", sec61_grid_resolution)
@@ -235,6 +325,8 @@ def main() -> int:
         sec62_reference_grid,
         sec62_reference_order,
     )
+    print("OpenCascade CAD backend available =", OPENCASCADE_CAD_AVAILABLE)
+    print("2D geometry mode =", geometry_mode)
     print("NumPy acceleration enabled =", NUMPY_ACCELERATION_ENABLED)
     if not NUMPY_ACCELERATION_ENABLED:
         print(
@@ -243,31 +335,55 @@ def main() -> int:
         )
     print()
 
-    _print_polynomial_result(
-        "6.1.1",
-        sample_count=sample_count,
-        degrees=sec61_1_degrees,
-        orders=sec61_orders,
-        grid_resolution=sec61_grid_resolution,
-        seed_grid_size=sec61_seed_grid_size,
-        reference_order=sec61_reference_order,
-    )
-    _print_polynomial_result(
-        "6.1.2",
-        sample_count=sample_count,
-        degrees=sec61_2_degrees,
-        orders=sec61_orders,
-        grid_resolution=sec61_grid_resolution,
-        seed_grid_size=sec61_seed_grid_size,
-        reference_order=sec61_reference_order,
-    )
-    _print_general_function_result(
-        sample_count=sample_count,
-        orders=sec62_orders,
-        grid_resolutions=sec62_grids,
-        reference_grid_resolution=sec62_reference_grid,
-        reference_order=sec62_reference_order,
-    )
+    if geometry_mode == "cad-native":
+        _print_polynomial_result_cad(
+            "6.1.1",
+            degrees=sec61_1_degrees,
+            orders=sec61_orders,
+            grid_resolution=sec61_grid_resolution,
+            seed_grid_size=sec61_seed_grid_size,
+            reference_order=sec61_reference_order,
+        )
+        _print_polynomial_result_cad(
+            "6.1.2",
+            degrees=sec61_2_degrees,
+            orders=sec61_orders,
+            grid_resolution=sec61_grid_resolution,
+            seed_grid_size=sec61_seed_grid_size,
+            reference_order=sec61_reference_order,
+        )
+        _print_general_function_result_cad(
+            orders=sec62_orders,
+            grid_resolutions=sec62_grids,
+            reference_grid_resolution=sec62_reference_grid,
+            reference_order=sec62_reference_order,
+        )
+    else:
+        _print_polynomial_result(
+            "6.1.1",
+            sample_count=sample_count,
+            degrees=sec61_1_degrees,
+            orders=sec61_orders,
+            grid_resolution=sec61_grid_resolution,
+            seed_grid_size=sec61_seed_grid_size,
+            reference_order=sec61_reference_order,
+        )
+        _print_polynomial_result(
+            "6.1.2",
+            sample_count=sample_count,
+            degrees=sec61_2_degrees,
+            orders=sec61_orders,
+            grid_resolution=sec61_grid_resolution,
+            seed_grid_size=sec61_seed_grid_size,
+            reference_order=sec61_reference_order,
+        )
+        _print_general_function_result(
+            sample_count=sample_count,
+            orders=sec62_orders,
+            grid_resolutions=sec62_grids,
+            reference_grid_resolution=sec62_reference_grid,
+            reference_order=sec62_reference_order,
+        )
 
     if not args.skip_3d:
         _print_polynomial_result_3d(
@@ -279,8 +395,8 @@ def main() -> int:
         )
         _print_general_result_3d(
             orders=sec623d_orders,
-            seed_grid_size=sec623d_seed_grid,
-            surface_resolution=sec623d_surface_resolution,
+            grid_resolutions=sec623d_grids,
+            reference_grid_resolution=sec623d_reference_grid,
             reference_order=sec623d_reference_order,
         )
 

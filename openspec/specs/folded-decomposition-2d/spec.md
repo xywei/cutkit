@@ -31,3 +31,16 @@ The system SHALL provide diagnostics for area consistency and low-order polynomi
 - **WHEN** diagnostics are run on baseline cases
 - **THEN** area consistency and configured moment-error tolerances SHALL be reported and enforceable in tests
 
+### Requirement: CAD-Native Geometry Core
+The system SHALL provide a CAD-native 2D folded workflow with OpenCascade as
+the default exact clipping backend when available.
+
+#### Scenario: Select CAD-native reproduction mode
+- **WHEN** OpenCascade bindings are available and CAD-native mode is requested
+- **THEN** Section 6 2D reproductions SHALL run with exact CAD clipping rather
+  than pre-polygonized panel approximations
+
+#### Scenario: Fall back when CAD backend is unavailable
+- **WHEN** OpenCascade bindings are unavailable in the current environment
+- **THEN** the system SHALL provide a clear error or deterministic fallback path
+  to polygonized mode, depending on user-selected geometry mode
