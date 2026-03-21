@@ -260,6 +260,9 @@ def validate_panel(
     elif outer_orientation != "ccw":
         errors.append("outer loop orientation must be ccw")
 
+    if _loop_self_intersects(panel.outer):
+        errors.append("outer loop must be simple (non-self-intersecting)")
+
     if outer_area_abs <= area_tol:
         errors.append("outer loop area must be positive")
 
@@ -276,6 +279,9 @@ def validate_panel(
 
         if hole_area_abs <= area_tol:
             errors.append(f"hole {idx} area magnitude must be positive")
+
+        if _loop_self_intersects(hole):
+            errors.append(f"hole {idx} must be simple (non-self-intersecting)")
 
         if not _loop_strictly_inside_outer(hole, panel.outer):
             errors.append(f"hole {idx} must lie strictly inside outer loop")
@@ -308,19 +314,26 @@ def _segment_cross(a: Point2D, b: Point2D, c: Point2D) -> float:
     return (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])
 
 
-def _segments_intersect(a: Point2D, b: Point2D, c: Point2D, d: Point2D) -> bool:
+def _segments_intersect(
+    a: Point2D,
+    b: Point2D,
+    c: Point2D,
+    d: Point2D,
+    *,
+    tol: float = 1.0e-12,
+) -> bool:
     o1 = _segment_cross(a, b, c)
     o2 = _segment_cross(a, b, d)
     o3 = _segment_cross(c, d, a)
     o4 = _segment_cross(c, d, b)
 
-    if _point_on_segment(c, a, b, 1.0e-12):
+    if _point_on_segment(c, a, b, tol):
         return True
-    if _point_on_segment(d, a, b, 1.0e-12):
+    if _point_on_segment(d, a, b, tol):
         return True
-    if _point_on_segment(a, c, d, 1.0e-12):
+    if _point_on_segment(a, c, d, tol):
         return True
-    if _point_on_segment(b, c, d, 1.0e-12):
+    if _point_on_segment(b, c, d, tol):
         return True
 
     return (o1 > 0.0) != (o2 > 0.0) and (o3 > 0.0) != (o4 > 0.0)
@@ -342,3 +355,40 @@ def _loops_overlap_or_touch(loop_a: PanelLoop2D, loop_b: PanelLoop2D) -> bool:
         if point_in_loop(point, loop_a, include_boundary=True):
             return True
     return _loops_edge_intersect(loop_a, loop_b)
+
+
+def _loop_self_intersects(loop: PanelLoop2D, *, tol: float = 1.0e-12) -> bool:
+    points = loop.points
+    edge_count = len(points)
+    if edge_count < 4:
+        return False
+
+    for i in range(edge_count):
+        a0 = points[i]
+        a1 = points[(i + 1) % edge_count]
+        for j in range(i + 1, edge_count):
+            if j == i:
+                continue
+            if j == (i + 1) % edge_count:
+                continue
+            if i == (j + 1) % edge_count:
+                continue
+
+            b0 = points[j]
+            b1 = points[(j + 1) % edge_count]
+            if _segments_intersect(a0, a1, b0, b1, tol=tol):
+                return True
+
+    for i in range(edge_count):
+        for j in range(i + 1, edge_count):
+            if j == i + 1:
+                continue
+            if i == 0 and j == edge_count - 1:
+                continue
+            if (
+                abs(points[i][0] - points[j][0]) <= tol
+                and abs(points[i][1] - points[j][1]) <= tol
+            ):
+                return True
+
+    return False

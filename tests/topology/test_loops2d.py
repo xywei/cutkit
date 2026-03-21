@@ -91,3 +91,15 @@ def test_validate_panel_rejects_overlapping_holes() -> None:
 
     report = validate_panel(panel)
     assert "holes 0 and 1 overlap or touch" in report.errors
+
+
+def test_validate_panel_rejects_self_intersecting_loops() -> None:
+    panel = TrimmedPanel2D(
+        outer=PanelLoop2D(((0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0))),
+        holes=(
+            PanelLoop2D(((0.9, 0.9), (0.5, 0.3), (0.1, 0.9), (0.9, 0.1), (0.1, 0.1))),
+        ),
+    )
+
+    report = validate_panel(panel)
+    assert "hole 0 must be simple (non-self-intersecting)" in report.errors

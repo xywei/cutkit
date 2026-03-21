@@ -60,3 +60,15 @@ def test_folded_curve_anchor_must_be_inside_when_required() -> None:
 
     with pytest.raises(ValueError):
         folded_curve_quadrature_rule(panel, order=6, anchor=(1.5, 0.5))
+
+
+def test_curve_loop_rejects_discontinuous_edges() -> None:
+    with pytest.raises(ValueError):
+        CurveLoop2D(
+            edges=(
+                CurveEdge2D.line((0.0, 0.0), (1.0, 0.0)),
+                CurveEdge2D.line((2.0, 0.0), (2.0, 1.0)),
+                CurveEdge2D.line((2.0, 2.0), (1.0, 2.0)),
+                CurveEdge2D.line((0.0, 2.0), (0.0, 1.0)),
+            )
+        )

@@ -18,6 +18,10 @@ def _coerce_point(point: Point2D) -> Point2D:
     return (x, y)
 
 
+def _points_close(a: Point2D, b: Point2D, *, tol: float = 1.0e-9) -> bool:
+    return abs(a[0] - b[0]) <= tol and abs(a[1] - b[1]) <= tol
+
+
 def _gauss_legendre_01(order: int) -> tuple[tuple[float, ...], tuple[float, ...]]:
     if order < 1:
         raise ValueError("quadrature order must be positive")
@@ -137,6 +141,14 @@ class CurveLoop2D:
         edges = tuple(self.edges)
         if not edges:
             raise ValueError("a curve loop must contain at least one edge")
+
+        edge_count = len(edges)
+        for idx in range(edge_count):
+            end = edges[idx].point(1.0)
+            next_start = edges[(idx + 1) % edge_count].point(0.0)
+            if not _points_close(end, next_start):
+                raise ValueError("curve loop edges must form a continuous closed chain")
+
         object.__setattr__(self, "edges", edges)
 
     def reversed(self) -> CurveLoop2D:
