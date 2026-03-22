@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from cutkit.evals import compare_manifest_to_fixture, format_parity_report
 
 
@@ -46,7 +48,11 @@ def test_compare_manifest_to_fixture_reports_mismatches() -> None:
     assert not report.passed
     assert len(report.failures) == 1
     assert report.failures[0].key.endswith("sections.2d.value")
-    assert "PARITY FAIL" in format_parity_report(report)
+    text = format_parity_report(report)
+    assert "PARITY FAIL" in text
+    assert "abs_tol=" in text
+    assert "rel_tol=" in text
+    assert "bound=" in text
 
 
 def test_compare_manifest_to_fixture_skips_unavailable_cad_mode() -> None:
@@ -87,3 +93,22 @@ def test_fixture_self_compare_passes() -> None:
         rel_tol=1.0e-14,
     )
     assert report.passed
+
+
+@pytest.mark.parametrize(
+    "fixture_name",
+    (
+        "quick-polygonized-full.json",
+        "quick-cad-native-full.json",
+        "antolin-paper-polygonized-2d-only.json",
+        "antolin-paper-cad-native-2d-only.json",
+    ),
+)
+def test_mode_profile_fixtures_exist(fixture_name: str) -> None:
+    fixture_path = (
+        Path(__file__).resolve().parents[1]
+        / "fixtures"
+        / "antolin-section6"
+        / fixture_name
+    )
+    assert fixture_path.exists()

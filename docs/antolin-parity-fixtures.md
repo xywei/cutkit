@@ -37,3 +37,10 @@ This note describes how to generate and review Section 6 parity fixtures.
 
 For fixtures with `requires_cad: true`, parity checks are skipped with an
 explicit status when OpenCascade is unavailable.
+
+## Current Fixture Set
+
+- `quick-polygonized-full.json`
+- `quick-cad-native-full.json`
+- `antolin-paper-polygonized-2d-only.json`
+- `antolin-paper-cad-native-2d-only.json`

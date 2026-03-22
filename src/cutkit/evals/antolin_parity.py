@@ -18,6 +18,7 @@ class ParityFailure:
     rel_diff: float
     abs_tol: float
     rel_tol: float
+    tolerance_bound: float
 
 
 @dataclass(frozen=True)
@@ -96,6 +97,7 @@ def compare_manifest_to_fixture(
                     rel_diff=float("inf"),
                     abs_tol=abs_tol,
                     rel_tol=rel_tol,
+                    tolerance_bound=float("inf"),
                 )
             )
             continue
@@ -116,6 +118,7 @@ def compare_manifest_to_fixture(
                     rel_diff=rel_diff,
                     abs_tol=abs_tol,
                     rel_tol=rel_tol,
+                    tolerance_bound=tolerance,
                 )
             )
 
@@ -130,6 +133,7 @@ def compare_manifest_to_fixture(
                     rel_diff=float("inf"),
                     abs_tol=abs_tol,
                     rel_tol=rel_tol,
+                    tolerance_bound=float("inf"),
                 )
             )
 
@@ -161,7 +165,9 @@ def format_parity_report(report: ParityReport) -> str:
             "- "
             f"{failure.key}: current={failure.current:.12e}, "
             f"expected={failure.expected:.12e}, "
-            f"abs_diff={failure.abs_diff:.3e}, rel_diff={failure.rel_diff:.3e}"
+            f"abs_diff={failure.abs_diff:.3e}, rel_diff={failure.rel_diff:.3e}, "
+            f"bound={failure.tolerance_bound:.3e}, "
+            f"abs_tol={failure.abs_tol:.3e}, rel_tol={failure.rel_tol:.3e}"
         )
     if len(report.failures) > 20:
         lines.append(f"- ... {len(report.failures) - 20} more mismatches")
