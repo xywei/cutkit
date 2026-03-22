@@ -11,10 +11,10 @@ _PARITY_METADATA_KEYS = (
     "profile",
     "geometry_mode",
     "requires_cad",
-    "numpy_acceleration",
 )
 _NUMERIC_EXCLUDED_KEYS = set(_PARITY_METADATA_KEYS) | {
     "cad_available",
+    "numpy_acceleration",
     "scope",
     "placeholder",
 }
@@ -191,6 +191,28 @@ def compare_manifest_to_fixture(
 
     checked_keys = len(set(current_metrics) & set(fixture_metrics))
     if not failures and checked_keys == 0:
+        if not bool(fixture.get("placeholder", False)):
+            return ParityReport(
+                passed=False,
+                failures=(
+                    ParityFailure(
+                        key="meta.placeholder",
+                        current=float("nan"),
+                        expected=float("nan"),
+                        abs_diff=float("inf"),
+                        rel_diff=float("inf"),
+                        abs_tol=0.0,
+                        rel_tol=0.0,
+                        tolerance_bound=0.0,
+                        detail=(
+                            "fixture contains no numeric metrics; set "
+                            "placeholder=true only for intentional placeholder baselines"
+                        ),
+                    ),
+                ),
+                checked_keys=0,
+                skipped_reason=None,
+            )
         return ParityReport(
             passed=True,
             failures=(),

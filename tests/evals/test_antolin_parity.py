@@ -106,6 +106,32 @@ def test_compare_manifest_to_fixture_fails_on_metadata_mismatch() -> None:
     assert "meta.geometry_mode" in text
 
 
+def test_compare_manifest_to_fixture_ignores_numpy_availability_metadata() -> None:
+    current = {
+        "schema_version": 1,
+        "profile": "quick",
+        "geometry_mode": "polygonized",
+        "numpy_acceleration": True,
+        "sections": {"2d": {"value": 1.0}},
+    }
+    fixture = {
+        "schema_version": 1,
+        "profile": "quick",
+        "geometry_mode": "polygonized",
+        "numpy_acceleration": False,
+        "sections": {"2d": {"value": 1.0}},
+    }
+
+    report = compare_manifest_to_fixture(
+        current,
+        fixture,
+        abs_tol=1.0e-12,
+        rel_tol=1.0e-12,
+    )
+    assert report.passed
+    assert report.checked_keys == 1
+
+
 def test_compare_manifest_to_fixture_allows_superset_metrics_for_2d_only() -> None:
     current = {
         "schema_version": 1,
@@ -167,6 +193,32 @@ def test_compare_manifest_to_fixture_skips_placeholder_without_numeric_metrics()
     assert report.passed
     assert report.checked_keys == 0
     assert report.skipped_reason is not None
+
+
+def test_compare_manifest_to_fixture_fails_empty_non_placeholder_fixture() -> None:
+    current = {
+        "schema_version": 1,
+        "profile": "quick",
+        "geometry_mode": "polygonized",
+        "sections": {"2d": {"value": 1.0}},
+    }
+    fixture = {
+        "schema_version": 1,
+        "profile": "quick",
+        "geometry_mode": "polygonized",
+        "sections": {"2d": {"status": "missing"}},
+    }
+
+    report = compare_manifest_to_fixture(
+        current,
+        fixture,
+        abs_tol=1.0e-12,
+        rel_tol=1.0e-12,
+    )
+    assert not report.passed
+    assert report.checked_keys == 0
+    text = format_parity_report(report)
+    assert "meta.placeholder" in text
 
 
 def test_fixture_self_compare_passes() -> None:
