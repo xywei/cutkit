@@ -513,6 +513,7 @@ def main() -> int:
         "schema_version": 1,
         "profile": "antolin-paper" if args.antolin_paper else "quick",
         "geometry_mode": geometry_mode,
+        "scope": "2d-only" if args.skip_3d else "full",
         "requires_cad": geometry_mode == "cad-native",
         "cad_available": OPENCASCADE_CAD_AVAILABLE,
         "numpy_acceleration": NUMPY_ACCELERATION_ENABLED,

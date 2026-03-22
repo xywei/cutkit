@@ -12,6 +12,7 @@ def test_compare_manifest_to_fixture_passes_within_tolerance() -> None:
     current = {
         "schema_version": 1,
         "cad_available": False,
+        "requires_cad": False,
         "sections": {"2d": {"value": 1.0000000001}},
     }
     fixture = {
@@ -75,6 +76,97 @@ def test_compare_manifest_to_fixture_skips_unavailable_cad_mode() -> None:
     assert report.checked_keys == 0
     assert report.skipped_reason is not None
     assert "PARITY SKIPPED" in format_parity_report(report)
+
+
+def test_compare_manifest_to_fixture_fails_on_metadata_mismatch() -> None:
+    current = {
+        "schema_version": 1,
+        "profile": "quick",
+        "geometry_mode": "cad-native",
+        "numpy_acceleration": False,
+        "sections": {"2d": {"value": 1.0}},
+    }
+    fixture = {
+        "schema_version": 1,
+        "profile": "quick",
+        "geometry_mode": "polygonized",
+        "numpy_acceleration": False,
+        "sections": {"2d": {"value": 1.0}},
+    }
+
+    report = compare_manifest_to_fixture(
+        current,
+        fixture,
+        abs_tol=1.0e-12,
+        rel_tol=1.0e-12,
+    )
+    assert not report.passed
+    assert report.checked_keys == 0
+    text = format_parity_report(report)
+    assert "meta.geometry_mode" in text
+
+
+def test_compare_manifest_to_fixture_allows_superset_metrics_for_2d_only() -> None:
+    current = {
+        "schema_version": 1,
+        "profile": "antolin-paper",
+        "geometry_mode": "polygonized",
+        "numpy_acceleration": True,
+        "sections": {
+            "2d": {"value": 1.0},
+            "3d": {"value": 2.0},
+        },
+    }
+    fixture = {
+        "schema_version": 1,
+        "profile": "antolin-paper",
+        "geometry_mode": "polygonized",
+        "numpy_acceleration": True,
+        "scope": "2d-only",
+        "sections": {
+            "2d": {"value": 1.0},
+        },
+    }
+
+    report = compare_manifest_to_fixture(
+        current,
+        fixture,
+        abs_tol=1.0e-12,
+        rel_tol=1.0e-12,
+    )
+    assert report.passed
+    assert report.checked_keys == 1
+
+
+def test_compare_manifest_to_fixture_skips_placeholder_without_numeric_metrics() -> (
+    None
+):
+    current = {
+        "schema_version": 1,
+        "profile": "quick",
+        "geometry_mode": "cad-native",
+        "requires_cad": True,
+        "cad_available": True,
+        "sections": {"2d": {"value": 1.0}},
+    }
+    fixture = {
+        "schema_version": 1,
+        "profile": "quick",
+        "geometry_mode": "cad-native",
+        "requires_cad": True,
+        "placeholder": True,
+        "sections": {"2d": {"status": "unavailable"}},
+    }
+
+    report = compare_manifest_to_fixture(
+        current,
+        fixture,
+        abs_tol=1.0e-12,
+        rel_tol=1.0e-12,
+    )
+    assert report.passed
+    assert report.checked_keys == 0
+    assert report.skipped_reason is not None
 
 
 def test_fixture_self_compare_passes() -> None:

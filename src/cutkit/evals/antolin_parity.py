@@ -6,6 +6,19 @@ from dataclasses import dataclass
 from math import isfinite
 from typing import Any
 
+_PARITY_METADATA_KEYS = (
+    "schema_version",
+    "profile",
+    "geometry_mode",
+    "requires_cad",
+    "numpy_acceleration",
+)
+_NUMERIC_EXCLUDED_KEYS = set(_PARITY_METADATA_KEYS) | {
+    "cad_available",
+    "scope",
+    "placeholder",
+}
+
 
 @dataclass(frozen=True)
 class ParityFailure:
@@ -19,6 +32,7 @@ class ParityFailure:
     abs_tol: float
     rel_tol: float
     tolerance_bound: float
+    detail: str | None = None
 
 
 @dataclass(frozen=True)
@@ -37,7 +51,7 @@ def _collect_numeric_metrics(obj: Any, *, prefix: str = "") -> dict[str, float]:
     if isinstance(obj, dict):
         for key in sorted(obj):
             value = obj[key]
-            if key in {"schema_version", "cad_available", "requires_cad"}:
+            if key in _NUMERIC_EXCLUDED_KEYS:
                 continue
             child_prefix = f"{prefix}.{key}" if prefix else str(key)
             metrics.update(_collect_numeric_metrics(value, prefix=child_prefix))
@@ -61,6 +75,50 @@ def _collect_numeric_metrics(obj: Any, *, prefix: str = "") -> dict[str, float]:
     return metrics
 
 
+def _metadata_failures(
+    current: dict[str, Any], fixture: dict[str, Any]
+) -> list[ParityFailure]:
+    failures: list[ParityFailure] = []
+    for key in _PARITY_METADATA_KEYS:
+        if key not in fixture:
+            continue
+        if key not in current:
+            failures.append(
+                ParityFailure(
+                    key=f"meta.{key}",
+                    current=float("nan"),
+                    expected=float("nan"),
+                    abs_diff=float("inf"),
+                    rel_diff=float("inf"),
+                    abs_tol=0.0,
+                    rel_tol=0.0,
+                    tolerance_bound=0.0,
+                    detail=(
+                        f"missing key in current manifest; expected {key}={fixture[key]!r}"
+                    ),
+                )
+            )
+            continue
+        if current[key] != fixture[key]:
+            failures.append(
+                ParityFailure(
+                    key=f"meta.{key}",
+                    current=float("nan"),
+                    expected=float("nan"),
+                    abs_diff=float("inf"),
+                    rel_diff=float("inf"),
+                    abs_tol=0.0,
+                    rel_tol=0.0,
+                    tolerance_bound=0.0,
+                    detail=(
+                        f"metadata mismatch: current={current[key]!r}, "
+                        f"expected={fixture[key]!r}"
+                    ),
+                )
+            )
+    return failures
+
+
 def compare_manifest_to_fixture(
     current: dict[str, Any],
     fixture: dict[str, Any],
@@ -79,6 +137,15 @@ def compare_manifest_to_fixture(
             skipped_reason=(
                 "fixture requires CAD-native mode but OpenCascade is unavailable"
             ),
+        )
+
+    metadata_failures = _metadata_failures(current, fixture)
+    if metadata_failures:
+        return ParityReport(
+            passed=False,
+            failures=tuple(metadata_failures),
+            checked_keys=0,
+            skipped_reason=None,
         )
 
     current_metrics = _collect_numeric_metrics(current)
@@ -122,25 +189,22 @@ def compare_manifest_to_fixture(
                 )
             )
 
-    for key in sorted(current_metrics):
-        if key not in fixture_metrics:
-            failures.append(
-                ParityFailure(
-                    key=key,
-                    current=current_metrics[key],
-                    expected=float("nan"),
-                    abs_diff=float("inf"),
-                    rel_diff=float("inf"),
-                    abs_tol=abs_tol,
-                    rel_tol=rel_tol,
-                    tolerance_bound=float("inf"),
-                )
-            )
+    checked_keys = len(set(current_metrics) & set(fixture_metrics))
+    if not failures and checked_keys == 0:
+        return ParityReport(
+            passed=True,
+            failures=(),
+            checked_keys=0,
+            skipped_reason=(
+                "fixture contains no numeric metrics to compare; "
+                "treating as placeholder baseline"
+            ),
+        )
 
     return ParityReport(
         passed=not failures,
         failures=tuple(failures),
-        checked_keys=len(set(current_metrics) & set(fixture_metrics)),
+        checked_keys=checked_keys,
         skipped_reason=None,
     )
 
@@ -161,6 +225,9 @@ def format_parity_report(report: ParityReport) -> str:
         )
     ]
     for failure in report.failures[:20]:
+        if failure.detail is not None:
+            lines.append(f"- {failure.key}: {failure.detail}")
+            continue
         lines.append(
             "- "
             f"{failure.key}: current={failure.current:.12e}, "

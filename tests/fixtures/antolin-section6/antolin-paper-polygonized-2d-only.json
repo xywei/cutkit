@@ -5,6 +5,7 @@
   "profile": "antolin-paper",
   "requires_cad": false,
   "schema_version": 1,
+  "scope": "2d-only",
   "sections": {
     "2d": {
       "general": {

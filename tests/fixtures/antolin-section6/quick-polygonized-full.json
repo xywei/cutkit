@@ -5,6 +5,7 @@
   "profile": "quick",
   "requires_cad": false,
   "schema_version": 1,
+  "scope": "full",
   "sections": {
     "2d": {
       "general": {
