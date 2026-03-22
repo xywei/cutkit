@@ -8,6 +8,7 @@ from cutkit.evals import (
     run_general_function_experiment_3d,
     run_polynomial_experiment_3d,
 )
+from cutkit.evals import antolin_wei_buffa_2022_3d as awb3d
 from cutkit.evals.antolin_wei_buffa_2022_3d import _tetra_volume_sum
 
 
@@ -82,6 +83,82 @@ def test_section_6_2_3d_folded_errors_use_common_reference() -> None:
     assert order_result.jplus_abs_error == pytest.approx(0.0)
     assert order_result.folded_worst_abs_error >= order_result.folded_best_abs_error
     assert order_result.folded_worst_abs_error > 0.0
+
+
+def test_polynomial_best_folded_excludes_jplus_seed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    jplus_seed = (1.0, 1.0, 0.5)
+    other_seed = (0.0, 0.0, 0.0)
+
+    monkeypatch.setattr(
+        awb3d,
+        "build_section_6_1_3_boundary_triangles",
+        lambda **_: (((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)),),
+    )
+    monkeypatch.setattr(awb3d, "_tetra_volume_sum", lambda *_, **__: 0.1)
+    monkeypatch.setattr(awb3d, "_seed_grid_3d", lambda size: (jplus_seed, other_seed))
+
+    def fake_bernstein(
+        boundary: object,
+        *,
+        seed: tuple[float, float, float],
+        order: int,
+        **unused_kwargs: object,
+    ) -> tuple[float, ...]:
+        _ = boundary, unused_kwargs
+        if seed == jplus_seed:
+            return (0.1 * order,)
+        return (10.0 + order,)
+
+    monkeypatch.setattr(awb3d, "_integrate_bernstein_over_boundary", fake_bernstein)
+
+    result = awb3d.run_polynomial_experiment_3d(
+        degrees=(2,),
+        orders=(5,),
+        reference_order=7,
+        seed_grid_size=5,
+        surface_resolution=4,
+    )
+    degree_result = result.degree_results[0]
+    assert degree_result.folded_best_abs_error[0] > degree_result.jplus_abs_error[0]
+
+
+def test_general_best_folded_excludes_jplus_seed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    jplus_seed = (1.0, 1.0, 0.5)
+    other_seed = (0.0, 0.0, 0.0)
+
+    monkeypatch.setattr(
+        awb3d,
+        "build_section_6_1_3_boundary_triangles",
+        lambda **_: (((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)),),
+    )
+    monkeypatch.setattr(awb3d, "_seed_grid_3d", lambda size: (jplus_seed, other_seed))
+
+    def fake_general(
+        boundary: object,
+        *,
+        seed: tuple[float, float, float],
+        order: int,
+        **unused_kwargs: object,
+    ) -> float:
+        _ = boundary, unused_kwargs
+        if seed == jplus_seed:
+            return 0.1 * order
+        return 10.0 + order
+
+    monkeypatch.setattr(awb3d, "_integrate_general_over_boundary", fake_general)
+
+    result = awb3d.run_general_function_experiment_3d(
+        orders=(5,),
+        reference_order=7,
+        seed_grid_size=5,
+        surface_resolution=4,
+    )
+    order_result = result.orders[0]
+    assert order_result.folded_best_abs_error > order_result.jplus_abs_error
 
 
 def test_section_6_2_3d_grid_protocol_errors_reduce() -> None:

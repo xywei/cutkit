@@ -501,6 +501,23 @@ def _seed_grid_3d(size: int) -> tuple[Point3D, ...]:
     return tuple(seeds)
 
 
+def _same_seed(a: Point3D, b: Point3D, *, tol: float = 1.0e-12) -> bool:
+    return (
+        abs(a[0] - b[0]) <= tol and abs(a[1] - b[1]) <= tol and abs(a[2] - b[2]) <= tol
+    )
+
+
+def _folded_seeds_without_jplus(
+    seeds: tuple[Point3D, ...],
+    *,
+    jplus_seed: Point3D,
+) -> tuple[Point3D, ...]:
+    filtered = tuple(seed for seed in seeds if not _same_seed(seed, jplus_seed))
+    if not filtered:
+        raise ValueError("seed grid must include at least one non-jplus folded seed")
+    return filtered
+
+
 def _tetra_volume_sum(boundary: tuple[Triangle3D, ...], seed: Point3D) -> float:
     total = 0.0
     for a, b, c in boundary:
@@ -713,6 +730,7 @@ def run_polynomial_experiment_3d(
     domain_volume = _tetra_volume_sum(boundary, jplus_seed)
 
     seeds = _seed_grid_3d(seed_grid_size)
+    folded_seeds = _folded_seeds_without_jplus(seeds, jplus_seed=jplus_seed)
 
     degree_results: list[Polynomial3DDegreeResult] = []
     for degree in degrees:
@@ -729,7 +747,7 @@ def run_polynomial_experiment_3d(
                 degree=degree,
                 order=reference_order,
             )
-            for seed in seeds
+            for seed in folded_seeds
         }
 
         j_curve: list[float] = []
@@ -746,7 +764,7 @@ def run_polynomial_experiment_3d(
             j_curve.append(_max_abs_diff(j_val, jplus_ref))
 
             seed_errors: list[float] = []
-            for seed in seeds:
+            for seed in folded_seeds:
                 f_val = _integrate_bernstein_over_boundary(
                     boundary,
                     seed=seed,
@@ -811,6 +829,7 @@ def run_general_function_experiment_3d(
         side_resolution=side_resolution,
     )
     seeds = _seed_grid_3d(seed_grid_size)
+    folded_seeds = _folded_seeds_without_jplus(seeds, jplus_seed=jplus_seed)
 
     reference = _integrate_general_over_boundary(
         boundary,
@@ -827,7 +846,7 @@ def run_general_function_experiment_3d(
         j_err = abs(j_val - reference)
 
         seed_errors: list[float] = []
-        for seed in seeds:
+        for seed in folded_seeds:
             val = _integrate_general_over_boundary(
                 boundary,
                 seed=seed,
