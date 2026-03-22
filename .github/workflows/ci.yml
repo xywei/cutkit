@@ -79,3 +79,33 @@ jobs:
         run: |
           uv run python scripts/reproduce_antolin_2022_examples.py \
             --parity-fixture tests/fixtures/antolin-section6/quick-polygonized-full.json
+
+  poisson-benchmark-smoke:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        backend-mode: ["jplus", "folded"]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Install
+        run: uv sync --extra dev
+
+      - name: Run Poisson benchmark smoke profile
+        run: |
+          uv run python scripts/run_poisson_benchmarks.py \
+            --profile quick \
+            --backend-mode ${{ matrix.backend-mode }}
