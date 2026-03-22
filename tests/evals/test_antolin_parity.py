@@ -164,6 +164,40 @@ def test_compare_manifest_to_fixture_allows_superset_metrics_for_2d_only() -> No
     assert report.checked_keys == 1
 
 
+def test_compare_manifest_to_fixture_rejects_truncated_full_scope() -> None:
+    current = {
+        "schema_version": 1,
+        "profile": "antolin-paper",
+        "geometry_mode": "polygonized",
+        "sections": {
+            "2d": {"value": 1.0},
+            "3d": {"value": 2.0},
+        },
+    }
+    fixture = {
+        "schema_version": 1,
+        "profile": "antolin-paper",
+        "geometry_mode": "polygonized",
+        "scope": "full",
+        "sections": {
+            "2d": {"value": 1.0},
+        },
+    }
+
+    report = compare_manifest_to_fixture(
+        current,
+        fixture,
+        abs_tol=1.0e-12,
+        rel_tol=1.0e-12,
+    )
+    assert not report.passed
+    assert report.checked_keys == 1
+    assert any(
+        failure.key.endswith("sections.3d.value") and failure.detail is not None
+        for failure in report.failures
+    )
+
+
 def test_compare_manifest_to_fixture_skips_placeholder_without_numeric_metrics() -> (
     None
 ):
@@ -218,7 +252,7 @@ def test_compare_manifest_to_fixture_fails_empty_non_placeholder_fixture() -> No
     assert not report.passed
     assert report.checked_keys == 0
     text = format_parity_report(report)
-    assert "meta.placeholder" in text
+    assert "sections.2d.value" in text
 
 
 def test_fixture_self_compare_passes() -> None:

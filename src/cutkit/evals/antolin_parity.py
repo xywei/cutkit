@@ -150,8 +150,27 @@ def compare_manifest_to_fixture(
 
     current_metrics = _collect_numeric_metrics(current)
     fixture_metrics = _collect_numeric_metrics(fixture)
+    fixture_scope = str(fixture.get("scope", "full"))
 
     failures: list[ParityFailure] = []
+
+    if fixture_scope == "full" and not bool(fixture.get("placeholder", False)):
+        for key in sorted(current_metrics):
+            if key in fixture_metrics:
+                continue
+            failures.append(
+                ParityFailure(
+                    key=key,
+                    current=current_metrics[key],
+                    expected=float("nan"),
+                    abs_diff=float("inf"),
+                    rel_diff=float("inf"),
+                    abs_tol=abs_tol,
+                    rel_tol=rel_tol,
+                    tolerance_bound=float("inf"),
+                    detail="missing key in fixture for scope=full",
+                )
+            )
 
     for key in sorted(fixture_metrics):
         if key not in current_metrics:
