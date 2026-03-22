@@ -78,3 +78,34 @@ def test_orient_boundary_triangles_outward_flips_each_disconnected_shell() -> No
     assert len(shell_b) == 4
     assert signed_boundary_volume_3d(shell_a, seed=(0.25, 0.25, 0.25)) > 0.0
     assert signed_boundary_volume_3d(shell_b, seed=(10.25, 0.25, 0.25)) > 0.0
+
+
+def test_orient_boundary_triangles_outward_preserves_nested_cavity_sign() -> None:
+    outer = (
+        ((0.0, 0.0, 0.0), (2.0, 2.0, 0.0), (2.0, 0.0, 0.0)),
+        ((0.0, 0.0, 0.0), (2.0, 0.0, 2.0), (2.0, 2.0, 0.0)),
+        ((0.0, 0.0, 0.0), (0.0, 2.0, 2.0), (2.0, 0.0, 2.0)),
+        ((2.0, 2.0, 0.0), (2.0, 0.0, 2.0), (0.0, 2.0, 2.0)),
+    )
+    inner = (
+        ((0.3, 0.3, 0.3), (0.8, 0.3, 0.3), (0.3, 0.8, 0.3)),
+        ((0.3, 0.3, 0.3), (0.3, 0.3, 0.8), (0.8, 0.3, 0.3)),
+        ((0.3, 0.3, 0.3), (0.3, 0.8, 0.3), (0.3, 0.3, 0.8)),
+        ((0.8, 0.3, 0.3), (0.3, 0.3, 0.8), (0.3, 0.8, 0.3)),
+    )
+
+    oriented = orient_boundary_triangles_outward(outer + inner)
+
+    outer_shell = tuple(
+        triangle for triangle in oriented if max(vertex[0] for vertex in triangle) > 1.0
+    )
+    inner_shell = tuple(
+        triangle
+        for triangle in oriented
+        if max(vertex[0] for vertex in triangle) <= 1.0
+    )
+
+    assert len(outer_shell) == 4
+    assert len(inner_shell) == 4
+    assert signed_boundary_volume_3d(outer_shell, seed=(0.2, 0.2, 0.2)) > 0.0
+    assert signed_boundary_volume_3d(inner_shell, seed=(0.35, 0.35, 0.35)) < 0.0

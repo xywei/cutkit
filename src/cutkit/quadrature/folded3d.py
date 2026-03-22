@@ -347,8 +347,21 @@ def integrate_general_over_boundary_3d(
         )
         wt = det[:, None] * jac[None, :]
 
-        values = integrand(x, y, z)
-        return float(_np.sum(values * wt))
+        try:
+            values = integrand(x, y, z)
+            return float(_np.sum(values * wt))
+        except TypeError:
+            total = 0.0
+            for tri_index in range(x.shape[0]):
+                for quad_index in range(x.shape[1]):
+                    total += float(
+                        integrand(
+                            float(x[tri_index, quad_index]),
+                            float(y[tri_index, quad_index]),
+                            float(z[tri_index, quad_index]),
+                        )
+                    ) * float(wt[tri_index, quad_index])
+            return total
 
     total = 0.0
     for a, b, c in boundary:
@@ -432,12 +445,22 @@ def integrate_general_over_cartesian_grid_xsurface_3d(
                         x_samples = (
                             left_np[None, :] + nodes_np[:, None] * widths_np[None, :]
                         )
-                        vals = integrand(x_samples, y, z)
-                        x_integrals = _np.sum(
-                            vals * (weights_np[:, None] * widths_np[None, :]),
-                            axis=0,
-                        )
-                        total += yz_weight * float(_np.sum(x_integrals))
+                        try:
+                            vals = integrand(x_samples, y, z)
+                            x_integrals = _np.sum(
+                                vals * (weights_np[:, None] * widths_np[None, :]),
+                                axis=0,
+                            )
+                            total += yz_weight * float(_np.sum(x_integrals))
+                        except TypeError:
+                            for interval in range(x_samples.shape[1]):
+                                width = float(widths_np[interval])
+                                for qx, node in enumerate(nodes_np):
+                                    x_value = float(left_np[interval] + node * width)
+                                    wx = float(weights_np[qx]) * width
+                                    total += (
+                                        yz_weight * wx * float(integrand(x_value, y, z))
+                                    )
                     else:
                         for ix in range(start_ix, resolution):
                             x0 = ix * h

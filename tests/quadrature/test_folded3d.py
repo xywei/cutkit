@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import math
+
 import pytest
 
 from cutkit.quadrature import (
@@ -95,3 +97,26 @@ def test_integrate_general_over_cartesian_grid_xsurface_3d_cube_fraction() -> No
         integrand=lambda _x, _y, _z: 1.0,
     )
     assert half_cube == pytest.approx(0.5, rel=1.0e-12, abs=1.0e-12)
+
+
+def test_integrate_general_over_boundary_supports_scalar_only_callable() -> None:
+    boundary = _oriented_reference_tetra()
+    seed = (0.1, 0.1, 0.1)
+
+    value = integrate_general_over_boundary_3d(
+        boundary,
+        seed=seed,
+        order=7,
+        integrand=lambda x, y, z: math.sin(x) * 0.0 + x + y + z,
+    )
+    assert value == pytest.approx(1.0 / 8.0, rel=1.0e-10, abs=1.0e-10)
+
+
+def test_integrate_cartesian_xsurface_supports_scalar_only_callable() -> None:
+    value = integrate_general_over_cartesian_grid_xsurface_3d(
+        resolution=4,
+        order=4,
+        x_surface_from_yz=lambda _y, _z: 0.5,
+        integrand=lambda x, _y, _z: math.sin(x) * 0.0 + 1.0,
+    )
+    assert value == pytest.approx(0.5, rel=1.0e-12, abs=1.0e-12)
