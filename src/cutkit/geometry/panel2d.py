@@ -26,7 +26,7 @@ def _normalize_points(points: Iterable[Sequence[float]]) -> tuple[Point2D, ...]:
     if len(normalized) < 3:
         raise ValueError("a loop must contain at least three points")
 
-    if normalized[0] == normalized[-1]:
+    while len(normalized) > 1 and normalized[0] == normalized[-1]:
         normalized = normalized[:-1]
 
     if len(normalized) < 3:

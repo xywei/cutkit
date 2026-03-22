@@ -238,3 +238,100 @@ def test_cad_jplus_anchor_failure_raises_instead_of_silent_fallback(
             anchor=None,
             require_interior_anchor=True,
         )
+
+
+def test_polynomial_folded_errors_use_common_reference_non_cad(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    cell = awb2d.CartesianCell2D(ix=0, iy=0, x0=0.0, x1=1.0, y0=0.0, y1=1.0)
+    clip = awb2d.CellClipResult(
+        cell=cell,
+        kind="trimmed",
+        polygon=((0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)),
+        area=0.5,
+    )
+
+    monkeypatch.setattr(awb2d, "_cached_clipped_cells", lambda *args: (clip,))
+    monkeypatch.setattr(
+        awb2d, "_seed_grid_for_cell", lambda *args, **kwargs: ((0.0, 0.0), (1.0, 1.0))
+    )
+
+    def fake_integrate(
+        polygon: object,
+        *,
+        cell: awb2d.CartesianCell2D,
+        degree: int,
+        order: int,
+        anchor: tuple[float, float] | None,
+        require_interior_anchor: bool,
+    ) -> tuple[float, ...]:
+        _ = polygon, cell, degree, require_interior_anchor
+        if anchor is None:
+            return (1.0 + order,)
+        if anchor == (0.0, 0.0):
+            return (10.0 + order,)
+        return (20.0 + order,)
+
+    monkeypatch.setattr(awb2d, "_integrate_bernstein_trimmed_cell", fake_integrate)
+
+    panel = TrimmedPanel2D(
+        outer=PanelLoop2D(((0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)))
+    )
+    result = run_polynomial_experiment(
+        panel,
+        label="6.1.1",
+        degrees=(2,),
+        orders=(2,),
+        grid_resolution=8,
+        reference_order=2,
+        seed_grid_size=3,
+    )
+
+    degree_result = result.degree_results[0]
+    assert degree_result.jplus_abs_error[0] == pytest.approx(0.0)
+    assert degree_result.folded_abs_error[0] == pytest.approx(19.0)
+
+
+def test_polynomial_folded_errors_use_common_reference_cad(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    cell = awb2d.CartesianCell2D(ix=0, iy=0, x0=0.0, x1=1.0, y0=0.0, y1=1.0)
+    clip = awb2d.CadCellClipResult(cell=cell, kind="trimmed", panels=(), area=0.5)
+
+    monkeypatch.setattr(awb2d, "_cached_cad_clipped_cells", lambda *args: (clip,))
+    monkeypatch.setattr(
+        awb2d, "_seed_grid_for_cell", lambda *args, **kwargs: ((0.0, 0.0), (1.0, 1.0))
+    )
+
+    def fake_integrate_cad(
+        panels: object,
+        *,
+        cell: awb2d.CartesianCell2D,
+        degree: int,
+        order: int,
+        anchor: tuple[float, float] | None,
+        require_interior_anchor: bool,
+    ) -> tuple[float, ...]:
+        _ = panels, cell, degree, require_interior_anchor
+        if anchor is None:
+            return (1.0 + order,)
+        if anchor == (0.0, 0.0):
+            return (10.0 + order,)
+        return (20.0 + order,)
+
+    monkeypatch.setattr(
+        awb2d, "_integrate_bernstein_trimmed_cell_cad", fake_integrate_cad
+    )
+
+    result = run_polynomial_experiment_cad(
+        label="6.1.1",
+        degrees=(2,),
+        orders=(2,),
+        grid_resolution=8,
+        reference_order=2,
+        seed_grid_size=3,
+    )
+
+    degree_result = result.degree_results[0]
+    assert degree_result.jplus_abs_error[0] == pytest.approx(0.0)
+    assert degree_result.folded_abs_error[0] == pytest.approx(19.0)

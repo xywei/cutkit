@@ -118,3 +118,10 @@ def test_validate_panel_rejects_self_intersecting_loops() -> None:
 
     report = validate_panel(panel)
     assert "hole 0 must be simple (non-self-intersecting)" in report.errors
+
+
+def test_panel_loop_strips_repeated_closure_vertices() -> None:
+    loop = PanelLoop2D(
+        ((0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0), (0.0, 0.0), (0.0, 0.0))
+    )
+    assert loop.points == ((0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0))

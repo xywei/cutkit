@@ -796,11 +796,9 @@ def run_polynomial_experiment(
 
     for degree in degrees:
         jplus_refs: dict[int, tuple[float, ...]] = {}
-        folded_refs: dict[tuple[int, int], tuple[float, ...]] = {}
         cell_seeds: dict[int, tuple[Point2D, ...]] = {}
 
         jplus_scale = 0.0
-        folded_scale = 0.0
 
         for cell_idx, clip in enumerate(trimmed):
             jref = _integrate_bernstein_trimmed_cell(
@@ -816,17 +814,6 @@ def run_polynomial_experiment(
 
             seeds = _seed_grid_for_cell(clip.cell, grid_size=seed_grid_size)
             cell_seeds[cell_idx] = seeds
-            for seed_idx, seed in enumerate(seeds):
-                ref = _integrate_bernstein_trimmed_cell(
-                    clip.polygon,
-                    cell=clip.cell,
-                    degree=degree,
-                    order=reference_order,
-                    anchor=seed,
-                    require_interior_anchor=False,
-                )
-                folded_refs[(cell_idx, seed_idx)] = ref
-                folded_scale = max(folded_scale, _max_abs(ref))
 
         jplus_abs_curve: list[float] = []
         folded_abs_curve: list[float] = []
@@ -850,7 +837,7 @@ def run_polynomial_experiment(
 
                 worst_cell = 0.0
                 seeds = cell_seeds[cell_idx]
-                for seed_idx, seed in enumerate(seeds):
+                for seed in seeds:
                     fapprox = _integrate_bernstein_trimmed_cell(
                         clip.polygon,
                         cell=clip.cell,
@@ -859,7 +846,7 @@ def run_polynomial_experiment(
                         anchor=seed,
                         require_interior_anchor=False,
                     )
-                    ferr = _max_abs_diff(fapprox, folded_refs[(cell_idx, seed_idx)])
+                    ferr = _max_abs_diff(fapprox, jplus_refs[cell_idx])
                     if ferr > worst_cell:
                         worst_cell = ferr
 
@@ -870,7 +857,7 @@ def run_polynomial_experiment(
             folded_abs_curve.append(folded_err)
 
         j_scale = max(jplus_scale, 1.0e-30)
-        f_scale = max(folded_scale, 1.0e-30)
+        f_scale = j_scale
         jplus_rel_curve = tuple(value / j_scale for value in jplus_abs_curve)
         folded_rel_curve = tuple(value / f_scale for value in folded_abs_curve)
 
@@ -1240,11 +1227,9 @@ def run_polynomial_experiment_cad(
 
     for degree in degrees:
         jplus_refs: dict[int, tuple[float, ...]] = {}
-        folded_refs: dict[tuple[int, int], tuple[float, ...]] = {}
         cell_seeds: dict[int, tuple[Point2D, ...]] = {}
 
         jplus_scale = 0.0
-        folded_scale = 0.0
 
         for cell_idx, clip in enumerate(trimmed):
             jref = _integrate_bernstein_trimmed_cell_cad(
@@ -1260,17 +1245,6 @@ def run_polynomial_experiment_cad(
 
             seeds = _seed_grid_for_cell(clip.cell, grid_size=seed_grid_size)
             cell_seeds[cell_idx] = seeds
-            for seed_idx, seed in enumerate(seeds):
-                ref = _integrate_bernstein_trimmed_cell_cad(
-                    clip.panels,
-                    cell=clip.cell,
-                    degree=degree,
-                    order=reference_order,
-                    anchor=seed,
-                    require_interior_anchor=False,
-                )
-                folded_refs[(cell_idx, seed_idx)] = ref
-                folded_scale = max(folded_scale, _max_abs(ref))
 
         jplus_abs_curve: list[float] = []
         folded_abs_curve: list[float] = []
@@ -1294,7 +1268,7 @@ def run_polynomial_experiment_cad(
 
                 worst_cell = 0.0
                 seeds = cell_seeds[cell_idx]
-                for seed_idx, seed in enumerate(seeds):
+                for seed in seeds:
                     fapprox = _integrate_bernstein_trimmed_cell_cad(
                         clip.panels,
                         cell=clip.cell,
@@ -1303,7 +1277,7 @@ def run_polynomial_experiment_cad(
                         anchor=seed,
                         require_interior_anchor=False,
                     )
-                    ferr = _max_abs_diff(fapprox, folded_refs[(cell_idx, seed_idx)])
+                    ferr = _max_abs_diff(fapprox, jplus_refs[cell_idx])
                     if ferr > worst_cell:
                         worst_cell = ferr
 
@@ -1314,7 +1288,7 @@ def run_polynomial_experiment_cad(
             folded_abs_curve.append(folded_err)
 
         j_scale = max(jplus_scale, 1.0e-30)
-        f_scale = max(folded_scale, 1.0e-30)
+        f_scale = j_scale
         jplus_rel_curve = tuple(value / j_scale for value in jplus_abs_curve)
         folded_rel_curve = tuple(value / f_scale for value in folded_abs_curve)
 
