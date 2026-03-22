@@ -38,6 +38,7 @@ jobs:
             --manifest-path poisson-benchmark-${{ matrix.backend-mode }}.json
 
       - name: Upload benchmark manifests
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: poisson-benchmarks-${{ matrix.backend-mode }}

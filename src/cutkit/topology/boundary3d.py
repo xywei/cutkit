@@ -94,14 +94,17 @@ def orient_boundary_triangles_outward(
         adjacency[right_index].append((left_index, parity))
 
     flip_state: list[int | None] = [None] * len(unique)
+    components: list[list[int]] = []
     for seed_index in range(len(unique)):
         if flip_state[seed_index] is not None:
             continue
 
         flip_state[seed_index] = 0
         queue: deque[int] = deque([seed_index])
+        component: list[int] = []
         while queue:
             index = queue.popleft()
+            component.append(index)
             current = flip_state[index]
             if current is None:
                 raise RuntimeError("internal orientation state error")
@@ -113,13 +116,22 @@ def orient_boundary_triangles_outward(
                     flip_state[neighbor_index] = expected
                     queue.append(neighbor_index)
 
+        components.append(component)
+
     oriented = [
         (a, c, b) if flip else (a, b, c)
         for (a, b, c), flip in zip(unique, flip_state, strict=True)
     ]
 
-    signed_volume = sum(_dot(a, _cross(b, c)) / 6.0 for a, b, c in oriented)
-    if signed_volume < 0.0:
-        oriented = [(a, c, b) for a, b, c in oriented]
+    for component in components:
+        signed_volume = sum(
+            _dot(oriented[index][0], _cross(oriented[index][1], oriented[index][2]))
+            / 6.0
+            for index in component
+        )
+        if signed_volume < 0.0:
+            for index in component:
+                a, b, c = oriented[index]
+                oriented[index] = (a, c, b)
 
     return tuple(oriented)
