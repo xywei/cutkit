@@ -38,6 +38,12 @@ from cutkit.evals.antolin_wei_buffa_2022_3d import (
     run_polynomial_experiment_3d,
     section_6_2_integrand_3d,
 )
+from cutkit.evals.antolin_parity import (
+    ParityFailure,
+    ParityReport,
+    compare_manifest_to_fixture,
+    format_parity_report,
+)
 
 __all__ = [
     "CutPanelCase",
@@ -72,4 +78,8 @@ __all__ = [
     "run_general_function_experiment_3d",
     "run_polynomial_experiment_3d",
     "section_6_2_integrand_3d",
+    "ParityFailure",
+    "ParityReport",
+    "compare_manifest_to_fixture",
+    "format_parity_report",
 ]

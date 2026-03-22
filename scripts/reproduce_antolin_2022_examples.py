@@ -12,10 +12,15 @@ Source and credit:
 from __future__ import annotations
 
 import argparse
+import json
+from pathlib import Path
+from typing import Any
 
 from cutkit.evals import (
     NUMPY_ACCELERATION_ENABLED,
     OPENCASCADE_CAD_AVAILABLE,
+    compare_manifest_to_fixture,
+    format_parity_report,
     build_section_6_1_1_bspline_panel,
     build_section_6_1_2_rational_panel,
     run_general_function_experiment_3d_grid,
@@ -36,7 +41,7 @@ def _print_polynomial_result(
     grid_resolution: int,
     seed_grid_size: int,
     reference_order: int,
-) -> None:
+) -> Any:
     if label == "6.1.1":
         panel = build_section_6_1_1_bspline_panel(sample_count=sample_count)
     else:
@@ -65,6 +70,7 @@ def _print_polynomial_result(
                 f"{degree_result.jplus_rel_error[idx]:.3e}"
             )
     print()
+    return result
 
 
 def _print_general_function_result(
@@ -74,7 +80,7 @@ def _print_general_function_result(
     grid_resolutions: tuple[int, ...],
     reference_grid_resolution: int,
     reference_order: int,
-) -> None:
+) -> Any:
     panel = build_section_6_1_1_bspline_panel(sample_count=sample_count)
     result = run_general_function_experiment(
         panel,
@@ -100,6 +106,7 @@ def _print_general_function_result(
                 f"{order_result.folded_rel_error[idx]:.3e} | "
                 f"{order_result.jplus_rel_error[idx]:.3e}"
             )
+    return result
 
 
 def _print_polynomial_result_cad(
@@ -110,7 +117,7 @@ def _print_polynomial_result_cad(
     grid_resolution: int,
     seed_grid_size: int,
     reference_order: int,
-) -> None:
+) -> Any:
     result = run_polynomial_experiment_cad(
         label=label,
         degrees=degrees,
@@ -133,6 +140,7 @@ def _print_polynomial_result_cad(
                 f"{degree_result.jplus_rel_error[idx]:.3e}"
             )
     print()
+    return result
 
 
 def _print_general_function_result_cad(
@@ -141,7 +149,7 @@ def _print_general_function_result_cad(
     grid_resolutions: tuple[int, ...],
     reference_grid_resolution: int,
     reference_order: int,
-) -> None:
+) -> Any:
     result = run_general_function_experiment_cad(
         label="6.1.1",
         orders=orders,
@@ -166,6 +174,7 @@ def _print_general_function_result_cad(
                 f"{order_result.folded_rel_error[idx]:.3e} | "
                 f"{order_result.jplus_rel_error[idx]:.3e}"
             )
+    return result
 
 
 def _print_polynomial_result_3d(
@@ -175,7 +184,7 @@ def _print_polynomial_result_3d(
     seed_grid_size: int,
     surface_resolution: int,
     reference_order: int,
-) -> None:
+) -> Any:
     result = run_polynomial_experiment_3d(
         degrees=degrees,
         orders=orders,
@@ -197,6 +206,7 @@ def _print_polynomial_result_3d(
                 f"{degree_result.jplus_abs_error[idx]:.3e}"
             )
     print()
+    return result
 
 
 def _print_general_result_3d(
@@ -205,7 +215,7 @@ def _print_general_result_3d(
     grid_resolutions: tuple[int, ...],
     reference_grid_resolution: int,
     reference_order: int,
-) -> None:
+) -> Any:
     result = run_general_function_experiment_3d_grid(
         orders=orders,
         grid_resolutions=grid_resolutions,
@@ -228,6 +238,88 @@ def _print_general_result_3d(
                 f"{order_result.folded_rel_error[i]:.3e}"
             )
     print()
+    return result
+
+
+def _serialize_polynomial_result(result: Any) -> dict[str, Any]:
+    return {
+        "label": result.label,
+        "grid_resolution": result.grid_resolution,
+        "reference_order": result.reference_order,
+        "seed_grid_size": result.seed_grid_size,
+        "degree_results": [
+            {
+                "degree": degree_result.degree,
+                "orders": list(degree_result.orders),
+                "trimmed_cell_count": degree_result.trimmed_cell_count,
+                "folded_abs_error": list(degree_result.folded_abs_error),
+                "jplus_abs_error": list(degree_result.jplus_abs_error),
+                "folded_rel_error": list(degree_result.folded_rel_error),
+                "jplus_rel_error": list(degree_result.jplus_rel_error),
+                "folded_reference_scale": degree_result.folded_reference_scale,
+                "jplus_reference_scale": degree_result.jplus_reference_scale,
+            }
+            for degree_result in result.degree_results
+        ],
+    }
+
+
+def _serialize_general_result(result: Any) -> dict[str, Any]:
+    return {
+        "reference_value": result.reference_value,
+        "reference_grid_resolution": result.reference_grid_resolution,
+        "reference_order": result.reference_order,
+        "order_results": [
+            {
+                "order": order_result.order,
+                "grid_resolutions": list(order_result.grid_resolutions),
+                "h_values": list(order_result.h_values),
+                "folded_abs_error": list(order_result.folded_abs_error),
+                "jplus_abs_error": list(order_result.jplus_abs_error),
+                "folded_rel_error": list(order_result.folded_rel_error),
+                "jplus_rel_error": list(order_result.jplus_rel_error),
+            }
+            for order_result in result.order_results
+        ],
+    }
+
+
+def _serialize_polynomial_result_3d(result: Any) -> dict[str, Any]:
+    return {
+        "seed_grid_size": result.seed_grid_size,
+        "surface_resolution": result.surface_resolution,
+        "reference_order": result.reference_order,
+        "jplus_seed": list(result.jplus_seed),
+        "domain_volume": result.domain_volume,
+        "degree_results": [
+            {
+                "degree": degree_result.degree,
+                "orders": list(degree_result.orders),
+                "folded_worst_abs_error": list(degree_result.folded_worst_abs_error),
+                "folded_best_abs_error": list(degree_result.folded_best_abs_error),
+                "jplus_abs_error": list(degree_result.jplus_abs_error),
+            }
+            for degree_result in result.degree_results
+        ],
+    }
+
+
+def _serialize_general_result_3d(result: Any) -> dict[str, Any]:
+    return {
+        "reference_grid_resolution": result.reference_grid_resolution,
+        "reference_order": result.reference_order,
+        "reference_value": result.reference_value,
+        "order_results": [
+            {
+                "order": order_result.order,
+                "grid_resolutions": list(order_result.grid_resolutions),
+                "h_values": list(order_result.h_values),
+                "folded_abs_error": list(order_result.folded_abs_error),
+                "folded_rel_error": list(order_result.folded_rel_error),
+            }
+            for order_result in result.order_results
+        ],
+    }
 
 
 def main() -> int:
@@ -256,7 +348,39 @@ def main() -> int:
             "and otherwise falls back to polygonized MVP"
         ),
     )
+    parser.add_argument(
+        "--manifest-path",
+        type=Path,
+        default=None,
+        help="write a machine-readable Section 6 manifest to this path",
+    )
+    parser.add_argument(
+        "--parity-fixture",
+        type=Path,
+        default=None,
+        help="compare current manifest against this fixture JSON",
+    )
+    parser.add_argument(
+        "--write-parity-fixture",
+        action="store_true",
+        help="write current manifest to --parity-fixture and skip comparison",
+    )
+    parser.add_argument(
+        "--parity-abs-tol",
+        type=float,
+        default=1.0e-10,
+        help="absolute tolerance for parity metric comparisons",
+    )
+    parser.add_argument(
+        "--parity-rel-tol",
+        type=float,
+        default=1.0e-8,
+        help="relative tolerance for parity metric comparisons",
+    )
     args = parser.parse_args()
+
+    if args.write_parity_fixture and args.parity_fixture is None:
+        raise ValueError("--write-parity-fixture requires --parity-fixture")
 
     geometry_mode = args.geometry_mode
     if geometry_mode == "auto":
@@ -336,7 +460,7 @@ def main() -> int:
     print()
 
     if geometry_mode == "cad-native":
-        _print_polynomial_result_cad(
+        poly_611 = _print_polynomial_result_cad(
             "6.1.1",
             degrees=sec61_1_degrees,
             orders=sec61_orders,
@@ -344,7 +468,7 @@ def main() -> int:
             seed_grid_size=sec61_seed_grid_size,
             reference_order=sec61_reference_order,
         )
-        _print_polynomial_result_cad(
+        poly_612 = _print_polynomial_result_cad(
             "6.1.2",
             degrees=sec61_2_degrees,
             orders=sec61_orders,
@@ -352,14 +476,14 @@ def main() -> int:
             seed_grid_size=sec61_seed_grid_size,
             reference_order=sec61_reference_order,
         )
-        _print_general_function_result_cad(
+        general_2d = _print_general_function_result_cad(
             orders=sec62_orders,
             grid_resolutions=sec62_grids,
             reference_grid_resolution=sec62_reference_grid,
             reference_order=sec62_reference_order,
         )
     else:
-        _print_polynomial_result(
+        poly_611 = _print_polynomial_result(
             "6.1.1",
             sample_count=sample_count,
             degrees=sec61_1_degrees,
@@ -368,7 +492,7 @@ def main() -> int:
             seed_grid_size=sec61_seed_grid_size,
             reference_order=sec61_reference_order,
         )
-        _print_polynomial_result(
+        poly_612 = _print_polynomial_result(
             "6.1.2",
             sample_count=sample_count,
             degrees=sec61_2_degrees,
@@ -377,7 +501,7 @@ def main() -> int:
             seed_grid_size=sec61_seed_grid_size,
             reference_order=sec61_reference_order,
         )
-        _print_general_function_result(
+        general_2d = _print_general_function_result(
             sample_count=sample_count,
             orders=sec62_orders,
             grid_resolutions=sec62_grids,
@@ -385,20 +509,72 @@ def main() -> int:
             reference_order=sec62_reference_order,
         )
 
+    manifest: dict[str, Any] = {
+        "schema_version": 1,
+        "profile": "antolin-paper" if args.antolin_paper else "quick",
+        "geometry_mode": geometry_mode,
+        "requires_cad": geometry_mode == "cad-native",
+        "cad_available": OPENCASCADE_CAD_AVAILABLE,
+        "numpy_acceleration": NUMPY_ACCELERATION_ENABLED,
+        "sections": {
+            "2d": {
+                "polynomial": {
+                    "6.1.1": _serialize_polynomial_result(poly_611),
+                    "6.1.2": _serialize_polynomial_result(poly_612),
+                },
+                "general": _serialize_general_result(general_2d),
+            }
+        },
+    }
+
     if not args.skip_3d:
-        _print_polynomial_result_3d(
+        polynomial_3d = _print_polynomial_result_3d(
             degrees=sec613_degrees,
             orders=sec613_orders,
             seed_grid_size=sec613_seed_grid,
             surface_resolution=sec613_surface_resolution,
             reference_order=sec613_reference_order,
         )
-        _print_general_result_3d(
+        general_3d = _print_general_result_3d(
             orders=sec623d_orders,
             grid_resolutions=sec623d_grids,
             reference_grid_resolution=sec623d_reference_grid,
             reference_order=sec623d_reference_order,
         )
+        manifest["sections"]["3d"] = {
+            "polynomial": _serialize_polynomial_result_3d(polynomial_3d),
+            "general": _serialize_general_result_3d(general_3d),
+        }
+    else:
+        manifest["sections"]["3d"] = {"status": "skipped"}
+
+    if args.manifest_path is not None:
+        args.manifest_path.parent.mkdir(parents=True, exist_ok=True)
+        args.manifest_path.write_text(
+            json.dumps(manifest, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        print(f"Wrote manifest to {args.manifest_path}")
+
+    if args.write_parity_fixture and args.parity_fixture is not None:
+        args.parity_fixture.parent.mkdir(parents=True, exist_ok=True)
+        args.parity_fixture.write_text(
+            json.dumps(manifest, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        print(f"Wrote parity fixture to {args.parity_fixture}")
+
+    if args.parity_fixture is not None and not args.write_parity_fixture:
+        fixture = json.loads(args.parity_fixture.read_text(encoding="utf-8"))
+        report = compare_manifest_to_fixture(
+            manifest,
+            fixture,
+            abs_tol=args.parity_abs_tol,
+            rel_tol=args.parity_rel_tol,
+        )
+        print(format_parity_report(report))
+        if not report.passed and report.skipped_reason is None:
+            return 1
 
     return 0
 
