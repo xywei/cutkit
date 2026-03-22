@@ -152,6 +152,26 @@ def compare_manifest_to_fixture(
     fixture_metrics = _collect_numeric_metrics(fixture)
     fixture_scope = str(fixture.get("scope", "full"))
 
+    if fixture_scope not in {"full", "2d-only"}:
+        return ParityReport(
+            passed=False,
+            failures=(
+                ParityFailure(
+                    key="meta.scope",
+                    current=float("nan"),
+                    expected=float("nan"),
+                    abs_diff=float("inf"),
+                    rel_diff=float("inf"),
+                    abs_tol=0.0,
+                    rel_tol=0.0,
+                    tolerance_bound=0.0,
+                    detail=f"invalid fixture scope: {fixture_scope!r}",
+                ),
+            ),
+            checked_keys=0,
+            skipped_reason=None,
+        )
+
     failures: list[ParityFailure] = []
 
     if fixture_scope == "full" and not bool(fixture.get("placeholder", False)):

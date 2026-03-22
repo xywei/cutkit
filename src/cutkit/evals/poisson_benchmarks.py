@@ -290,6 +290,8 @@ def run_poisson_benchmarks(
 
     if profile_name not in PROFILES:
         raise ValueError(f"unknown benchmark profile: {profile_name!r}")
+    if backend_mode not in {"jplus", "folded"}:
+        raise ValueError(f"unknown benchmark backend mode: {backend_mode!r}")
 
     profile = PROFILES[profile_name]
     planar = run_planar_poisson_benchmark(profile=profile, backend_mode=backend_mode)

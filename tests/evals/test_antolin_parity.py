@@ -198,6 +198,32 @@ def test_compare_manifest_to_fixture_rejects_truncated_full_scope() -> None:
     )
 
 
+def test_compare_manifest_to_fixture_rejects_unknown_scope_value() -> None:
+    current = {
+        "schema_version": 1,
+        "profile": "antolin-paper",
+        "geometry_mode": "polygonized",
+        "sections": {"2d": {"value": 1.0}},
+    }
+    fixture = {
+        "schema_version": 1,
+        "profile": "antolin-paper",
+        "geometry_mode": "polygonized",
+        "scope": "Full",
+        "sections": {"2d": {"value": 1.0}},
+    }
+
+    report = compare_manifest_to_fixture(
+        current,
+        fixture,
+        abs_tol=1.0e-12,
+        rel_tol=1.0e-12,
+    )
+    assert not report.passed
+    assert report.checked_keys == 0
+    assert report.failures[0].key == "meta.scope"
+
+
 def test_compare_manifest_to_fixture_skips_placeholder_without_numeric_metrics() -> (
     None
 ):
