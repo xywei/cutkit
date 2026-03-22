@@ -17,6 +17,7 @@ Repository-local documentation is the system of record for CUTKIT.
 ## Quality And Operations
 
 - `docs/quality/score.md`: quality scorecard and known gaps
+- `docs/folded-decomposition-followups.md`: tracked post-MVP folded-decomposition extensions
 - `docs/entire-transcript-policy.md`: Entire transcript handling policy
 - `.github/workflows/weekly-janitor.yml`: scheduled repository cleanup automation
 

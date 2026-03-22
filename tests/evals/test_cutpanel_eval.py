@@ -25,6 +25,12 @@ def test_square_with_hole_metrics() -> None:
     assert metrics.cut_fraction == pytest.approx(0.75)
     assert metrics.outer_orientation == "ccw"
     assert metrics.hole_orientations == ("cw",)
+    assert metrics.folded_triangle_abs_error is not None
+    assert metrics.folded_rule_abs_error is not None
+    assert metrics.folded_max_moment_abs_error is not None
+    assert metrics.folded_triangle_abs_error < 1.0e-12
+    assert metrics.folded_rule_abs_error < 1.0e-12
+    assert metrics.folded_max_moment_abs_error < 1.0e-10
 
 
 def test_orientation_violations_are_reported() -> None:
@@ -36,3 +42,28 @@ def test_orientation_violations_are_reported() -> None:
 
     errors = validate_case(case)
     assert any("Hole loop" in error for error in errors)
+
+
+def test_validate_case_reports_invalid_area_without_raising() -> None:
+    case = CutPanelCase(
+        name="zero-area-hole-cancel",
+        outer=((0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)),
+        holes=(((0.0, 1.0), (1.0, 1.0), (1.0, 0.0), (0.0, 0.0)),),
+    )
+
+    errors = validate_case(case)
+    assert "Panel area must be positive." in errors
+
+
+def test_validate_case_rejects_hole_outside_outer_topology() -> None:
+    case = CutPanelCase(
+        name="hole-outside",
+        outer=((0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)),
+        holes=(((2.0, 2.2), (2.2, 2.2), (2.2, 2.0), (2.0, 2.0)),),
+    )
+
+    errors = validate_case(case)
+    assert any("Topology:" in error for error in errors)
+    assert any(
+        "hole 0 must lie strictly inside outer loop" in error for error in errors
+    )
