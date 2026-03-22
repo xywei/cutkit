@@ -10,6 +10,10 @@ from cutkit.evals import (
 )
 from cutkit.evals import antolin_wei_buffa_2022_3d as awb3d
 from cutkit.evals.antolin_wei_buffa_2022_3d import _tetra_volume_sum
+from cutkit.quadrature import (
+    integrate_bernstein_over_boundary_3d,
+    integrate_general_over_boundary_3d,
+)
 
 
 def test_section_6_1_3_domain_volume_is_positive() -> None:
@@ -214,6 +218,34 @@ def test_section_6_2_3d_grid_protocol_errors_reduce() -> None:
     assert order_1.folded_abs_error[1] < order_1.folded_abs_error[0]
     assert order_2.folded_abs_error[1] < order_2.folded_abs_error[0]
     assert order_2.folded_abs_error[1] < order_1.folded_abs_error[1]
+
+
+def test_eval_and_core_boundary_integrators_match() -> None:
+    boundary = build_section_6_1_3_boundary_triangles(surface_resolution=4)
+    seed = (0.5, 0.5, 0.5)
+
+    eval_general = awb3d._integrate_general_over_boundary(boundary, seed=seed, order=5)
+    core_general = integrate_general_over_boundary_3d(
+        boundary,
+        seed=seed,
+        order=5,
+        integrand=awb3d.section_6_2_integrand_3d,
+    )
+    assert eval_general == pytest.approx(core_general, rel=1.0e-12, abs=1.0e-12)
+
+    eval_bernstein = awb3d._integrate_bernstein_over_boundary(
+        boundary,
+        seed=seed,
+        degree=2,
+        order=5,
+    )
+    core_bernstein = integrate_bernstein_over_boundary_3d(
+        boundary,
+        seed=seed,
+        degree=2,
+        order=5,
+    )
+    assert eval_bernstein == pytest.approx(core_bernstein, rel=1.0e-12, abs=1.0e-12)
 
 
 @pytest.mark.parametrize("surface_resolution", [6, 9, 10, 12, 15, 18, 20, 21, 24])
