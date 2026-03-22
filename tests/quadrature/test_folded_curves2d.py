@@ -125,3 +125,17 @@ def test_folded_curve_rejects_hole_outside_outer() -> None:
 
     with pytest.raises(ValueError, match="invalid curve panel topology"):
         folded_curve_quadrature_rule(panel, order=4)
+
+
+def test_curve_loop_sampling_drops_near_duplicate_closure() -> None:
+    loop = CurveLoop2D(
+        edges=(
+            CurveEdge2D.line((0.0, 0.0), (1.0, 0.0)),
+            CurveEdge2D.line((1.0, 0.0), (1.0, 1.0)),
+            CurveEdge2D.line((1.0, 1.0), (0.0, 1.0)),
+            CurveEdge2D.line((0.0, 1.0), (1.0e-10, 0.0)),
+        )
+    )
+
+    points = loop.sample_points(points_per_edge=2)
+    assert len(points) == 4

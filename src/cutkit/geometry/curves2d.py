@@ -166,7 +166,7 @@ class CurveLoop2D:
             else:
                 points.extend(edge_points)
 
-        if points and points[0] == points[-1]:
+        if points and _points_close(points[0], points[-1]):
             points.pop()
         return tuple(points)
 
