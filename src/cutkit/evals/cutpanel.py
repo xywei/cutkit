@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from cutkit.diagnostics import area_consistency, moment_report
 from cutkit.geometry import PanelLoop2D, TrimmedPanel2D
 from cutkit.quadrature import folded_quadrature_rule
+from cutkit.topology import validate_panel
 
 Point = tuple[float, float]
 Loop = tuple[Point, ...]
@@ -171,6 +172,12 @@ def validate_case(
 
     if cut_fraction <= 0.0 or cut_fraction > 1.0:
         errors.append("Cut fraction must be in the interval (0, 1].")
+
+    topology_report = validate_panel(_to_trimmed_panel(case))
+    for topology_error in topology_report.errors:
+        errors.append(f"Topology: {topology_error}")
+    if topology_report.errors:
+        return tuple(errors)
 
     try:
         metrics = evaluate_case(case)

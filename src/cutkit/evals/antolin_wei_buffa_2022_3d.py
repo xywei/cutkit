@@ -740,15 +740,6 @@ def run_polynomial_experiment_3d(
             degree=degree,
             order=reference_order,
         )
-        folded_refs = {
-            seed: _integrate_bernstein_over_boundary(
-                boundary,
-                seed=seed,
-                degree=degree,
-                order=reference_order,
-            )
-            for seed in folded_seeds
-        }
 
         j_curve: list[float] = []
         f_worst_curve: list[float] = []
@@ -771,7 +762,7 @@ def run_polynomial_experiment_3d(
                     degree=degree,
                     order=order,
                 )
-                seed_errors.append(_max_abs_diff(f_val, folded_refs[seed]))
+                seed_errors.append(_max_abs_diff(f_val, jplus_ref))
 
             f_worst_curve.append(max(seed_errors))
             f_best_curve.append(min(seed_errors))

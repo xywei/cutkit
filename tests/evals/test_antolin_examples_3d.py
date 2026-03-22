@@ -161,6 +161,47 @@ def test_general_best_folded_excludes_jplus_seed(
     assert order_result.folded_best_abs_error > order_result.jplus_abs_error
 
 
+def test_polynomial_folded_errors_use_common_reference(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    jplus_seed = (1.0, 1.0, 0.5)
+    other_seed = (0.0, 0.0, 0.0)
+
+    monkeypatch.setattr(
+        awb3d,
+        "build_section_6_1_3_boundary_triangles",
+        lambda **_: (((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)),),
+    )
+    monkeypatch.setattr(awb3d, "_tetra_volume_sum", lambda *_, **__: 0.1)
+    monkeypatch.setattr(awb3d, "_seed_grid_3d", lambda size: (jplus_seed, other_seed))
+
+    def fake_bernstein(
+        boundary: object,
+        *,
+        seed: tuple[float, float, float],
+        order: int,
+        **unused_kwargs: object,
+    ) -> tuple[float, ...]:
+        _ = boundary, unused_kwargs
+        if seed == jplus_seed:
+            return (1.0 + 0.1 * order,)
+        return (2.0 + 0.1 * order,)
+
+    monkeypatch.setattr(awb3d, "_integrate_bernstein_over_boundary", fake_bernstein)
+
+    result = awb3d.run_polynomial_experiment_3d(
+        degrees=(2,),
+        orders=(7,),
+        reference_order=7,
+        seed_grid_size=5,
+        surface_resolution=4,
+    )
+
+    degree_result = result.degree_results[0]
+    assert degree_result.jplus_abs_error[0] == pytest.approx(0.0)
+    assert degree_result.folded_best_abs_error[0] > 0.0
+
+
 def test_section_6_2_3d_grid_protocol_errors_reduce() -> None:
     result = run_general_function_experiment_3d_grid(
         orders=(1, 2),

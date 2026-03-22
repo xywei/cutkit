@@ -53,3 +53,17 @@ def test_validate_case_reports_invalid_area_without_raising() -> None:
 
     errors = validate_case(case)
     assert "Panel area must be positive." in errors
+
+
+def test_validate_case_rejects_hole_outside_outer_topology() -> None:
+    case = CutPanelCase(
+        name="hole-outside",
+        outer=((0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)),
+        holes=(((2.0, 2.2), (2.2, 2.2), (2.2, 2.0), (2.0, 2.0)),),
+    )
+
+    errors = validate_case(case)
+    assert any("Topology:" in error for error in errors)
+    assert any(
+        "hole 0 must lie strictly inside outer loop" in error for error in errors
+    )
