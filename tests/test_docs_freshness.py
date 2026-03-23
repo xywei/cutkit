@@ -43,6 +43,22 @@ uv run python scripts/missing_check.py
     assert missing[0].reference == "scripts/missing_check.py"
 
 
+def test_docs_freshness_scans_openspec_markdown_by_default(tmp_path: Path) -> None:
+    openspec_dir = tmp_path / "openspec"
+    openspec_dir.mkdir(parents=True, exist_ok=True)
+
+    source = openspec_dir / "README.md"
+    source.write_text(
+        "Run `scripts/missing_from_openspec.py`.\n",
+        encoding="utf-8",
+    )
+
+    missing = find_missing_references(tmp_path)
+    assert len(missing) == 1
+    assert missing[0].source == source
+    assert missing[0].reference == "scripts/missing_from_openspec.py"
+
+
 def test_repository_docs_cross_references_are_fresh() -> None:
     repo_root = Path(__file__).resolve().parents[1]
     missing = find_missing_references(repo_root)

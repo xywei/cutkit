@@ -37,6 +37,15 @@ _KNOWN_SUFFIXES = (
     ".json",
     ".sh",
 )
+_EXCLUDED_DIRS = {
+    ".git",
+    ".venv",
+    ".pytest_cache",
+    ".mypy_cache",
+    ".ruff_cache",
+    ".opencode",
+    ".entire",
+}
 
 
 @dataclass(frozen=True)
@@ -49,17 +58,25 @@ class MissingReference:
 def markdown_files_for_freshness(root: Path) -> tuple[Path, ...]:
     """Return markdown files that participate in docs freshness checks."""
 
-    files: list[Path] = []
-    docs_root = root / "docs"
-    if docs_root.is_dir():
-        files.extend(path for path in docs_root.rglob("*.md") if path.is_file())
+    files: set[Path] = set()
+
+    for parent in (root / "docs", root / "openspec"):
+        if parent.is_dir():
+            files.update(path for path in parent.rglob("*.md") if path.is_file())
+
+    files.update(path for path in root.rglob("README.md") if path.is_file())
 
     for name in sorted(_ROOT_FILES):
         path = root / name
         if path.is_file() and path.suffix == ".md":
-            files.append(path)
+            files.add(path)
 
-    return tuple(sorted(set(files), key=lambda path: str(path.relative_to(root))))
+    filtered = [
+        path
+        for path in files
+        if not any(part in _EXCLUDED_DIRS for part in path.relative_to(root).parts[:-1])
+    ]
+    return tuple(sorted(filtered, key=lambda path: str(path.relative_to(root))))
 
 
 def _iter_reference_tokens(text: str) -> tuple[str, ...]:
