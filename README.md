@@ -34,7 +34,8 @@ Current 2D scope is CAD-native first, with a polygonized MVP fallback:
 
 Current limitations:
 
-- no 3D folded decomposition yet
+- 3D folded decomposition is currently centered on Section 6.1.3-style
+  boundary-driven workflows; broader 3D clipping/geometry coverage remains follow-up work
 - no singular-kernel-specialized quadrature yet
 
 Reproduction script for Antolin-Wei-Buffa (2022) Section 6 examples:

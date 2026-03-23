@@ -14,13 +14,20 @@ and provides CUTKIT-adapted polynomial and general-function experiments.
 from __future__ import annotations
 
 import importlib.util
-from collections import defaultdict, deque
 from dataclasses import dataclass
 from functools import lru_cache
 from math import cos, exp, sin
-from typing import Any, cast
+from typing import Any
 
-from cutkit.quadrature import gauss_legendre_01
+from cutkit.quadrature import (
+    folded_seeds_without_jplus_3d as _core_folded_seeds_without_jplus,
+    integrate_bernstein_over_boundary_3d as _core_integrate_bernstein_over_boundary,
+    integrate_general_over_boundary_3d as _core_integrate_general_over_boundary,
+    integrate_general_over_cartesian_grid_xsurface_3d as _core_integrate_cartesian,
+    seed_grid_3d as _core_seed_grid_3d,
+    signed_boundary_volume_3d as _core_signed_boundary_volume,
+)
+from cutkit.topology import orient_boundary_triangles_outward as _core_orient_outward
 
 if importlib.util.find_spec("numpy") is not None:
     import numpy as _np  # type: ignore[import-not-found]
@@ -242,103 +249,10 @@ def _triangulate_grid(points: list[list[Point3D]]) -> list[Triangle3D]:
     return tris
 
 
-def _triangle_area(tri: Triangle3D) -> float:
-    a, b, c = tri
-    normal = _cross(_sub(b, a), _sub(c, a))
-    return (
-        0.5
-        * (normal[0] * normal[0] + normal[1] * normal[1] + normal[2] * normal[2]) ** 0.5
-    )
-
-
-def _vertex_key(point: Point3D, *, tol: float = 1.0e-12) -> tuple[int, int, int]:
-    return (
-        int(round(point[0] / tol)),
-        int(round(point[1] / tol)),
-        int(round(point[2] / tol)),
-    )
-
-
 def _orient_outward(
     tris: list[Triangle3D], *, tol: float = 1.0e-12
 ) -> tuple[Triangle3D, ...]:
-    filtered = [tri for tri in tris if _triangle_area(tri) > tol]
-    if not filtered:
-        raise ValueError("boundary triangulation contains no non-degenerate triangles")
-
-    unique: list[Triangle3D] = []
-    seen_triangles: set[
-        tuple[tuple[int, int, int], tuple[int, int, int], tuple[int, int, int]]
-    ] = set()
-    for tri in filtered:
-        sorted_keys = sorted(_vertex_key(vertex, tol=tol) for vertex in tri)
-        triangle_key = (sorted_keys[0], sorted_keys[1], sorted_keys[2])
-        if triangle_key in seen_triangles:
-            continue
-        seen_triangles.add(triangle_key)
-        unique.append(tri)
-
-    if not unique:
-        raise ValueError("boundary triangulation contains no unique triangles")
-
-    edge_incidents: dict[
-        tuple[tuple[int, int, int], tuple[int, int, int]],
-        list[tuple[int, int]],
-    ] = defaultdict(list)
-
-    for tri_idx, (a, b, c) in enumerate(unique):
-        for start, end in ((a, b), (b, c), (c, a)):
-            start_key = _vertex_key(start, tol=tol)
-            end_key = _vertex_key(end, tol=tol)
-            if start_key <= end_key:
-                edge = (start_key, end_key)
-                direction = 1
-            else:
-                edge = (end_key, start_key)
-                direction = -1
-            edge_incidents[edge].append((tri_idx, direction))
-
-    adjacency: dict[int, list[tuple[int, int]]] = defaultdict(list)
-    for incidents in edge_incidents.values():
-        if len(incidents) != 2:
-            continue
-
-        (left_idx, left_dir), (right_idx, right_dir) = incidents
-        parity = 1 if left_dir == right_dir else 0
-        adjacency[left_idx].append((right_idx, parity))
-        adjacency[right_idx].append((left_idx, parity))
-
-    flip_state: list[int | None] = [None] * len(unique)
-    for seed_idx in range(len(unique)):
-        if flip_state[seed_idx] is not None:
-            continue
-
-        flip_state[seed_idx] = 0
-        queue: deque[int] = deque([seed_idx])
-        while queue:
-            idx = queue.popleft()
-            current_flip = flip_state[idx]
-            if current_flip is None:
-                raise RuntimeError("internal orientation state error")
-            for neigh_idx, parity in adjacency[idx]:
-                expected = current_flip ^ parity
-                current = flip_state[neigh_idx]
-                if current is None:
-                    flip_state[neigh_idx] = expected
-                    queue.append(neigh_idx)
-                elif current != expected:
-                    continue
-
-    oriented = [
-        (a, c, b) if flip else (a, b, c)
-        for (a, b, c), flip in zip(unique, flip_state, strict=True)
-    ]
-
-    signed_volume = sum(_dot(a, _cross(b, c)) / 6.0 for a, b, c in oriented)
-    if signed_volume < 0.0:
-        oriented = [(a, c, b) for a, b, c in oriented]
-
-    return tuple(oriented)
+    return _core_orient_outward(tuple(tris), tol=tol, validate_closed=False)
 
 
 def build_section_6_1_3_boundary_triangles(
@@ -352,6 +266,11 @@ def build_section_6_1_3_boundary_triangles(
         raise ValueError("surface_resolution must be >= 2")
     if side_resolution < 1:
         raise ValueError("side_resolution must be >= 1")
+    if side_resolution != 1:
+        raise ValueError(
+            "side_resolution must be 1; higher values create non-conforming "
+            "side-face refinements"
+        )
 
     # Curved face (r=0) and opposite planar face (x=1)
     curved = _triangulate_grid(
@@ -394,111 +313,8 @@ def build_section_6_1_3_boundary_triangles(
     return _orient_outward(all_tris)
 
 
-@lru_cache(maxsize=64)
-def _duffy_nodes_3d(order: int) -> tuple[Any, Any, Any, Any]:
-    if order < 1:
-        raise ValueError("order must be positive")
-
-    nodes, weights = gauss_legendre_01(order)
-
-    if _np is not None:
-        n = _np.asarray(nodes, dtype=float)
-        w = _np.asarray(weights, dtype=float)
-        rr, ss, tt = _np.meshgrid(n, n, n, indexing="ij")
-        wr, ws, wt = _np.meshgrid(w, w, w, indexing="ij")
-
-        one_minus_r = 1.0 - rr
-        uu = rr
-        vv = ss * one_minus_r
-        ww = tt * one_minus_r * (1.0 - ss)
-        jac = one_minus_r * one_minus_r * (1.0 - ss) * wr * ws * wt
-        uu_arr = cast(Any, uu)
-        vv_arr = cast(Any, vv)
-        ww_arr = cast(Any, ww)
-        jac_arr = cast(Any, jac)
-        return (
-            uu_arr.reshape(-1),
-            vv_arr.reshape(-1),
-            ww_arr.reshape(-1),
-            jac_arr.reshape(-1),
-        )
-
-    uu_list: list[float] = []
-    vv_list: list[float] = []
-    ww_list: list[float] = []
-    jac_list: list[float] = []
-    for r, wr in zip(nodes, weights):
-        one_minus_r = 1.0 - r
-        for s, ws in zip(nodes, weights):
-            one_minus_s = 1.0 - s
-            for t, wt in zip(nodes, weights):
-                uu_list.append(r)
-                vv_list.append(s * one_minus_r)
-                ww_list.append(t * one_minus_r * one_minus_s)
-                jac_list.append(one_minus_r * one_minus_r * one_minus_s * wr * ws * wt)
-    return tuple(uu_list), tuple(vv_list), tuple(ww_list), tuple(jac_list)
-
-
-def _bernstein_all(p: int, t: float) -> tuple[float, ...]:
-    if t <= 0.0:
-        out = [0.0] * (p + 1)
-        out[0] = 1.0
-        return tuple(out)
-    if t >= 1.0:
-        out = [0.0] * (p + 1)
-        out[p] = 1.0
-        return tuple(out)
-
-    omt = 1.0 - t
-    ratio = t / omt
-    out = [0.0] * (p + 1)
-    value = omt**p
-    out[0] = value
-    for i in range(p):
-        value = value * ratio * (p - i) / (i + 1)
-        out[i + 1] = value
-    return tuple(out)
-
-
-def _bernstein_matrix_numpy(p: int, t_values: Any) -> Any:
-    assert _np is not None
-    t = _np.asarray(t_values, dtype=float)
-    out = _np.zeros((t.size, p + 1), dtype=float)
-
-    low = t <= 0.0
-    high = t >= 1.0
-    mid = ~(low | high)
-
-    out[low, 0] = 1.0
-    out[high, p] = 1.0
-
-    if _np.any(mid):
-        tm = t[mid]
-        omt = 1.0 - tm
-        ratio = tm / omt
-        value = omt**p
-        out_mid = out[mid]
-        out_mid[:, 0] = value
-        for i in range(p):
-            value = value * ratio * (p - i) / (i + 1)
-            out_mid[:, i + 1] = value
-        out[mid] = out_mid
-
-    return out
-
-
 def _seed_grid_3d(size: int) -> tuple[Point3D, ...]:
-    if size < 2:
-        raise ValueError("seed grid size must be >= 2")
-    seeds: list[Point3D] = []
-    for i in range(size):
-        x = i / (size - 1)
-        for j in range(size):
-            y = j / (size - 1)
-            for k in range(size):
-                z = k / (size - 1)
-                seeds.append((x, y, z))
-    return tuple(seeds)
+    return _core_seed_grid_3d(size)
 
 
 def _same_seed(a: Point3D, b: Point3D, *, tol: float = 1.0e-12) -> bool:
@@ -512,20 +328,11 @@ def _folded_seeds_without_jplus(
     *,
     jplus_seed: Point3D,
 ) -> tuple[Point3D, ...]:
-    filtered = tuple(seed for seed in seeds if not _same_seed(seed, jplus_seed))
-    if not filtered:
-        raise ValueError("seed grid must include at least one non-jplus folded seed")
-    return filtered
+    return _core_folded_seeds_without_jplus(seeds, jplus_seed=jplus_seed)
 
 
 def _tetra_volume_sum(boundary: tuple[Triangle3D, ...], seed: Point3D) -> float:
-    total = 0.0
-    for a, b, c in boundary:
-        av = _sub(a, seed)
-        bv = _sub(b, seed)
-        cv = _sub(c, seed)
-        total += _dot(av, _cross(bv, cv)) / 6.0
-    return total
+    return _core_signed_boundary_volume(boundary, seed=seed)
 
 
 def _integrate_bernstein_over_boundary(
@@ -535,84 +342,12 @@ def _integrate_bernstein_over_boundary(
     degree: int,
     order: int,
 ) -> tuple[float, ...]:
-    count = degree + 1
-    out_size = count * count * count
-
-    u, v, w, jac = _duffy_nodes_3d(order)
-
-    if _np is not None:
-        u = _np.asarray(u, dtype=float)
-        v = _np.asarray(v, dtype=float)
-        w = _np.asarray(w, dtype=float)
-        jac = _np.asarray(jac, dtype=float)
-
-        tris = _np.asarray(boundary, dtype=float)
-        a = tris[:, 0, :]
-        b = tris[:, 1, :]
-        c = tris[:, 2, :]
-
-        s = _np.asarray(seed, dtype=float)
-        av = a - s
-        bv = b - s
-        cv = c - s
-        det = _np.einsum("ij,ij->i", av, _np.cross(bv, cv))
-
-        x = (
-            s[0]
-            + av[:, 0, None] * u[None, :]
-            + bv[:, 0, None] * v[None, :]
-            + cv[:, 0, None] * w[None, :]
-        )
-        y = (
-            s[1]
-            + av[:, 1, None] * u[None, :]
-            + bv[:, 1, None] * v[None, :]
-            + cv[:, 1, None] * w[None, :]
-        )
-        z = (
-            s[2]
-            + av[:, 2, None] * u[None, :]
-            + bv[:, 2, None] * v[None, :]
-            + cv[:, 2, None] * w[None, :]
-        )
-        wt = det[:, None] * jac[None, :]
-
-        xf = x.reshape(-1)
-        yf = y.reshape(-1)
-        zf = z.reshape(-1)
-        wf = wt.reshape(-1)
-
-        bx = _bernstein_matrix_numpy(degree, xf)
-        by = _bernstein_matrix_numpy(degree, yf)
-        bz = _bernstein_matrix_numpy(degree, zf)
-        values = _np.einsum("n,ni,nj,nk->ijk", wf, bx, by, bz, optimize=True)
-        return tuple(values.reshape(out_size).tolist())
-
-    totals = [0.0] * out_size
-    for tri in boundary:
-        a, b, c = tri
-        av = _sub(a, seed)
-        bv = _sub(b, seed)
-        cv = _sub(c, seed)
-        det = _dot(av, _cross(bv, cv))
-
-        for q in range(len(u)):
-            x = seed[0] + av[0] * u[q] + bv[0] * v[q] + cv[0] * w[q]
-            y = seed[1] + av[1] * u[q] + bv[1] * v[q] + cv[1] * w[q]
-            z = seed[2] + av[2] * u[q] + bv[2] * v[q] + cv[2] * w[q]
-            weight = det * jac[q]
-
-            bx = _bernstein_all(degree, x)
-            by = _bernstein_all(degree, y)
-            bz = _bernstein_all(degree, z)
-            for i in range(count):
-                for j in range(count):
-                    base = (i * count + j) * count
-                    wij = weight * bx[i] * by[j]
-                    for k in range(count):
-                        totals[base + k] += wij * bz[k]
-
-    return tuple(totals)
+    return _core_integrate_bernstein_over_boundary(
+        boundary,
+        seed=seed,
+        degree=degree,
+        order=order,
+    )
 
 
 def section_6_2_integrand_3d(x: Any, y: Any, z: Any) -> Any:
@@ -627,61 +362,12 @@ def _integrate_general_over_boundary(
     seed: Point3D,
     order: int,
 ) -> float:
-    u, v, w, jac = _duffy_nodes_3d(order)
-
-    if _np is not None:
-        u = _np.asarray(u, dtype=float)
-        v = _np.asarray(v, dtype=float)
-        w = _np.asarray(w, dtype=float)
-        jac = _np.asarray(jac, dtype=float)
-
-        tris = _np.asarray(boundary, dtype=float)
-        a = tris[:, 0, :]
-        b = tris[:, 1, :]
-        c = tris[:, 2, :]
-        s = _np.asarray(seed, dtype=float)
-
-        av = a - s
-        bv = b - s
-        cv = c - s
-        det = _np.einsum("ij,ij->i", av, _np.cross(bv, cv))
-
-        x = (
-            s[0]
-            + av[:, 0, None] * u[None, :]
-            + bv[:, 0, None] * v[None, :]
-            + cv[:, 0, None] * w[None, :]
-        )
-        y = (
-            s[1]
-            + av[:, 1, None] * u[None, :]
-            + bv[:, 1, None] * v[None, :]
-            + cv[:, 1, None] * w[None, :]
-        )
-        z = (
-            s[2]
-            + av[:, 2, None] * u[None, :]
-            + bv[:, 2, None] * v[None, :]
-            + cv[:, 2, None] * w[None, :]
-        )
-        wt = det[:, None] * jac[None, :]
-
-        vals = section_6_2_integrand_3d(x, y, z)
-        return float(_np.sum(vals * wt))
-
-    total = 0.0
-    for a, b, c in boundary:
-        av = _sub(a, seed)
-        bv = _sub(b, seed)
-        cv = _sub(c, seed)
-        det = _dot(av, _cross(bv, cv))
-
-        for q in range(len(u)):
-            x = seed[0] + av[0] * u[q] + bv[0] * v[q] + cv[0] * w[q]
-            y = seed[1] + av[1] * u[q] + bv[1] * v[q] + cv[1] * w[q]
-            z = seed[2] + av[2] * u[q] + bv[2] * v[q] + cv[2] * w[q]
-            total += section_6_2_integrand_3d(x, y, z) * det * jac[q]
-    return total
+    return _core_integrate_general_over_boundary(
+        boundary,
+        seed=seed,
+        order=order,
+        integrand=section_6_2_integrand_3d,
+    )
 
 
 def _max_abs(values: tuple[float, ...]) -> float:
@@ -875,86 +561,12 @@ def _integrate_general_over_cartesian_grid_3d(
     integrated elementwise.
     """
 
-    if resolution < 1:
-        raise ValueError("resolution must be positive")
-
-    nodes, weights = gauss_legendre_01(order)
-    h = 1.0 / resolution
-
-    if _np is not None:
-        nodes_arr = _np.asarray(nodes, dtype=float)
-        weights_arr = _np.asarray(weights, dtype=float)
-    else:
-        nodes_arr = nodes
-        weights_arr = weights
-
-    total = 0.0
-    for iy in range(resolution):
-        y0 = iy * h
-        y_nodes = tuple(y0 + float(node) * h for node in nodes_arr)
-        y_weights = tuple(float(weight) * h for weight in weights_arr)
-
-        for iz in range(resolution):
-            z0 = iz * h
-            z_nodes = tuple(z0 + float(node) * h for node in nodes_arr)
-            z_weights = tuple(float(weight) * h for weight in weights_arr)
-
-            for jy, y in enumerate(y_nodes):
-                wy = y_weights[jy]
-                for jz, z in enumerate(z_nodes):
-                    wz = z_weights[jz]
-                    yz_weight = wy * wz
-
-                    x_surface = _x_surface_from_yz(y, z)
-                    if x_surface is None or x_surface >= 1.0:
-                        continue
-
-                    start_ix = int(x_surface / h)
-                    if start_ix < 0:
-                        start_ix = 0
-                    if start_ix >= resolution:
-                        continue
-
-                    if _np is not None:
-                        nodes_np = cast(Any, nodes_arr)
-                        weights_np = cast(Any, weights_arr)
-                        x0s = _np.arange(start_ix, resolution, dtype=float) * h
-                        left = _np.maximum(x0s, x_surface)
-                        right = x0s + h
-                        widths = right - left
-                        valid = widths > 0.0
-                        if not _np.any(valid):
-                            continue
-
-                        left = left[valid]
-                        widths = widths[valid]
-                        left_np = cast(Any, left)
-                        widths_np = cast(Any, widths)
-                        x_samples = (
-                            left_np[None, :] + nodes_np[:, None] * widths_np[None, :]
-                        )
-                        vals = section_6_2_integrand_3d(x_samples, y, z)
-                        x_integrals = _np.sum(
-                            vals * (weights_np[:, None] * widths_np[None, :]),
-                            axis=0,
-                        )
-                        total += yz_weight * float(_np.sum(x_integrals))
-                    else:
-                        for ix in range(start_ix, resolution):
-                            x0 = ix * h
-                            x1 = x0 + h
-                            left = x0 if x0 >= x_surface else x_surface
-                            if left >= x1:
-                                continue
-                            width = x1 - left
-                            for qx, node in enumerate(nodes_arr):
-                                x = left + float(node) * width
-                                wx = float(weights_arr[qx]) * width
-                                total += (
-                                    yz_weight * wx * section_6_2_integrand_3d(x, y, z)
-                                )
-
-    return total
+    return _core_integrate_cartesian(
+        resolution=resolution,
+        order=order,
+        x_surface_from_yz=_x_surface_from_yz,
+        integrand=section_6_2_integrand_3d,
+    )
 
 
 @dataclass(frozen=True)

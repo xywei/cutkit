@@ -1,0 +1,261 @@
+{
+  "cad_available": false,
+  "geometry_mode": "polygonized",
+  "numpy_acceleration": false,
+  "profile": "quick",
+  "requires_cad": false,
+  "schema_version": 1,
+  "scope": "full",
+  "sections": {
+    "2d": {
+      "general": {
+        "order_results": [
+          {
+            "folded_abs_error": [
+              0.03762286508484869,
+              0.010900071280642742,
+              0.002667675385695678
+            ],
+            "folded_rel_error": [
+              0.07310761391242616,
+              0.021180688950881345,
+              0.005183746152805963
+            ],
+            "grid_resolutions": [
+              2,
+              4,
+              8
+            ],
+            "h_values": [
+              0.5,
+              0.25,
+              0.125
+            ],
+            "jplus_abs_error": [
+              0.014603360681373911,
+              0.0031006716901861298,
+              0.0009978683714835235
+            ],
+            "jplus_rel_error": [
+              0.028376808946103744,
+              0.006025131480127654,
+              0.0019390276490988904
+            ],
+            "order": 1
+          },
+          {
+            "folded_abs_error": [
+              0.00011056575616097408,
+              8.49785249823487e-06,
+              4.373609162611203e-07
+            ],
+            "folded_rel_error": [
+              0.00021484803443656863,
+              1.6512770043552347e-05,
+              8.498665089512154e-07
+            ],
+            "grid_resolutions": [
+              2,
+              4,
+              8
+            ],
+            "h_values": [
+              0.5,
+              0.25,
+              0.125
+            ],
+            "jplus_abs_error": [
+              1.5619318831761042e-05,
+              1.7788635570115119e-06,
+              7.273809099483941e-08
+            ],
+            "jplus_rel_error": [
+              3.0350988106626966e-05,
+              3.4566338803701375e-06,
+              1.4134245919828059e-07
+            ],
+            "order": 2
+          }
+        ],
+        "reference_grid_resolution": 16,
+        "reference_order": 24,
+        "reference_value": 0.5146230751001696
+      },
+      "polynomial": {
+        "6.1.1": {
+          "degree_results": [
+            {
+              "degree": 1,
+              "folded_abs_error": [
+                2.7321894746634712e-17,
+                2.5153490401663703e-17
+              ],
+              "folded_reference_scale": 0.0039044669443879555,
+              "folded_rel_error": [
+                6.997599194918412e-15,
+                6.442234179448697e-15
+              ],
+              "jplus_abs_error": [
+                2.6020852139652106e-17,
+                2.5153490401663703e-17
+              ],
+              "jplus_reference_scale": 0.0039044669443879555,
+              "jplus_rel_error": [
+                6.6643801856365835e-15,
+                6.442234179448697e-15
+              ],
+              "orders": [
+                2,
+                4
+              ],
+              "trimmed_cell_count": 11
+            },
+            {
+              "degree": 2,
+              "folded_abs_error": [
+                0.0001149400555590257,
+                1.8214596497756474e-17
+              ],
+              "folded_reference_scale": 0.0017360984374393343,
+              "folded_rel_error": [
+                0.06620595530778602,
+                1.0491684172368804e-14
+              ],
+              "jplus_abs_error": [
+                3.841341927728471e-05,
+                1.5178830414797062e-17
+              ],
+              "jplus_reference_scale": 0.0017360984374393343,
+              "jplus_rel_error": [
+                0.022126291026413655,
+                8.743070143640669e-15
+              ],
+              "orders": [
+                2,
+                4
+              ],
+              "trimmed_cell_count": 11
+            }
+          ],
+          "grid_resolution": 8,
+          "label": "6.1.1",
+          "reference_order": 24,
+          "seed_grid_size": 5
+        },
+        "6.1.2": {
+          "degree_results": [
+            {
+              "degree": 2,
+              "folded_abs_error": [
+                0.00011960048703566059,
+                1.734723475976807e-17
+              ],
+              "folded_reference_scale": 0.0017360696445411225,
+              "folded_rel_error": [
+                0.06889152598902411,
+                9.992245883864462e-15
+              ],
+              "jplus_abs_error": [
+                3.6126791391719775e-05,
+                1.5178830414797062e-17
+              ],
+              "jplus_reference_scale": 0.0017360696445411225,
+              "jplus_rel_error": [
+                0.020809528871906978,
+                8.743215148381404e-15
+              ],
+              "orders": [
+                2,
+                4
+              ],
+              "trimmed_cell_count": 7
+            }
+          ],
+          "grid_resolution": 8,
+          "label": "6.1.2",
+          "reference_order": 24,
+          "seed_grid_size": 5
+        }
+      }
+    },
+    "3d": {
+      "general": {
+        "order_results": [
+          {
+            "folded_abs_error": [
+              0.004750757801008754,
+              0.004721223581918066
+            ],
+            "folded_rel_error": [
+              0.018418637425158767,
+              0.01830413357212061
+            ],
+            "grid_resolutions": [
+              2,
+              4
+            ],
+            "h_values": [
+              0.5,
+              0.25
+            ],
+            "order": 2
+          },
+          {
+            "folded_abs_error": [
+              0.00397983658508444,
+              0.0011507065797818905
+            ],
+            "folded_rel_error": [
+              0.015429784077076604,
+              0.004461277161139817
+            ],
+            "grid_resolutions": [
+              2,
+              4
+            ],
+            "h_values": [
+              0.5,
+              0.25
+            ],
+            "order": 3
+          }
+        ],
+        "reference_grid_resolution": 16,
+        "reference_order": 12,
+        "reference_value": 0.2579320984145928
+      },
+      "polynomial": {
+        "degree_results": [
+          {
+            "degree": 3,
+            "folded_best_abs_error": [
+              8.720000077651682e-06,
+              1.5203441769418014e-09
+            ],
+            "folded_worst_abs_error": [
+              0.00031835326371449854,
+              9.187476412734694e-07
+            ],
+            "jplus_abs_error": [
+              2.4604066713724074e-05,
+              1.8894140661751546e-09
+            ],
+            "orders": [
+              3,
+              5
+            ]
+          }
+        ],
+        "domain_volume": 0.33532266666666666,
+        "jplus_seed": [
+          1.0,
+          1.0,
+          0.5
+        ],
+        "reference_order": 7,
+        "seed_grid_size": 3,
+        "surface_resolution": 5
+      }
+    }
+  }
+}

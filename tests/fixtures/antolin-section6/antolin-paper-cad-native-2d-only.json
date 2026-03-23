@@ -1,0 +1,17 @@
+{
+  "cad_available": false,
+  "geometry_mode": "cad-native",
+  "placeholder": true,
+  "profile": "antolin-paper",
+  "requires_cad": true,
+  "schema_version": 1,
+  "scope": "2d-only",
+  "sections": {
+    "2d": {
+      "status": "unavailable"
+    },
+    "3d": {
+      "status": "skipped"
+    }
+  }
+}

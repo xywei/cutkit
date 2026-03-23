@@ -38,6 +38,23 @@ from cutkit.evals.antolin_wei_buffa_2022_3d import (
     run_polynomial_experiment_3d,
     section_6_2_integrand_3d,
 )
+from cutkit.evals.antolin_parity import (
+    ParityFailure,
+    ParityReport,
+    compare_manifest_to_fixture,
+    format_parity_report,
+)
+from cutkit.evals.poisson_benchmarks import (
+    PROFILES,
+    PlanarPoissonBenchmarkResult,
+    PoissonBenchmarkProfile,
+    PoissonBenchmarkResult,
+    PoissonOrderResult,
+    VolumePoissonBenchmarkResult,
+    run_planar_poisson_benchmark,
+    run_poisson_benchmarks,
+    run_volume_poisson_benchmark,
+)
 
 __all__ = [
     "CutPanelCase",
@@ -72,4 +89,17 @@ __all__ = [
     "run_general_function_experiment_3d",
     "run_polynomial_experiment_3d",
     "section_6_2_integrand_3d",
+    "ParityFailure",
+    "ParityReport",
+    "compare_manifest_to_fixture",
+    "format_parity_report",
+    "PROFILES",
+    "PlanarPoissonBenchmarkResult",
+    "PoissonBenchmarkProfile",
+    "PoissonBenchmarkResult",
+    "PoissonOrderResult",
+    "VolumePoissonBenchmarkResult",
+    "run_planar_poisson_benchmark",
+    "run_poisson_benchmarks",
+    "run_volume_poisson_benchmark",
 ]

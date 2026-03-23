@@ -54,3 +54,60 @@ jobs:
 
       - name: Run cut-panel evaluation
         run: uv run python scripts/run_cutpanel_eval.py
+
+  section6-parity:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Install
+        run: uv sync --extra dev
+
+      - name: Run Section 6 parity check (polygonized quick fixture)
+        run: |
+          uv run python scripts/reproduce_antolin_2022_examples.py \
+            --geometry-mode polygonized \
+            --parity-fixture tests/fixtures/antolin-section6/quick-polygonized-full.json
+
+  poisson-benchmark-smoke:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        backend-mode: ["jplus", "folded"]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Install
+        run: uv sync --extra dev
+
+      - name: Run Poisson benchmark smoke profile
+        run: |
+          uv run python scripts/run_poisson_benchmarks.py \
+            --profile quick \
+            --backend-mode ${{ matrix.backend-mode }} \
+            --allow-fail

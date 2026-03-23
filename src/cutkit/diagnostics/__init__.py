@@ -11,6 +11,10 @@ from cutkit.diagnostics.moments2d import (
     moment_report,
     panel_area_from_loops,
 )
+from cutkit.diagnostics.volume3d import (
+    SeedInvariantVolumeReport,
+    seed_invariant_volume_report,
+)
 
 __all__ = [
     "MONOMIALS_DEGREE2",
@@ -22,4 +26,6 @@ __all__ = [
     "exact_moments_degree2",
     "moment_report",
     "panel_area_from_loops",
+    "SeedInvariantVolumeReport",
+    "seed_invariant_volume_report",
 ]

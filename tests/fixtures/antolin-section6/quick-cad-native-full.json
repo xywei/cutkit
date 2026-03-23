@@ -1,0 +1,17 @@
+{
+  "cad_available": false,
+  "geometry_mode": "cad-native",
+  "placeholder": true,
+  "profile": "quick",
+  "requires_cad": true,
+  "schema_version": 1,
+  "scope": "full",
+  "sections": {
+    "2d": {
+      "status": "unavailable"
+    },
+    "3d": {
+      "status": "skipped"
+    }
+  }
+}

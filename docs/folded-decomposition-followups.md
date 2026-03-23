@@ -4,7 +4,8 @@ This note tracks follow-up work intentionally out of scope for the 2D MVP.
 
 ## Priority Follow-ups
 
-1. 3D folded decomposition for curved polyhedra.
+1. Extend 3D folded decomposition beyond Section 6.1.3-style boundary workflows
+   to broader curved-polyhedra clipping and geometry classes.
 2. Singular and near-singular kernel quadrature extensions.
 3. Downstream adapter into `volumential` rule-consumption paths.
 
