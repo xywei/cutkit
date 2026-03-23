@@ -1,14 +1,23 @@
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 import pytest
 
 from cutkit.evals import (
     CutPanelCase,
+    CutPanelEvaluation,
     default_cases,
     evaluate_case,
+    export_failure_artifacts,
+    fuzz_derived_cases,
+    imported_production_cases,
     run_default_eval,
     validate_case,
 )
+from cutkit.geometry import PanelLoop2D, TrimmedPanel2D
+from cutkit.topology import validate_panel
 
 
 def test_default_eval_cases_pass() -> None:
@@ -21,6 +30,17 @@ def test_default_cases_include_seam_and_near_degenerate_entries() -> None:
     names = {case.name for case in default_cases()}
     assert "square-with-seam-adjacent-slot" in names
     assert "square-with-ultra-thin-frame" in names
+
+
+def test_default_cases_include_imported_and_fuzz_entries() -> None:
+    sources = {case.source for case in default_cases()}
+    assert "imported-production" in sources
+    assert "fuzz-derived" in sources
+
+
+def test_imported_and_fuzz_case_groups_are_non_empty() -> None:
+    assert imported_production_cases()
+    assert fuzz_derived_cases()
 
 
 def test_square_with_hole_metrics() -> None:
@@ -108,3 +128,41 @@ def test_validate_case_rejects_hole_touching_outer_seam() -> None:
         "hole 0 must lie strictly inside outer loop" in error for error in errors
     )
     assert any("hole 0 intersects outer loop boundary" in error for error in errors)
+
+
+def test_export_failure_artifacts_include_topology_diagnostics(
+    tmp_path: Path,
+) -> None:
+    case = CutPanelCase(
+        name="artifact-export-invalid-hole-orientation",
+        outer=((0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)),
+        holes=(((0.2, 0.2), (0.8, 0.2), (0.8, 0.8), (0.2, 0.8)),),
+        source="unit-test",
+        tags=("artifact",),
+    )
+    metrics = evaluate_case(case)
+    errors = validate_case(case)
+    topology = validate_panel(
+        TrimmedPanel2D(
+            outer=PanelLoop2D(case.outer),
+            holes=tuple(PanelLoop2D(hole) for hole in case.holes),
+        )
+    )
+
+    evaluation = CutPanelEvaluation(
+        case=case,
+        metrics=metrics,
+        errors=errors,
+        topology=topology,
+    )
+    artifacts = export_failure_artifacts(
+        (evaluation,),
+        output_dir=tmp_path / "cutpanel-artifacts",
+    )
+
+    assert len(artifacts) == 1
+    payload = json.loads(artifacts[0].read_text(encoding="utf-8"))
+    assert payload["case"]["name"] == case.name
+    assert payload["case"]["source"] == "unit-test"
+    assert payload["errors"]
+    assert payload["topology"]["diagnostics"]["outer"]["orientation"] == "ccw"

@@ -15,6 +15,12 @@ repos:
         language: system
         pass_filenames: false
 
+      - id: docs-freshness
+        name: docs freshness
+        entry: uv run python scripts/check_docs_freshness.py
+        language: system
+        pass_filenames: false
+
       - id: pytest
         name: pytest -q
         entry: uv run pytest -q

@@ -117,7 +117,8 @@ make dev
 - sync the development environment with `uv`
 - install local `prek` git hooks
 - block direct pushes to `main` via a local pre-push hook
-- run formatting, lint, typing, architecture, tests, and cut-panel eval checks
+- run formatting, lint, typing, architecture, docs freshness, tests, and
+  cut-panel eval checks
 
 See `docs/entire-transcript-policy.md` for the policy on using Entire session transcripts.
 
@@ -127,8 +128,15 @@ For cut-panel harness checks:
 uv run python scripts/run_cutpanel_eval.py
 ```
 
-The default cut-panel corpus includes baseline, seam-adjacent, and
-near-degenerate panel cases. See `docs/cutpanel-corpus.md` for details.
+The default cut-panel corpus includes baseline, seam-adjacent,
+near-degenerate, imported-production, and fuzz-derived panel cases.
+See `docs/cutpanel-corpus.md` for details.
+
+For per-case JSON failure artifacts with topology diagnostics:
+
+```bash
+uv run python scripts/run_cutpanel_eval.py --artifact-dir .artifacts/cutpanel
+```
 
 ## OpenSpec Workflow
 

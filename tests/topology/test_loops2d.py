@@ -104,6 +104,8 @@ def test_validate_panel_rejects_hole_touching_outer_seam() -> None:
     report = validate_panel(panel)
     assert "hole 0 must lie strictly inside outer loop" in report.errors
     assert "hole 0 intersects outer loop boundary" in report.errors
+    assert report.diagnostics.holes_strictly_inside_outer == (False,)
+    assert report.diagnostics.holes_intersect_outer_boundary == (True,)
 
 
 def test_validate_panel_rejects_overlapping_holes() -> None:
@@ -117,6 +119,7 @@ def test_validate_panel_rejects_overlapping_holes() -> None:
 
     report = validate_panel(panel)
     assert "holes 0 and 1 overlap or touch" in report.errors
+    assert report.diagnostics.overlapping_hole_pairs == ((0, 1),)
 
 
 def test_validate_panel_rejects_self_intersecting_loops() -> None:
@@ -129,6 +132,7 @@ def test_validate_panel_rejects_self_intersecting_loops() -> None:
 
     report = validate_panel(panel)
     assert "hole 0 must be simple (non-self-intersecting)" in report.errors
+    assert report.diagnostics.holes[0].self_intersects
 
 
 def test_panel_loop_strips_repeated_closure_vertices() -> None:

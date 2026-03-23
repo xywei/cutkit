@@ -1,6 +1,8 @@
 """Topology layer for loop orientation and connectivity operations."""
 
 from cutkit.topology.loops2d import (
+    LoopValidationDiagnostics,
+    PanelValidationDiagnostics,
     PanelValidationResult,
     enforce_orientation,
     normalize_panel_orientations,
@@ -18,6 +20,8 @@ from cutkit.topology.boundary3d import (
 )
 
 __all__ = [
+    "LoopValidationDiagnostics",
+    "PanelValidationDiagnostics",
     "PanelValidationResult",
     "enforce_orientation",
     "normalize_panel_orientations",

@@ -255,11 +255,34 @@ def select_interior_anchor(
 
 
 @dataclass(frozen=True)
+class LoopValidationDiagnostics:
+    """Structured diagnostics for one loop in panel validation."""
+
+    orientation: str
+    signed_area: float
+    area_abs: float
+    self_intersects: bool
+
+
+@dataclass(frozen=True)
+class PanelValidationDiagnostics:
+    """Structured diagnostics for panel-level topology validation."""
+
+    outer: LoopValidationDiagnostics
+    holes: tuple[LoopValidationDiagnostics, ...]
+    holes_strictly_inside_outer: tuple[bool, ...]
+    holes_intersect_outer_boundary: tuple[bool, ...]
+    overlapping_hole_pairs: tuple[tuple[int, int], ...]
+    panel_area: float
+
+
+@dataclass(frozen=True)
 class PanelValidationResult:
     """Validation result for panel loop orientation and positivity checks."""
 
     panel: TrimmedPanel2D
     errors: tuple[str, ...]
+    diagnostics: PanelValidationDiagnostics
 
 
 def validate_panel(
@@ -270,24 +293,51 @@ def validate_panel(
     panel = _coerce_panel(panel)
     errors: list[str] = []
 
+    outer_signed_area = signed_area(panel.outer)
+    outer_area_abs = abs(outer_signed_area)
     outer_orientation = orientation(panel.outer, area_tol=area_tol)
-    outer_area_abs = abs(signed_area(panel.outer))
+    outer_self_intersects = _loop_self_intersects(panel.outer)
+    outer_diagnostics = LoopValidationDiagnostics(
+        orientation=outer_orientation,
+        signed_area=outer_signed_area,
+        area_abs=outer_area_abs,
+        self_intersects=outer_self_intersects,
+    )
+
     if outer_orientation == "degenerate":
         errors.append("outer loop must be non-degenerate")
     elif outer_orientation != "ccw":
         errors.append("outer loop orientation must be ccw")
 
-    if _loop_self_intersects(panel.outer):
+    if outer_self_intersects:
         errors.append("outer loop must be simple (non-self-intersecting)")
 
     if outer_area_abs <= area_tol:
         errors.append("outer loop area must be positive")
 
     holes = panel.holes
+    hole_diagnostics: list[LoopValidationDiagnostics] = []
+    holes_strictly_inside_outer: list[bool] = []
+    holes_intersect_outer_boundary: list[bool] = []
     hole_area_sum = 0.0
     for idx, hole in enumerate(holes):
+        hole_signed_area = signed_area(hole)
+        hole_area_abs = abs(hole_signed_area)
         hole_orientation = orientation(hole, area_tol=area_tol)
-        hole_area_abs = abs(signed_area(hole))
+        hole_self_intersects = _loop_self_intersects(hole)
+        hole_inside_outer = _loop_strictly_inside_outer(hole, panel.outer)
+        hole_intersects_outer = _loops_edge_intersect(hole, panel.outer)
+
+        hole_diagnostics.append(
+            LoopValidationDiagnostics(
+                orientation=hole_orientation,
+                signed_area=hole_signed_area,
+                area_abs=hole_area_abs,
+                self_intersects=hole_self_intersects,
+            )
+        )
+        holes_strictly_inside_outer.append(hole_inside_outer)
+        holes_intersect_outer_boundary.append(hole_intersects_outer)
 
         if hole_orientation == "degenerate":
             errors.append(f"hole {idx} must be non-degenerate")
@@ -297,27 +347,40 @@ def validate_panel(
         if hole_area_abs <= area_tol:
             errors.append(f"hole {idx} area magnitude must be positive")
 
-        if _loop_self_intersects(hole):
+        if hole_self_intersects:
             errors.append(f"hole {idx} must be simple (non-self-intersecting)")
 
-        if not _loop_strictly_inside_outer(hole, panel.outer):
+        if not hole_inside_outer:
             errors.append(f"hole {idx} must lie strictly inside outer loop")
 
-        if _loops_edge_intersect(hole, panel.outer):
+        if hole_intersects_outer:
             errors.append(f"hole {idx} intersects outer loop boundary")
 
         hole_area_sum += hole_area_abs
 
+    overlapping_hole_pairs: list[tuple[int, int]] = []
     for i in range(len(holes)):
         for j in range(i + 1, len(holes)):
             if _loops_overlap_or_touch(holes[i], holes[j]):
+                overlapping_hole_pairs.append((i, j))
                 errors.append(f"holes {i} and {j} overlap or touch")
 
     panel_area = outer_area_abs - hole_area_sum
     if panel_area <= area_tol:
         errors.append("trimmed panel area must be positive")
 
-    return PanelValidationResult(panel=panel, errors=tuple(errors))
+    diagnostics = PanelValidationDiagnostics(
+        outer=outer_diagnostics,
+        holes=tuple(hole_diagnostics),
+        holes_strictly_inside_outer=tuple(holes_strictly_inside_outer),
+        holes_intersect_outer_boundary=tuple(holes_intersect_outer_boundary),
+        overlapping_hole_pairs=tuple(overlapping_hole_pairs),
+        panel_area=panel_area,
+    )
+
+    return PanelValidationResult(
+        panel=panel, errors=tuple(errors), diagnostics=diagnostics
+    )
 
 
 def _loop_strictly_inside_outer(hole: PanelLoop2D, outer: PanelLoop2D) -> bool:

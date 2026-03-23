@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "source": "imported-production",
+  "cases": [
+    {
+      "name": "imported-prod-courtyard-double-cutout",
+      "tags": ["imported", "production", "multi-hole"],
+      "outer": [[0.0, 0.0], [5.0, 0.0], [5.0, 3.0], [0.0, 3.0]],
+      "holes": [
+        [[1.0, 0.8], [2.6, 0.8], [2.6, 2.2], [1.0, 2.2]],
+        [[3.2, 0.4], [4.4, 0.4], [4.4, 1.0], [3.2, 1.0]]
+      ]
+    },
+    {
+      "name": "imported-prod-long-corridor-offset-room",
+      "tags": ["imported", "production", "corridor"],
+      "outer": [[0.0, 0.0], [6.0, 0.0], [6.0, 2.4], [0.0, 2.4]],
+      "holes": [
+        [[0.6, 0.8], [3.2, 0.8], [3.2, 1.6], [0.6, 1.6]],
+        [[4.2, 0.5], [5.2, 0.5], [5.2, 1.2], [4.2, 1.2]]
+      ]
+    }
+  ]
+}

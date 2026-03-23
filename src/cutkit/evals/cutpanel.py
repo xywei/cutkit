@@ -2,12 +2,17 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import json
+from dataclasses import asdict, dataclass
+from functools import lru_cache
+from importlib.resources import files
+from pathlib import Path
+import re
 
 from cutkit.diagnostics import area_consistency, moment_report
 from cutkit.geometry import PanelLoop2D, TrimmedPanel2D
 from cutkit.quadrature import folded_quadrature_rule
-from cutkit.topology import validate_panel
+from cutkit.topology import PanelValidationResult, validate_panel
 
 Point = tuple[float, float]
 Loop = tuple[Point, ...]
@@ -20,6 +25,8 @@ class CutPanelCase:
     name: str
     outer: Loop
     holes: tuple[Loop, ...] = ()
+    source: str = "baseline"
+    tags: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -27,6 +34,8 @@ class CutPanelMetrics:
     """Computed metrics for one cut-panel case."""
 
     name: str
+    source: str
+    tags: tuple[str, ...]
     area: float
     bbox_area: float
     cut_fraction: float
@@ -43,8 +52,10 @@ class CutPanelMetrics:
 class CutPanelEvaluation:
     """Evaluation result with metrics and validation errors."""
 
+    case: CutPanelCase
     metrics: CutPanelMetrics
     errors: tuple[str, ...]
+    topology: PanelValidationResult | None = None
 
 
 def _normalize_loop(loop: Loop) -> Loop:
@@ -104,6 +115,80 @@ def _to_trimmed_panel(case: CutPanelCase) -> TrimmedPanel2D:
     )
 
 
+def _loop_from_raw(raw_loop: object) -> Loop:
+    if not isinstance(raw_loop, list):
+        raise ValueError("loop must be a list of points")
+
+    points: list[Point] = []
+    for raw_point in raw_loop:
+        if not isinstance(raw_point, list) or len(raw_point) != 2:
+            raise ValueError("point must be a 2-item list")
+        points.append((float(raw_point[0]), float(raw_point[1])))
+    return tuple(points)
+
+
+def _case_from_payload(payload: object, *, source: str) -> CutPanelCase:
+    if not isinstance(payload, dict):
+        raise ValueError("case payload must be an object")
+
+    name_value = payload.get("name")
+    if not isinstance(name_value, str) or not name_value:
+        raise ValueError("case name must be a non-empty string")
+
+    outer = _loop_from_raw(payload.get("outer"))
+    holes_raw = payload.get("holes", [])
+    if not isinstance(holes_raw, list):
+        raise ValueError("holes must be a list")
+
+    tags_raw = payload.get("tags", [])
+    if not isinstance(tags_raw, list) or not all(
+        isinstance(tag, str) for tag in tags_raw
+    ):
+        raise ValueError("tags must be a list of strings")
+
+    holes = tuple(tuple(reversed(_loop_from_raw(raw_hole))) for raw_hole in holes_raw)
+    return CutPanelCase(
+        name=name_value,
+        outer=outer,
+        holes=holes,
+        source=source,
+        tags=tuple(tags_raw),
+    )
+
+
+@lru_cache(maxsize=1)
+def _load_fixture_cases(filename: str) -> tuple[CutPanelCase, ...]:
+    fixture_path = files("cutkit.evals").joinpath("fixtures", filename)
+    payload = json.loads(fixture_path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise ValueError(f"invalid fixture payload in {filename}")
+
+    source_value = payload.get("source")
+    if not isinstance(source_value, str) or not source_value:
+        raise ValueError(f"fixture {filename} must define source")
+
+    cases_raw = payload.get("cases")
+    if not isinstance(cases_raw, list):
+        raise ValueError(f"fixture {filename} must define cases list")
+
+    return tuple(
+        _case_from_payload(case_payload, source=source_value)
+        for case_payload in cases_raw
+    )
+
+
+def imported_production_cases() -> tuple[CutPanelCase, ...]:
+    """Return imported-production cut-panel cases from fixture definitions."""
+
+    return _load_fixture_cases("cutpanel-production-imported.json")
+
+
+def fuzz_derived_cases() -> tuple[CutPanelCase, ...]:
+    """Return deterministic fuzz-derived cut-panel cases from fixtures."""
+
+    return _load_fixture_cases("cutpanel-fuzz-derived.json")
+
+
 def evaluate_case(case: CutPanelCase, *, folded_order: int = 6) -> CutPanelMetrics:
     """Compute baseline geometric metrics for one cut-panel case."""
 
@@ -116,6 +201,8 @@ def evaluate_case(case: CutPanelCase, *, folded_order: int = 6) -> CutPanelMetri
 
     metrics = CutPanelMetrics(
         name=case.name,
+        source=case.source,
+        tags=case.tags,
         area=area,
         bbox_area=bbox_area,
         cut_fraction=cut_fraction,
@@ -129,6 +216,8 @@ def evaluate_case(case: CutPanelCase, *, folded_order: int = 6) -> CutPanelMetri
 
     return CutPanelMetrics(
         name=metrics.name,
+        source=metrics.source,
+        tags=metrics.tags,
         area=metrics.area,
         bbox_area=metrics.bbox_area,
         cut_fraction=metrics.cut_fraction,
@@ -142,14 +231,12 @@ def evaluate_case(case: CutPanelCase, *, folded_order: int = 6) -> CutPanelMetri
     )
 
 
-def validate_case(
+def _validate_case_with_topology(
     case: CutPanelCase,
     *,
     folded_area_tol: float = 1.0e-12,
     folded_moment_tol: float = 1.0e-10,
-) -> tuple[str, ...]:
-    """Validate one case against orientation and positivity invariants."""
-
+) -> tuple[tuple[str, ...], PanelValidationResult]:
     outer_area_abs = abs(signed_area(case.outer))
     hole_areas_abs = tuple(abs(signed_area(hole)) for hole in case.holes)
     area = outer_area_abs - sum(hole_areas_abs)
@@ -177,14 +264,14 @@ def validate_case(
     for topology_error in topology_report.errors:
         errors.append(f"Topology: {topology_error}")
     if topology_report.errors:
-        return tuple(errors)
+        return tuple(errors), topology_report
 
     try:
         metrics = evaluate_case(case)
     except ValueError:
         if not errors:
             errors.append("Folded diagnostics failed for panel geometry.")
-        return tuple(errors)
+        return tuple(errors), topology_report
 
     if metrics.folded_triangle_abs_error is None:
         errors.append("Folded triangle area diagnostics were not computed.")
@@ -201,7 +288,23 @@ def validate_case(
     elif metrics.folded_max_moment_abs_error > folded_moment_tol:
         errors.append("Folded moment error exceeds tolerance.")
 
-    return tuple(errors)
+    return tuple(errors), topology_report
+
+
+def validate_case(
+    case: CutPanelCase,
+    *,
+    folded_area_tol: float = 1.0e-12,
+    folded_moment_tol: float = 1.0e-10,
+) -> tuple[str, ...]:
+    """Validate one case against orientation and positivity invariants."""
+
+    errors, _ = _validate_case_with_topology(
+        case,
+        folded_area_tol=folded_area_tol,
+        folded_moment_tol=folded_moment_tol,
+    )
+    return errors
 
 
 def default_cases() -> tuple[CutPanelCase, ...]:
@@ -222,32 +325,98 @@ def default_cases() -> tuple[CutPanelCase, ...]:
         (0.003, 0.997),
     )
 
-    return (
+    base_cases = (
         CutPanelCase(
             name="unit-square",
             outer=((0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)),
+            tags=("baseline",),
         ),
         CutPanelCase(
             name="square-with-hole",
             outer=((0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)),
             holes=(tuple(reversed(hole_ccw)),),
+            tags=("baseline",),
         ),
         CutPanelCase(
             name="rect-with-thin-hole",
             outer=((0.0, 0.0), (2.0, 0.0), (2.0, 1.0), (0.0, 1.0)),
             holes=(tuple(reversed(notch_hole_ccw)),),
+            tags=("baseline", "thin-feature"),
         ),
         CutPanelCase(
             name="square-with-seam-adjacent-slot",
             outer=((0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)),
             holes=(tuple(reversed(seam_slot_hole_ccw)),),
+            tags=("baseline", "seam-adjacent"),
         ),
         CutPanelCase(
             name="square-with-ultra-thin-frame",
             outer=((0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)),
             holes=(tuple(reversed(ultra_thin_frame_hole_ccw)),),
+            tags=("baseline", "near-degenerate"),
         ),
     )
+    return (*base_cases, *imported_production_cases(), *fuzz_derived_cases())
+
+
+def _slugify_case_name(name: str) -> str:
+    slug = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
+    return slug or "case"
+
+
+def _loop_to_json(loop: Loop) -> list[list[float]]:
+    return [[x, y] for x, y in loop]
+
+
+def _topology_to_json(
+    topology: PanelValidationResult | None,
+) -> dict[str, object] | None:
+    if topology is None:
+        return None
+
+    return {
+        "errors": list(topology.errors),
+        "diagnostics": asdict(topology.diagnostics),
+    }
+
+
+def export_failure_artifacts(
+    evaluations: tuple[CutPanelEvaluation, ...],
+    *,
+    output_dir: Path,
+) -> tuple[Path, ...]:
+    """Write JSON artifacts for each failed cut-panel evaluation case."""
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    written: list[Path] = []
+
+    for index, result in enumerate(evaluations):
+        if not result.errors:
+            continue
+
+        payload = {
+            "schema_version": 1,
+            "case": {
+                "name": result.case.name,
+                "source": result.case.source,
+                "tags": list(result.case.tags),
+                "outer": _loop_to_json(result.case.outer),
+                "holes": [_loop_to_json(hole) for hole in result.case.holes],
+            },
+            "metrics": asdict(result.metrics),
+            "errors": list(result.errors),
+            "topology": _topology_to_json(result.topology),
+        }
+
+        artifact_name = f"{index:02d}-{_slugify_case_name(result.case.name)}.json"
+        artifact_path = output_dir / artifact_name
+        artifact_path.write_text(
+            json.dumps(payload, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        written.append(artifact_path)
+
+    return tuple(written)
 
 
 def run_default_eval() -> tuple[CutPanelEvaluation, ...]:
@@ -256,6 +425,10 @@ def run_default_eval() -> tuple[CutPanelEvaluation, ...]:
     results: list[CutPanelEvaluation] = []
     for case in default_cases():
         metrics = evaluate_case(case)
-        errors = validate_case(case)
-        results.append(CutPanelEvaluation(metrics=metrics, errors=errors))
+        errors, topology = _validate_case_with_topology(case)
+        results.append(
+            CutPanelEvaluation(
+                case=case, metrics=metrics, errors=errors, topology=topology
+            )
+        )
     return tuple(results)
