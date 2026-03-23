@@ -273,6 +273,111 @@ def test_compare_manifest_to_fixture_rejects_partial_placeholder_full_scope() ->
     assert any(failure.key.endswith("sections.3d.value") for failure in report.failures)
 
 
+def test_compare_manifest_to_fixture_checks_monotone_flag_exactly() -> None:
+    current = {
+        "schema_version": 1,
+        "profile": "quick",
+        "geometry_mode": "polygonized",
+        "sections": {
+            "3d": {
+                "general": {
+                    "order_results": [
+                        {
+                            "order": 2,
+                            "folded_abs_error": [0.1],
+                            "monotone_nonincreasing": False,
+                            "monotonicity_violation_indices": [0],
+                        }
+                    ]
+                }
+            }
+        },
+    }
+    fixture = {
+        "schema_version": 1,
+        "profile": "quick",
+        "geometry_mode": "polygonized",
+        "sections": {
+            "3d": {
+                "general": {
+                    "order_results": [
+                        {
+                            "order": 2,
+                            "folded_abs_error": [0.1],
+                            "monotone_nonincreasing": True,
+                            "monotonicity_violation_indices": [],
+                        }
+                    ]
+                }
+            }
+        },
+    }
+
+    report = compare_manifest_to_fixture(
+        current,
+        fixture,
+        abs_tol=1.0e-12,
+        rel_tol=1.0e-12,
+    )
+    assert not report.passed
+    assert any(
+        failure.key.endswith("monotone_nonincreasing") for failure in report.failures
+    )
+
+
+def test_compare_manifest_to_fixture_checks_monotonicity_indices_exactly() -> None:
+    current = {
+        "schema_version": 1,
+        "profile": "quick",
+        "geometry_mode": "polygonized",
+        "sections": {
+            "3d": {
+                "general": {
+                    "order_results": [
+                        {
+                            "order": 2,
+                            "folded_abs_error": [0.1],
+                            "monotone_nonincreasing": True,
+                            "monotonicity_violation_indices": [1],
+                        }
+                    ]
+                }
+            }
+        },
+    }
+    fixture = {
+        "schema_version": 1,
+        "profile": "quick",
+        "geometry_mode": "polygonized",
+        "sections": {
+            "3d": {
+                "general": {
+                    "order_results": [
+                        {
+                            "order": 2,
+                            "folded_abs_error": [0.1],
+                            "monotone_nonincreasing": True,
+                            "monotonicity_violation_indices": [],
+                        }
+                    ]
+                }
+            }
+        },
+    }
+
+    report = compare_manifest_to_fixture(
+        current,
+        fixture,
+        abs_tol=1.0e-12,
+        rel_tol=1.0e-12,
+    )
+    assert not report.passed
+    assert any(
+        failure.key.endswith("monotonicity_violation_indices")
+        for failure in report.failures
+    )
+
+
 def test_compare_manifest_to_fixture_skips_placeholder_without_numeric_metrics() -> (
     None
 ):
