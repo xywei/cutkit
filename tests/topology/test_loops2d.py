@@ -95,6 +95,17 @@ def test_validate_panel_rejects_hole_outside_outer() -> None:
     assert "hole 0 must lie strictly inside outer loop" in report.errors
 
 
+def test_validate_panel_rejects_hole_touching_outer_seam() -> None:
+    panel = TrimmedPanel2D(
+        outer=PanelLoop2D(((0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0))),
+        holes=(PanelLoop2D(((0.95, 0.8), (1.0, 0.8), (1.0, 0.2), (0.95, 0.2))),),
+    )
+
+    report = validate_panel(panel)
+    assert "hole 0 must lie strictly inside outer loop" in report.errors
+    assert "hole 0 intersects outer loop boundary" in report.errors
+
+
 def test_validate_panel_rejects_overlapping_holes() -> None:
     panel = TrimmedPanel2D(
         outer=PanelLoop2D(((0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0))),
