@@ -43,7 +43,6 @@ _EXCLUDED_DIRS = {
     ".pytest_cache",
     ".mypy_cache",
     ".ruff_cache",
-    ".opencode",
     ".entire",
 }
 
@@ -60,7 +59,12 @@ def markdown_files_for_freshness(root: Path) -> tuple[Path, ...]:
 
     files: set[Path] = set()
 
-    for parent in (root / "docs", root / "openspec"):
+    for parent in (
+        root / "docs",
+        root / "openspec",
+        root / ".codex",
+        root / ".opencode",
+    ):
         if parent.is_dir():
             files.update(path for path in parent.rglob("*.md") if path.is_file())
 
@@ -92,7 +96,7 @@ def _iter_reference_tokens(text: str) -> tuple[str, ...]:
     return tuple(tokens)
 
 
-def _normalize_reference(raw_reference: str) -> str | None:
+def _normalize_reference(*, raw_reference: str, root: Path, source: Path) -> str | None:
     reference = raw_reference.strip()
     if not reference:
         return None
@@ -116,6 +120,8 @@ def _normalize_reference(raw_reference: str) -> str | None:
         return None
     if any(char.isspace() for char in reference):
         return None
+    if "YYYY-MM-DD" in reference:
+        return None
 
     if reference in _ROOT_FILES:
         return reference
@@ -128,7 +134,12 @@ def _normalize_reference(raw_reference: str) -> str | None:
     ):
         return reference
     if not has_nested_path and reference.endswith(".md"):
-        return reference
+        try:
+            source_rel = source.relative_to(root)
+        except ValueError:
+            return None
+        if source_rel.parts and source_rel.parts[0] == "docs":
+            return reference
 
     return None
 
@@ -160,7 +171,11 @@ def find_missing_references(
 
         text = source.read_text(encoding="utf-8")
         for raw_reference in _iter_reference_tokens(text):
-            normalized = _normalize_reference(raw_reference)
+            normalized = _normalize_reference(
+                raw_reference=raw_reference,
+                root=root,
+                source=source,
+            )
             if normalized is None:
                 continue
 
