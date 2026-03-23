@@ -272,6 +272,26 @@ def test_section_6_2_3d_grid_rejects_unsorted_resolutions() -> None:
         )
 
 
+def test_section_6_2_3d_grid_rejects_coarse_reference_resolution() -> None:
+    with pytest.raises(ValueError, match="reference_grid_resolution"):
+        run_general_function_experiment_3d_grid(
+            orders=(2,),
+            grid_resolutions=(2, 4, 8),
+            reference_grid_resolution=4,
+            reference_order=8,
+        )
+
+
+def test_section_6_2_3d_grid_rejects_low_reference_order() -> None:
+    with pytest.raises(ValueError, match="reference_order"):
+        run_general_function_experiment_3d_grid(
+            orders=(2, 3),
+            grid_resolutions=(2, 4),
+            reference_grid_resolution=8,
+            reference_order=3,
+        )
+
+
 def test_eval_and_core_boundary_integrators_match() -> None:
     boundary = build_section_6_1_3_boundary_triangles(surface_resolution=4)
     seed = (0.5, 0.5, 0.5)
