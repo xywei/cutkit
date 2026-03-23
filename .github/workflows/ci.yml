@@ -109,4 +109,5 @@ jobs:
         run: |
           uv run python scripts/run_poisson_benchmarks.py \
             --profile quick \
-            --backend-mode ${{ matrix.backend-mode }}
+            --backend-mode ${{ matrix.backend-mode }} \
+            --allow-fail

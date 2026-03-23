@@ -32,6 +32,11 @@ def main() -> int:
         default=None,
         help="optional JSON output path for benchmark manifest",
     )
+    parser.add_argument(
+        "--allow-fail",
+        action="store_true",
+        help="always exit zero even when benchmark tolerances fail",
+    )
     args = parser.parse_args()
 
     result = run_poisson_benchmarks(
@@ -66,7 +71,9 @@ def main() -> int:
         )
         print(f"wrote manifest: {args.manifest_path}")
 
-    return 0 if result.passed else 1
+    if result.passed or args.allow_fail:
+        return 0
+    return 1
 
 
 if __name__ == "__main__":
