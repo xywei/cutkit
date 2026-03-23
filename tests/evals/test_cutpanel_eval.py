@@ -184,6 +184,43 @@ def test_export_failure_artifacts_include_topology_diagnostics(
     assert any("-" in row or "+" in row for row in visual_diff["rows"])
 
 
+def test_export_failure_artifacts_handles_malformed_case_snapshot(
+    tmp_path: Path,
+) -> None:
+    case = CutPanelCase(
+        name="artifact-export-malformed-case",
+        outer=((0.0, 0.0), (1.0, 0.0)),
+        source="unit-test",
+        tags=("artifact",),
+    )
+    metrics = CutPanelMetrics(
+        name=case.name,
+        source=case.source,
+        tags=case.tags,
+        area=0.0,
+        bbox_area=0.0,
+        cut_fraction=0.0,
+        outer_orientation="degenerate",
+        hole_orientations=(),
+    )
+    evaluation = CutPanelEvaluation(
+        case=case,
+        metrics=metrics,
+        errors=("fixture parse failed",),
+        topology=None,
+    )
+
+    artifacts = export_failure_artifacts(
+        (evaluation,),
+        output_dir=tmp_path / "cutpanel-artifacts",
+    )
+
+    assert len(artifacts) == 1
+    payload = json.loads(artifacts[0].read_text(encoding="utf-8"))
+    assert payload["errors"] == ["fixture parse failed"]
+    assert payload["visual_diff"] is None
+
+
 def test_minimize_fuzz_cases_is_deterministic_and_deduplicates() -> None:
     payload = {
         "source": "fuzz-candidates",

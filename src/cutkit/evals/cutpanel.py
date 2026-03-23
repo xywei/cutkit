@@ -587,6 +587,13 @@ def _visual_diff_snapshot(
     }
 
 
+def _safe_visual_diff_snapshot(case: CutPanelCase) -> dict[str, object] | None:
+    try:
+        return _visual_diff_snapshot(case)
+    except (TypeError, ValueError):
+        return None
+
+
 def _slugify_case_name(name: str) -> str:
     slug = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
     return slug or "case"
@@ -634,7 +641,7 @@ def export_failure_artifacts(
             "metrics": asdict(result.metrics),
             "errors": list(result.errors),
             "topology": _topology_to_json(result.topology),
-            "visual_diff": _visual_diff_snapshot(result.case),
+            "visual_diff": _safe_visual_diff_snapshot(result.case),
         }
 
         artifact_name = f"{index:02d}-{_slugify_case_name(result.case.name)}.json"

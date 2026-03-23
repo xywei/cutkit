@@ -19,8 +19,13 @@ _TRAILING_HEADING_HASHES_RE = re.compile(r"\s+#+\s*$")
 _ANCHOR_INVALID_CHARS_RE = re.compile(r"[^\w\s-]")
 _WHITESPACE_RE = re.compile(r"\s+")
 _MULTI_DASH_RE = re.compile(r"-{2,}")
-_HTML_ANCHOR_RE = re.compile(
-    r"<a\s+[^>]*?(?:id|name)\s*=\s*[\"']([^\"']+)[\"'][^>]*>",
+_HTML_COMMENT_RE = re.compile(r"<!--.*?-->", re.DOTALL)
+_HTML_ANCHOR_TAG_RE = re.compile(
+    r"<a\b(?P<attrs>[^>]*)>",
+    re.IGNORECASE | re.DOTALL,
+)
+_HTML_ANCHOR_ATTR_RE = re.compile(
+    r"\b(?:id|name)\s*=\s*(?:\"([^\"]*)\"|'([^']*)')",
     re.IGNORECASE,
 )
 
@@ -84,6 +89,12 @@ class MissingReference:
     missing_anchor: str | None = None
 
 
+@dataclass(frozen=True)
+class _AnchorCatalog:
+    heading_anchors: frozenset[str]
+    explicit_anchors: frozenset[str]
+
+
 def markdown_files_for_freshness(root: Path) -> tuple[Path, ...]:
     """Return markdown files that participate in docs freshness checks."""
 
@@ -142,14 +153,41 @@ def _slugify_anchor_text(text: str) -> str:
     return normalized.strip("-")
 
 
-def _normalize_anchor_fragment(raw_fragment: str) -> str | None:
+def _decode_anchor_fragment(raw_fragment: str) -> str | None:
     decoded = unquote(raw_fragment).strip()
     if not decoded:
+        return None
+    return decoded
+
+
+def _normalize_anchor_fragment(raw_fragment: str) -> str | None:
+    decoded = _decode_anchor_fragment(raw_fragment)
+    if decoded is None:
         return None
     normalized = _slugify_anchor_text(decoded)
     if not normalized:
         return None
     return normalized
+
+
+def _extract_explicit_html_anchors(text: str) -> frozenset[str]:
+    sanitized = _FENCED_CODE_RE.sub("\n", text)
+    sanitized = _INLINE_CODE_RE.sub("", sanitized)
+    sanitized = _HTML_COMMENT_RE.sub("", sanitized)
+
+    anchors: set[str] = set()
+    for tag_match in _HTML_ANCHOR_TAG_RE.finditer(sanitized):
+        attrs = tag_match.group("attrs")
+        attr_match = _HTML_ANCHOR_ATTR_RE.search(attrs)
+        if attr_match is None:
+            continue
+
+        value = (attr_match.group(1) or attr_match.group(2) or "").strip()
+        if not value:
+            continue
+        anchors.add(value)
+
+    return frozenset(anchors)
 
 
 def _add_heading_anchor(
@@ -168,12 +206,13 @@ def _add_heading_anchor(
     anchors.add(anchor)
 
 
-def _markdown_heading_anchors(text: str) -> frozenset[str]:
-    anchors: set[str] = set()
+def _markdown_heading_anchors(text: str) -> _AnchorCatalog:
+    heading_anchors: set[str] = set()
     counts: dict[str, int] = {}
     in_fenced_block = False
     in_frontmatter = False
     lines = text.splitlines()
+    explicit_anchors = _extract_explicit_html_anchors(text)
 
     for index, line in enumerate(lines):
         stripped = line.strip()
@@ -192,17 +231,12 @@ def _markdown_heading_anchors(text: str) -> frozenset[str]:
         if in_fenced_block:
             continue
 
-        for html_anchor_match in _HTML_ANCHOR_RE.finditer(line):
-            explicit_anchor = _normalize_anchor_fragment(html_anchor_match.group(1))
-            if explicit_anchor is not None:
-                anchors.add(explicit_anchor)
-
         heading_match = _MARKDOWN_HEADING_RE.match(line)
         if heading_match is not None:
             heading = _TRAILING_HEADING_HASHES_RE.sub(
                 "", heading_match.group(1)
             ).strip()
-            _add_heading_anchor(heading, anchors=anchors, counts=counts)
+            _add_heading_anchor(heading, anchors=heading_anchors, counts=counts)
             continue
 
         if index + 1 >= len(lines):
@@ -214,12 +248,17 @@ def _markdown_heading_anchors(text: str) -> frozenset[str]:
         if _SETEXT_HEADING_UNDERLINE_RE.match(lines[index + 1]) is None:
             continue
 
-        _add_heading_anchor(stripped, anchors=anchors, counts=counts)
+        _add_heading_anchor(stripped, anchors=heading_anchors, counts=counts)
 
-    return frozenset(anchors)
+    return _AnchorCatalog(
+        heading_anchors=frozenset(heading_anchors),
+        explicit_anchors=explicit_anchors,
+    )
 
 
-def _normalize_anchor_reference(raw_reference: str) -> tuple[str | None, str] | None:
+def _normalize_anchor_reference(
+    raw_reference: str,
+) -> tuple[str | None, str, str | None] | None:
     reference = raw_reference.strip()
     if not reference:
         return None
@@ -234,12 +273,13 @@ def _normalize_anchor_reference(raw_reference: str) -> tuple[str | None, str] | 
     if "?" in path_part:
         path_part = path_part.split("?", 1)[0]
 
-    normalized_anchor = _normalize_anchor_fragment(fragment)
-    if normalized_anchor is None:
+    literal_anchor = _decode_anchor_fragment(fragment)
+    if literal_anchor is None:
         return None
+    normalized_anchor = _slugify_anchor_text(literal_anchor)
     if not path_part:
-        return None, normalized_anchor
-    return path_part, normalized_anchor
+        return None, literal_anchor, (normalized_anchor or None)
+    return path_part, literal_anchor, (normalized_anchor or None)
 
 
 def _normalize_reference(*, raw_reference: str, root: Path, source: Path) -> str | None:
@@ -320,7 +360,7 @@ def find_missing_references(
 
     missing: list[MissingReference] = []
     seen: set[tuple[str, str, str, str | None]] = set()
-    markdown_anchor_cache: dict[Path, frozenset[str]] = {}
+    markdown_anchor_cache: dict[Path, _AnchorCatalog] = {}
 
     for source in markdown_files:
         if not source.is_file():
@@ -359,9 +399,10 @@ def find_missing_references(
             if anchor_reference is None:
                 continue
 
-            raw_path, anchor = anchor_reference
+            raw_path, literal_anchor, slug_anchor = anchor_reference
+            anchor_display = slug_anchor or literal_anchor
             if raw_path is None:
-                normalized_reference = f"#{anchor}"
+                normalized_reference = f"#{anchor_display}"
                 resolved = source
             else:
                 normalized_path = _normalize_reference(
@@ -378,22 +419,32 @@ def find_missing_references(
                 )
                 if not resolved.exists():
                     continue
-                normalized_reference = f"{normalized_path}#{anchor}"
+                normalized_reference = f"{normalized_path}#{anchor_display}"
 
             if not resolved.is_file() or resolved.suffix != ".md":
                 continue
 
-            anchors = markdown_anchor_cache.get(resolved)
-            if anchors is None:
-                anchors = _markdown_heading_anchors(
+            anchor_catalog = markdown_anchor_cache.get(resolved)
+            if anchor_catalog is None:
+                anchor_catalog = _markdown_heading_anchors(
                     resolved.read_text(encoding="utf-8")
                 )
-                markdown_anchor_cache[resolved] = anchors
+                markdown_anchor_cache[resolved] = anchor_catalog
 
-            if anchor in anchors:
+            if (
+                slug_anchor is not None
+                and slug_anchor in anchor_catalog.heading_anchors
+            ):
+                continue
+            if literal_anchor in anchor_catalog.explicit_anchors:
                 continue
 
-            anchor_key = (str(source), normalized_reference, str(resolved), anchor)
+            anchor_key = (
+                str(source),
+                normalized_reference,
+                str(resolved),
+                literal_anchor,
+            )
             if anchor_key in seen:
                 continue
             seen.add(anchor_key)
@@ -402,7 +453,7 @@ def find_missing_references(
                     source=source,
                     reference=normalized_reference,
                     resolved=resolved,
-                    missing_anchor=anchor,
+                    missing_anchor=literal_anchor,
                 )
             )
 
