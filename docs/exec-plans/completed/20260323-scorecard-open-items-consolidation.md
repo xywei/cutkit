@@ -55,3 +55,9 @@ Resolve the three currently listed quality follow-ups in one integrated change:
 - Anchor normalization expansions may cause false positives in unusual markdown
   formatting.
 - Larger corpus packs may increase eval runtime if not kept compact.
+
+## Final Outcome
+
+- Status: implemented; pending merge.
+- Delivered via: `https://github.com/xywei/cutkit/pull/14`
+- Follow-ups: none currently planned.

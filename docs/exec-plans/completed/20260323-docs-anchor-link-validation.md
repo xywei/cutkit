@@ -47,5 +47,5 @@ gates early.
 
 - Status: merged.
 - Delivered via: `https://github.com/xywei/cutkit/pull/13`
-- Follow-ups: expanded renderer-style anchor edge coverage tracked in
-  `docs/exec-plans/active/20260323-scorecard-open-items-consolidation.md`.
+- Follow-ups: expanded renderer-style anchor edge coverage delivered in
+  `docs/exec-plans/completed/20260323-scorecard-open-items-consolidation.md`.

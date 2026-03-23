@@ -23,6 +23,4 @@ Scores are intentionally coarse:
 
 ## Next Improvements
 
-1. Add optional SVG rendering for failure artifact snapshots.
-2. Add explicit heading-anchor parity checks against reference renderer fixtures.
-3. Add corpus-shard execution mode for faster targeted cut-panel regressions.
+No immediate follow-up items are currently planned.
