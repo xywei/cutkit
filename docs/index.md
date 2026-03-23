@@ -22,6 +22,7 @@ Repository-local documentation is the system of record for CUTKIT.
 - `docs/antolin-parity-fixtures.md`: Section 6 parity fixture and update workflow
 - `docs/poisson-benchmarks.md`: Poisson-oriented benchmark usage and profiles
 - `scripts/check_docs_freshness.py`: stale docs path + markdown-anchor checker
+- `scripts/minimize_cutpanel_fuzz_cases.py`: deterministic fuzz-candidate minimizer
 - `docs/entire-transcript-policy.md`: Entire transcript handling policy
 - `.github/workflows/weekly-janitor.yml`: scheduled repository cleanup automation
 

@@ -6,17 +6,25 @@ import json
 from dataclasses import asdict, dataclass
 from functools import lru_cache
 from importlib.resources import files
+import math
 from pathlib import Path
 import re
 
 from cutkit.diagnostics import area_consistency, moment_report
 from cutkit.geometry import PanelLoop2D, TrimmedPanel2D
 from cutkit.quadrature import folded_quadrature_rule
-from cutkit.topology import PanelValidationResult, validate_panel
+from cutkit.topology import (
+    PanelValidationResult,
+    point_in_loop,
+    point_in_panel,
+    validate_panel,
+)
 
 Point = tuple[float, float]
 Loop = tuple[Point, ...]
 _AREA_TOL = 1.0e-14
+_VISUAL_SNAPSHOT_WIDTH = 32
+_VISUAL_SNAPSHOT_HEIGHT = 16
 
 
 @dataclass(frozen=True)
@@ -91,6 +99,17 @@ def orientation(loop: Loop) -> str:
 
 
 def _bbox_area_from_loops(loops: tuple[Loop, ...]) -> float:
+    bbox = _bbox_from_loops(loops)
+    if bbox is None:
+        return 0.0
+
+    xmin, ymin, xmax, ymax = bbox
+    return (xmax - xmin) * (ymax - ymin)
+
+
+def _bbox_from_loops(
+    loops: tuple[Loop, ...],
+) -> tuple[float, float, float, float] | None:
     xmin = float("inf")
     ymin = float("inf")
     xmax = float("-inf")
@@ -104,9 +123,9 @@ def _bbox_area_from_loops(loops: tuple[Loop, ...]) -> float:
             ymax = max(ymax, y)
 
     if xmin == float("inf"):
-        return 0.0
+        return None
 
-    return (xmax - xmin) * (ymax - ymin)
+    return (xmin, ymin, xmax, ymax)
 
 
 def _to_trimmed_panel(case: CutPanelCase) -> TrimmedPanel2D:
@@ -161,25 +180,45 @@ def _case_from_payload(payload: object, *, source: str) -> CutPanelCase:
     )
 
 
-@lru_cache(maxsize=1)
-def _load_fixture_cases(filename: str) -> tuple[CutPanelCase, ...]:
-    fixture_path = files("cutkit.evals").joinpath("fixtures", filename)
-    payload = json.loads(fixture_path.read_text(encoding="utf-8"))
+def cases_from_fixture_payload(payload: object) -> tuple[CutPanelCase, ...]:
+    """Parse fixture payload into cut-panel cases."""
+
     if not isinstance(payload, dict):
-        raise ValueError(f"invalid fixture payload in {filename}")
+        raise ValueError("fixture payload must be an object")
 
     source_value = payload.get("source")
     if not isinstance(source_value, str) or not source_value:
-        raise ValueError(f"fixture {filename} must define source")
+        raise ValueError("fixture payload must define source")
 
     cases_raw = payload.get("cases")
     if not isinstance(cases_raw, list):
-        raise ValueError(f"fixture {filename} must define cases list")
+        raise ValueError("fixture payload must define cases list")
 
     return tuple(
         _case_from_payload(case_payload, source=source_value)
         for case_payload in cases_raw
     )
+
+
+def case_to_fixture_payload(case: CutPanelCase) -> dict[str, object]:
+    """Serialize one case to fixture-compatible payload."""
+
+    return {
+        "name": case.name,
+        "tags": list(case.tags),
+        "outer": _loop_to_json(case.outer),
+        "holes": [_loop_to_json(tuple(reversed(hole))) for hole in case.holes],
+    }
+
+
+@lru_cache(maxsize=1)
+def _load_fixture_cases(filename: str) -> tuple[CutPanelCase, ...]:
+    fixture_path = files("cutkit.evals").joinpath("fixtures", filename)
+    payload = json.loads(fixture_path.read_text(encoding="utf-8"))
+    try:
+        return cases_from_fixture_payload(payload)
+    except ValueError as exc:
+        raise ValueError(f"invalid fixture payload in {filename}: {exc}") from exc
 
 
 def imported_production_cases() -> tuple[CutPanelCase, ...]:
@@ -367,6 +406,187 @@ def default_cases() -> tuple[CutPanelCase, ...]:
     return (*base_cases, *imported_production_cases(), *fuzz_derived_cases())
 
 
+def _quantized_point(point: Point, *, decimals: int = 6) -> Point:
+    return (round(point[0], decimals), round(point[1], decimals))
+
+
+def _canonicalize_loop(loop: Loop, *, decimals: int = 6) -> tuple[Point, ...]:
+    normalized = tuple(_quantized_point(point, decimals=decimals) for point in loop)
+    if not normalized:
+        return ()
+
+    def _rotations(points: tuple[Point, ...]) -> tuple[tuple[Point, ...], ...]:
+        return tuple(points[index:] + points[:index] for index in range(len(points)))
+
+    forward = _rotations(normalized)
+    reversed_loop = tuple(reversed(normalized))
+    backward = _rotations(reversed_loop)
+    return min((*forward, *backward))
+
+
+def _geometry_signature(case: CutPanelCase, *, decimals: int = 6) -> tuple[object, ...]:
+    outer_sig = _canonicalize_loop(case.outer, decimals=decimals)
+    holes_sig = tuple(
+        sorted(_canonicalize_loop(hole, decimals=decimals) for hole in case.holes)
+    )
+    return (outer_sig, holes_sig)
+
+
+def _loop_min_edge_length(loop: Loop) -> float:
+    normalized = _normalize_loop(loop)
+    if len(normalized) < 2:
+        return 0.0
+    return min(
+        math.hypot(x1 - x0, y1 - y0)
+        for (x0, y0), (x1, y1) in zip(normalized, normalized[1:] + normalized[:1])
+    )
+
+
+def _case_minimization_sort_key(
+    case: CutPanelCase,
+) -> tuple[float, float, float, float, str]:
+    loops = (case.outer, *case.holes)
+    total_vertices = sum(len(_normalize_loop(loop)) for loop in loops)
+    min_edge = min(_loop_min_edge_length(loop) for loop in loops)
+    cut_fraction = _base_metrics(case).cut_fraction
+    return (
+        -float(len(case.holes)),
+        -float(total_vertices),
+        min_edge,
+        -abs(cut_fraction - 0.5),
+        case.name,
+    )
+
+
+def minimize_fuzz_cases(
+    cases: tuple[CutPanelCase, ...],
+    *,
+    max_cases: int,
+    decimals: int = 6,
+) -> tuple[CutPanelCase, ...]:
+    """Return deterministic minimized subset from fuzz-derived cases."""
+
+    if max_cases <= 0:
+        raise ValueError("max_cases must be positive")
+    if decimals < 0:
+        raise ValueError("decimals must be non-negative")
+
+    ranked_cases = sorted(cases, key=_case_minimization_sort_key)
+    deduplicated: dict[tuple[object, ...], CutPanelCase] = {}
+    for case in ranked_cases:
+        signature = _geometry_signature(case, decimals=decimals)
+        deduplicated.setdefault(signature, case)
+
+    selected = list(deduplicated.values())[:max_cases]
+    return tuple(sorted(selected, key=lambda case: case.name))
+
+
+def _signed_region_membership(point: Point, case: CutPanelCase) -> bool:
+    winding = 0
+
+    outer_sign = orientation(case.outer)
+    if outer_sign != "degenerate" and point_in_loop(
+        point, case.outer, include_boundary=False
+    ):
+        winding += 1 if outer_sign == "ccw" else -1
+
+    for hole in case.holes:
+        hole_sign = orientation(hole)
+        if hole_sign == "degenerate":
+            continue
+        if point_in_loop(point, hole, include_boundary=False):
+            winding += 1 if hole_sign == "ccw" else -1
+
+    return winding > 0
+
+
+def _visual_diff_snapshot(
+    case: CutPanelCase,
+    *,
+    width: int = _VISUAL_SNAPSHOT_WIDTH,
+    height: int = _VISUAL_SNAPSHOT_HEIGHT,
+) -> dict[str, object]:
+    bbox = _bbox_from_loops((case.outer, *case.holes))
+    if bbox is None:
+        return {
+            "grid": {"width": width, "height": height},
+            "legend": {
+                "#": "both-filled",
+                ".": "both-empty",
+                "+": "parity-only",
+                "-": "signed-only",
+            },
+            "counts": {
+                "both_filled": 0,
+                "both_empty": width * height,
+                "parity_only": 0,
+                "signed_only": 0,
+                "mismatch_total": 0,
+            },
+            "rows": tuple("." * width for _ in range(height)),
+        }
+
+    xmin, ymin, xmax, ymax = bbox
+    if math.isclose(xmin, xmax):
+        xmin -= 0.5
+        xmax += 0.5
+    if math.isclose(ymin, ymax):
+        ymin -= 0.5
+        ymax += 0.5
+
+    panel = _to_trimmed_panel(case)
+    x_step = (xmax - xmin) / float(width)
+    y_step = (ymax - ymin) / float(height)
+
+    both_filled = 0
+    both_empty = 0
+    parity_only = 0
+    signed_only = 0
+    rows: list[str] = []
+
+    for y_index in reversed(range(height)):
+        y_coord = ymin + (y_index + 0.5) * y_step
+        chars: list[str] = []
+        for x_index in range(width):
+            x_coord = xmin + (x_index + 0.5) * x_step
+            point = (x_coord, y_coord)
+
+            parity_inside = point_in_panel(point, panel, include_boundary=False)
+            signed_inside = _signed_region_membership(point, case)
+
+            if parity_inside and signed_inside:
+                chars.append("#")
+                both_filled += 1
+            elif not parity_inside and not signed_inside:
+                chars.append(".")
+                both_empty += 1
+            elif parity_inside:
+                chars.append("+")
+                parity_only += 1
+            else:
+                chars.append("-")
+                signed_only += 1
+        rows.append("".join(chars))
+
+    return {
+        "grid": {"width": width, "height": height},
+        "legend": {
+            "#": "both-filled",
+            ".": "both-empty",
+            "+": "parity-only",
+            "-": "signed-only",
+        },
+        "counts": {
+            "both_filled": both_filled,
+            "both_empty": both_empty,
+            "parity_only": parity_only,
+            "signed_only": signed_only,
+            "mismatch_total": parity_only + signed_only,
+        },
+        "rows": tuple(rows),
+    }
+
+
 def _slugify_case_name(name: str) -> str:
     slug = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
     return slug or "case"
@@ -414,6 +634,7 @@ def export_failure_artifacts(
             "metrics": asdict(result.metrics),
             "errors": list(result.errors),
             "topology": _topology_to_json(result.topology),
+            "visual_diff": _visual_diff_snapshot(result.case),
         }
 
         artifact_name = f"{index:02d}-{_slugify_case_name(result.case.name)}.json"

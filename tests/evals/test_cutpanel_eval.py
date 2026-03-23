@@ -7,6 +7,8 @@ import pytest
 
 import cutkit.evals.cutpanel as cutpanel_module
 from cutkit.evals import (
+    case_to_fixture_payload,
+    cases_from_fixture_payload,
     CutPanelCase,
     CutPanelEvaluation,
     CutPanelMetrics,
@@ -15,6 +17,7 @@ from cutkit.evals import (
     export_failure_artifacts,
     fuzz_derived_cases,
     imported_production_cases,
+    minimize_fuzz_cases,
     run_default_eval,
     validate_case,
 )
@@ -43,6 +46,11 @@ def test_default_cases_include_imported_and_fuzz_entries() -> None:
 def test_imported_and_fuzz_case_groups_are_non_empty() -> None:
     assert imported_production_cases()
     assert fuzz_derived_cases()
+
+
+def test_imported_and_fuzz_packs_are_expanded() -> None:
+    assert len(imported_production_cases()) >= 5
+    assert len(fuzz_derived_cases()) >= 6
 
 
 def test_square_with_hole_metrics() -> None:
@@ -168,6 +176,77 @@ def test_export_failure_artifacts_include_topology_diagnostics(
     assert payload["case"]["source"] == "unit-test"
     assert payload["errors"]
     assert payload["topology"]["diagnostics"]["outer"]["orientation"] == "ccw"
+    visual_diff = payload["visual_diff"]
+    assert visual_diff["grid"] == {"width": 32, "height": 16}
+    assert len(visual_diff["rows"]) == 16
+    assert all(len(row) == 32 for row in visual_diff["rows"])
+    assert visual_diff["counts"]["mismatch_total"] > 0
+    assert any("-" in row or "+" in row for row in visual_diff["rows"])
+
+
+def test_minimize_fuzz_cases_is_deterministic_and_deduplicates() -> None:
+    payload = {
+        "source": "fuzz-candidates",
+        "cases": [
+            {
+                "name": "dup-b",
+                "outer": [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]],
+                "holes": [[[0.2, 0.2], [0.4, 0.2], [0.4, 0.4], [0.2, 0.4]]],
+                "tags": ["fuzz", "candidate"],
+            },
+            {
+                "name": "dup-a",
+                "outer": [[1.0, 0.0], [1.0, 1.0], [0.0, 1.0], [0.0, 0.0]],
+                "holes": [[[0.4, 0.2], [0.4, 0.4], [0.2, 0.4], [0.2, 0.2]]],
+                "tags": ["fuzz", "candidate"],
+            },
+            {
+                "name": "complex",
+                "outer": [[0.0, 0.0], [2.0, 0.0], [2.0, 1.4], [0.0, 1.4]],
+                "holes": [
+                    [[0.2, 0.2], [0.5, 0.2], [0.5, 0.55], [0.2, 0.55]],
+                    [[0.8, 0.7], [1.2, 0.7], [1.2, 1.1], [0.8, 1.1]],
+                    [[1.45, 0.2], [1.8, 0.2], [1.8, 0.55], [1.45, 0.55]],
+                ],
+                "tags": ["fuzz", "candidate"],
+            },
+            {
+                "name": "simple",
+                "outer": [[0.0, 0.0], [1.2, 0.0], [1.2, 1.0], [0.0, 1.0]],
+                "holes": [[[0.3, 0.3], [0.9, 0.3], [0.9, 0.7], [0.3, 0.7]]],
+                "tags": ["fuzz", "candidate"],
+            },
+        ],
+    }
+
+    cases = cases_from_fixture_payload(payload)
+    minimized_once = minimize_fuzz_cases(cases, max_cases=2)
+    minimized_twice = minimize_fuzz_cases(cases, max_cases=2)
+
+    assert minimized_once == minimized_twice
+    assert {case.name for case in minimized_once} == {"complex", "dup-a"}
+
+
+def test_case_to_fixture_payload_round_trips_case_geometry() -> None:
+    payload = {
+        "source": "fuzz-candidates",
+        "cases": [
+            {
+                "name": "roundtrip-case",
+                "outer": [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]],
+                "holes": [[[0.2, 0.2], [0.7, 0.2], [0.7, 0.8], [0.2, 0.8]]],
+                "tags": ["fuzz", "candidate"],
+            }
+        ],
+    }
+
+    original = cases_from_fixture_payload(payload)[0]
+    serialized = case_to_fixture_payload(original)
+    restored = cutpanel_module._case_from_payload(serialized, source="fuzz-candidates")
+
+    assert restored.outer == original.outer
+    assert restored.holes == original.holes
+    assert restored.tags == original.tags
 
 
 def test_fixture_case_payload_rejects_degenerate_outer_loop() -> None:

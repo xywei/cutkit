@@ -12,12 +12,17 @@ _MARKDOWN_LINK_RE = re.compile(r"\[[^\]]+\]\(([^)]+)\)")
 _FENCED_CODE_RE = re.compile(r"```[^\n]*\n(.*?)```", re.DOTALL)
 _FENCED_TOKEN_RE = re.compile(r"[A-Za-z0-9._/-]+")
 _MARKDOWN_HEADING_RE = re.compile(r"^\s{0,3}#{1,6}\s+(.+?)\s*$")
+_SETEXT_HEADING_UNDERLINE_RE = re.compile(r"^\s{0,3}(=+|-+)\s*$")
 _FENCE_DELIMITER_RE = re.compile(r"^\s*```")
 _MARKDOWN_LINK_LABEL_RE = re.compile(r"\[([^\]]+)\]\([^)]+\)")
 _TRAILING_HEADING_HASHES_RE = re.compile(r"\s+#+\s*$")
 _ANCHOR_INVALID_CHARS_RE = re.compile(r"[^\w\s-]")
 _WHITESPACE_RE = re.compile(r"\s+")
 _MULTI_DASH_RE = re.compile(r"-{2,}")
+_HTML_ANCHOR_RE = re.compile(
+    r"<a\s+[^>]*?(?:id|name)\s*=\s*[\"']([^\"']+)[\"'][^>]*>",
+    re.IGNORECASE,
+)
 
 _URI_PREFIXES = ("http://", "https://", "mailto:")
 _ROOT_FILES = {
@@ -147,31 +152,69 @@ def _normalize_anchor_fragment(raw_fragment: str) -> str | None:
     return normalized
 
 
+def _add_heading_anchor(
+    heading: str,
+    *,
+    anchors: set[str],
+    counts: dict[str, int],
+) -> None:
+    base_anchor = _slugify_anchor_text(heading)
+    if not base_anchor:
+        return
+
+    count = counts.get(base_anchor, 0)
+    anchor = base_anchor if count == 0 else f"{base_anchor}-{count}"
+    counts[base_anchor] = count + 1
+    anchors.add(anchor)
+
+
 def _markdown_heading_anchors(text: str) -> frozenset[str]:
     anchors: set[str] = set()
     counts: dict[str, int] = {}
     in_fenced_block = False
+    in_frontmatter = False
+    lines = text.splitlines()
 
-    for line in text.splitlines():
+    for index, line in enumerate(lines):
+        stripped = line.strip()
+
+        if index == 0 and stripped == "---":
+            in_frontmatter = True
+            continue
+        if in_frontmatter:
+            if stripped == "---":
+                in_frontmatter = False
+            continue
+
         if _FENCE_DELIMITER_RE.match(line):
             in_fenced_block = not in_fenced_block
             continue
         if in_fenced_block:
             continue
 
-        match = _MARKDOWN_HEADING_RE.match(line)
-        if match is None:
+        for html_anchor_match in _HTML_ANCHOR_RE.finditer(line):
+            explicit_anchor = _normalize_anchor_fragment(html_anchor_match.group(1))
+            if explicit_anchor is not None:
+                anchors.add(explicit_anchor)
+
+        heading_match = _MARKDOWN_HEADING_RE.match(line)
+        if heading_match is not None:
+            heading = _TRAILING_HEADING_HASHES_RE.sub(
+                "", heading_match.group(1)
+            ).strip()
+            _add_heading_anchor(heading, anchors=anchors, counts=counts)
             continue
 
-        heading = _TRAILING_HEADING_HASHES_RE.sub("", match.group(1)).strip()
-        base_anchor = _slugify_anchor_text(heading)
-        if not base_anchor:
+        if index + 1 >= len(lines):
+            continue
+        if not stripped:
+            continue
+        if stripped.startswith(("#", ">", "-", "*", "+", "|", "```")):
+            continue
+        if _SETEXT_HEADING_UNDERLINE_RE.match(lines[index + 1]) is None:
             continue
 
-        count = counts.get(base_anchor, 0)
-        anchor = base_anchor if count == 0 else f"{base_anchor}-{count}"
-        counts[base_anchor] = count + 1
-        anchors.add(anchor)
+        _add_heading_anchor(stripped, anchors=anchors, counts=counts)
 
     return frozenset(anchors)
 

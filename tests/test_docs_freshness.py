@@ -196,6 +196,60 @@ def test_docs_freshness_allows_duplicate_heading_anchor_suffixes(
     assert not missing
 
 
+def test_docs_freshness_allows_setext_heading_anchor(tmp_path: Path) -> None:
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir(parents=True, exist_ok=True)
+
+    source = docs_dir / "index.md"
+    source.write_text(
+        "See [setext](guide.md#setext-title).\n",
+        encoding="utf-8",
+    )
+    (docs_dir / "guide.md").write_text(
+        "Setext Title\n------------\n",
+        encoding="utf-8",
+    )
+
+    missing = find_missing_references(tmp_path, markdown_files=(source,))
+    assert not missing
+
+
+def test_docs_freshness_allows_explicit_html_anchor_id(tmp_path: Path) -> None:
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir(parents=True, exist_ok=True)
+
+    source = docs_dir / "index.md"
+    source.write_text(
+        "See [anchor](guide.md#custom-target).\n",
+        encoding="utf-8",
+    )
+    (docs_dir / "guide.md").write_text(
+        '<a id="custom-target"></a>\n',
+        encoding="utf-8",
+    )
+
+    missing = find_missing_references(tmp_path, markdown_files=(source,))
+    assert not missing
+
+
+def test_docs_freshness_allows_explicit_html_anchor_name(tmp_path: Path) -> None:
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir(parents=True, exist_ok=True)
+
+    source = docs_dir / "index.md"
+    source.write_text(
+        "See [anchor](guide.md#legacy-anchor).\n",
+        encoding="utf-8",
+    )
+    (docs_dir / "guide.md").write_text(
+        '<a name="legacy-anchor"></a>\n',
+        encoding="utf-8",
+    )
+
+    missing = find_missing_references(tmp_path, markdown_files=(source,))
+    assert not missing
+
+
 def test_repository_docs_cross_references_are_fresh() -> None:
     repo_root = Path(__file__).resolve().parents[1]
     missing = find_missing_references(repo_root)
