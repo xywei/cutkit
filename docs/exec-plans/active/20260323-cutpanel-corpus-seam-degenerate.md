@@ -36,7 +36,7 @@ Related issue: `#8`
 - [x] Add regression tests for seam-touching invalid topology behavior.
 - [x] Update docs for corpus case intent and running the harness.
 - [x] Run `make dev`.
-- [ ] Prepare PR.
+- [x] Prepare PR.
 
 ## Risks
 
