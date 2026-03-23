@@ -214,7 +214,6 @@ def run_planar_poisson_benchmark(
             )
         )
 
-    final_error = rows[-1].abs_error
     threshold = max(profile.abs_tolerance, profile.rel_tolerance * scale)
     return PlanarPoissonBenchmarkResult(
         backend_mode=backend_mode,
@@ -222,7 +221,7 @@ def run_planar_poisson_benchmark(
         order_results=tuple(rows),
         abs_tolerance=profile.abs_tolerance,
         rel_tolerance=profile.rel_tolerance,
-        passed=final_error <= threshold,
+        passed=all(row.abs_error <= threshold for row in rows),
     )
 
 
@@ -268,7 +267,6 @@ def run_volume_poisson_benchmark(
             )
         )
 
-    final_error = rows[-1].abs_error
     threshold = max(profile.abs_tolerance, profile.rel_tolerance * scale)
     return VolumePoissonBenchmarkResult(
         backend_mode=backend_mode,
@@ -277,7 +275,7 @@ def run_volume_poisson_benchmark(
         order_results=tuple(rows),
         abs_tolerance=profile.abs_tolerance,
         rel_tolerance=profile.rel_tolerance,
-        passed=final_error <= threshold,
+        passed=all(row.abs_error <= threshold for row in rows),
     )
 
 

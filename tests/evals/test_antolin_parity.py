@@ -224,6 +224,37 @@ def test_compare_manifest_to_fixture_rejects_unknown_scope_value() -> None:
     assert report.failures[0].key == "meta.scope"
 
 
+def test_compare_manifest_to_fixture_rejects_partial_placeholder_full_scope() -> None:
+    current = {
+        "schema_version": 1,
+        "profile": "antolin-paper",
+        "geometry_mode": "polygonized",
+        "sections": {
+            "2d": {"value": 1.0},
+            "3d": {"value": 2.0},
+        },
+    }
+    fixture = {
+        "schema_version": 1,
+        "profile": "antolin-paper",
+        "geometry_mode": "polygonized",
+        "scope": "full",
+        "placeholder": True,
+        "sections": {
+            "2d": {"value": 1.0},
+        },
+    }
+
+    report = compare_manifest_to_fixture(
+        current,
+        fixture,
+        abs_tol=1.0e-12,
+        rel_tol=1.0e-12,
+    )
+    assert not report.passed
+    assert any(failure.key.endswith("sections.3d.value") for failure in report.failures)
+
+
 def test_compare_manifest_to_fixture_skips_placeholder_without_numeric_metrics() -> (
     None
 ):
