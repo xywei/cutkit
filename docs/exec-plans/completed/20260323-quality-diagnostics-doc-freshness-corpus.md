@@ -50,3 +50,9 @@ Implement three coupled quality upgrades in one change set:
 - Overly broad docs-reference parsing could create false positives.
 - Added corpus cases may expose numerical sensitivity requiring tolerance tuning.
 - Failure artifact schema should stay stable enough for debugging reuse.
+
+## Final Outcome
+
+- Status: merged.
+- Delivered via: `https://github.com/xywei/cutkit/pull/12`
+- Follow-ups: none open from this plan.

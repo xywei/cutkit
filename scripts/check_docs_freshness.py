@@ -37,7 +37,13 @@ def main() -> int:
             resolved_display = resolved.relative_to(root)
         except ValueError:
             resolved_display = resolved
-        print(f"- {source}: `{item.reference}` -> missing `{resolved_display}`")
+        if item.missing_anchor is None:
+            print(f"- {source}: `{item.reference}` -> missing `{resolved_display}`")
+        else:
+            print(
+                f"- {source}: `{item.reference}` -> missing anchor"
+                f" `#{item.missing_anchor}` in `{resolved_display}`"
+            )
     return 1
 
 

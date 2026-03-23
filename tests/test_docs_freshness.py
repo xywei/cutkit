@@ -75,6 +75,17 @@ def test_docs_freshness_scans_skill_docs_by_default(tmp_path: Path) -> None:
     assert missing[0].reference == "scripts/missing_from_skill.py"
 
 
+def test_docs_freshness_excludes_node_modules_markdown(tmp_path: Path) -> None:
+    vendor_dir = tmp_path / ".opencode" / "node_modules" / "pkg"
+    vendor_dir.mkdir(parents=True, exist_ok=True)
+
+    source = vendor_dir / "README.md"
+    source.write_text("See `scripts/missing_from_vendor.py`.\n", encoding="utf-8")
+
+    missing = find_missing_references(tmp_path)
+    assert not missing
+
+
 def test_docs_freshness_detects_missing_single_segment_directory_reference(
     tmp_path: Path,
 ) -> None:
@@ -95,6 +106,90 @@ def test_docs_freshness_ignores_conceptual_single_segment_directories(
     source = tmp_path / "ARCHITECTURE.md"
     source.write_text(
         "Layer names: `geometry/`, `topology/`, `clipping/`.\n", encoding="utf-8"
+    )
+
+    missing = find_missing_references(tmp_path, markdown_files=(source,))
+    assert not missing
+
+
+def test_docs_freshness_detects_missing_in_file_anchor(tmp_path: Path) -> None:
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir(parents=True, exist_ok=True)
+
+    source = docs_dir / "index.md"
+    source.write_text(
+        "# Intro\n\nSee [details](#missing-section).\n",
+        encoding="utf-8",
+    )
+
+    missing = find_missing_references(tmp_path, markdown_files=(source,))
+    assert len(missing) == 1
+    assert missing[0].reference == "#missing-section"
+    assert missing[0].resolved == source
+    assert missing[0].missing_anchor == "missing-section"
+
+
+def test_docs_freshness_allows_existing_in_file_anchor(tmp_path: Path) -> None:
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir(parents=True, exist_ok=True)
+
+    source = docs_dir / "index.md"
+    source.write_text(
+        "# Intro\n\nSee [details](#intro).\n",
+        encoding="utf-8",
+    )
+
+    missing = find_missing_references(tmp_path, markdown_files=(source,))
+    assert not missing
+
+
+def test_docs_freshness_detects_missing_cross_file_anchor(tmp_path: Path) -> None:
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir(parents=True, exist_ok=True)
+
+    source = docs_dir / "index.md"
+    source.write_text(
+        "See [details](guide.md#missing-anchor).\n",
+        encoding="utf-8",
+    )
+    (docs_dir / "guide.md").write_text("# Guide\n", encoding="utf-8")
+
+    missing = find_missing_references(tmp_path, markdown_files=(source,))
+    assert len(missing) == 1
+    assert missing[0].reference == "guide.md#missing-anchor"
+    assert missing[0].resolved == docs_dir / "guide.md"
+    assert missing[0].missing_anchor == "missing-anchor"
+
+
+def test_docs_freshness_allows_existing_cross_file_anchor(tmp_path: Path) -> None:
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir(parents=True, exist_ok=True)
+
+    source = docs_dir / "index.md"
+    source.write_text(
+        "See [details](guide.md#guide-details).\n",
+        encoding="utf-8",
+    )
+    (docs_dir / "guide.md").write_text("# Guide Details\n", encoding="utf-8")
+
+    missing = find_missing_references(tmp_path, markdown_files=(source,))
+    assert not missing
+
+
+def test_docs_freshness_allows_duplicate_heading_anchor_suffixes(
+    tmp_path: Path,
+) -> None:
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir(parents=True, exist_ok=True)
+
+    source = docs_dir / "index.md"
+    source.write_text(
+        "See [second](guide.md#overview-1).\n",
+        encoding="utf-8",
+    )
+    (docs_dir / "guide.md").write_text(
+        "# Overview\n\n## Overview\n",
+        encoding="utf-8",
     )
 
     missing = find_missing_references(tmp_path, markdown_files=(source,))
