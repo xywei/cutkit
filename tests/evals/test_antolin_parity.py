@@ -56,6 +56,24 @@ def test_compare_manifest_to_fixture_reports_mismatches() -> None:
     assert "bound=" in text
 
 
+def test_compare_manifest_to_fixture_enforces_abs_tol_near_zero() -> None:
+    current = {
+        "sections": {"2d": {"value": 5.0e-9}},
+    }
+    fixture = {
+        "sections": {"2d": {"value": 0.0}},
+    }
+
+    report = compare_manifest_to_fixture(
+        current,
+        fixture,
+        abs_tol=1.0e-10,
+        rel_tol=1.0e-8,
+    )
+    assert not report.passed
+    assert report.failures[0].key.endswith("sections.2d.value")
+
+
 def test_compare_manifest_to_fixture_skips_unavailable_cad_mode() -> None:
     current = {
         "cad_available": False,

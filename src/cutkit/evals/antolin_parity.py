@@ -212,8 +212,8 @@ def compare_manifest_to_fixture(
         current_value = current_metrics[key]
         expected_value = fixture_metrics[key]
         abs_diff = abs(current_value - expected_value)
-        scale = max(abs(expected_value), abs(current_value), 1.0)
-        rel_diff = abs_diff / scale
+        scale = max(abs(expected_value), abs(current_value))
+        rel_diff = abs_diff / scale if scale > 0.0 else 0.0
         tolerance = max(abs_tol, rel_tol * scale)
         if abs_diff > tolerance:
             failures.append(

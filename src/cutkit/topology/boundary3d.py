@@ -184,12 +184,6 @@ def orient_boundary_triangles_outward(
     for incidents in edge_incidents.values():
         if len(incidents) != 2:
             if validate_closed:
-                if tol < 1.0e-9:
-                    return orient_boundary_triangles_outward(
-                        triangles,
-                        tol=1.0e-9,
-                        validate_closed=True,
-                    )
                 raise ValueError(
                     "boundary triangulation must be a closed 2-manifold "
                     "(each edge incident to exactly two triangles)"

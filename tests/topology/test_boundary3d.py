@@ -61,6 +61,23 @@ def test_orient_boundary_triangles_outward_rejects_open_boundary() -> None:
         orient_boundary_triangles_outward(open_boundary)
 
 
+def test_orient_boundary_triangles_outward_rejects_small_open_gap() -> None:
+    v0 = (0.0, 0.0, 0.0)
+    v1 = (1.0, 0.0, 0.0)
+    v2 = (0.0, 1.0, 0.0)
+    v3 = (0.0, 0.0, 1.0)
+
+    gap_boundary = (
+        (v0, v2, v1),
+        (v0, v1, v3),
+        (v0, v3, v2),
+        (v1, v2, (0.0, 0.0, 1.0 + 5.0e-10)),
+    )
+
+    with pytest.raises(ValueError):
+        orient_boundary_triangles_outward(gap_boundary)
+
+
 def test_orient_boundary_triangles_outward_flips_each_disconnected_shell() -> None:
     a0 = (0.0, 0.0, 0.0)
     a1 = (2.0, 0.0, 0.0)
