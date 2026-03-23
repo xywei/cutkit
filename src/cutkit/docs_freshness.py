@@ -5,11 +5,19 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 import re
+from urllib.parse import unquote
 
 _INLINE_CODE_RE = re.compile(r"`([^`\n]+)`")
 _MARKDOWN_LINK_RE = re.compile(r"\[[^\]]+\]\(([^)]+)\)")
 _FENCED_CODE_RE = re.compile(r"```[^\n]*\n(.*?)```", re.DOTALL)
 _FENCED_TOKEN_RE = re.compile(r"[A-Za-z0-9._/-]+")
+_MARKDOWN_HEADING_RE = re.compile(r"^\s{0,3}#{1,6}\s+(.+?)\s*$")
+_FENCE_DELIMITER_RE = re.compile(r"^\s*```")
+_MARKDOWN_LINK_LABEL_RE = re.compile(r"\[([^\]]+)\]\([^)]+\)")
+_TRAILING_HEADING_HASHES_RE = re.compile(r"\s+#+\s*$")
+_ANCHOR_INVALID_CHARS_RE = re.compile(r"[^\w\s-]")
+_WHITESPACE_RE = re.compile(r"\s+")
+_MULTI_DASH_RE = re.compile(r"-{2,}")
 
 _URI_PREFIXES = ("http://", "https://", "mailto:")
 _ROOT_FILES = {
@@ -48,6 +56,7 @@ _EXCLUDED_DIRS = {
     ".mypy_cache",
     ".ruff_cache",
     ".entire",
+    "node_modules",
 }
 
 
@@ -67,6 +76,7 @@ class MissingReference:
     source: Path
     reference: str
     resolved: Path
+    missing_anchor: str | None = None
 
 
 def markdown_files_for_freshness(root: Path) -> tuple[Path, ...]:
@@ -109,6 +119,84 @@ def _iter_reference_tokens(text: str) -> tuple[str, ...]:
                 continue
             tokens.append(token)
     return tuple(tokens)
+
+
+def _iter_markdown_link_targets(text: str) -> tuple[str, ...]:
+    return tuple(match.group(1) for match in _MARKDOWN_LINK_RE.finditer(text))
+
+
+def _slugify_anchor_text(text: str) -> str:
+    normalized = text.strip().lower()
+    if not normalized:
+        return ""
+    normalized = _MARKDOWN_LINK_LABEL_RE.sub(r"\1", normalized)
+    normalized = normalized.replace("`", "")
+    normalized = _ANCHOR_INVALID_CHARS_RE.sub("", normalized)
+    normalized = _WHITESPACE_RE.sub("-", normalized)
+    normalized = _MULTI_DASH_RE.sub("-", normalized)
+    return normalized.strip("-")
+
+
+def _normalize_anchor_fragment(raw_fragment: str) -> str | None:
+    decoded = unquote(raw_fragment).strip()
+    if not decoded:
+        return None
+    normalized = _slugify_anchor_text(decoded)
+    if not normalized:
+        return None
+    return normalized
+
+
+def _markdown_heading_anchors(text: str) -> frozenset[str]:
+    anchors: set[str] = set()
+    counts: dict[str, int] = {}
+    in_fenced_block = False
+
+    for line in text.splitlines():
+        if _FENCE_DELIMITER_RE.match(line):
+            in_fenced_block = not in_fenced_block
+            continue
+        if in_fenced_block:
+            continue
+
+        match = _MARKDOWN_HEADING_RE.match(line)
+        if match is None:
+            continue
+
+        heading = _TRAILING_HEADING_HASHES_RE.sub("", match.group(1)).strip()
+        base_anchor = _slugify_anchor_text(heading)
+        if not base_anchor:
+            continue
+
+        count = counts.get(base_anchor, 0)
+        anchor = base_anchor if count == 0 else f"{base_anchor}-{count}"
+        counts[base_anchor] = count + 1
+        anchors.add(anchor)
+
+    return frozenset(anchors)
+
+
+def _normalize_anchor_reference(raw_reference: str) -> tuple[str | None, str] | None:
+    reference = raw_reference.strip()
+    if not reference:
+        return None
+    if reference.startswith(_URI_PREFIXES):
+        return None
+    if reference.startswith("<") and reference.endswith(">"):
+        reference = reference[1:-1].strip()
+    if not reference or "#" not in reference:
+        return None
+
+    path_part, fragment = reference.split("#", 1)
+    if "?" in path_part:
+        path_part = path_part.split("?", 1)[0]
+
+    normalized_anchor = _normalize_anchor_fragment(fragment)
+    if normalized_anchor is None:
+        return None
+    if not path_part:
+        return None, normalized_anchor
+    return path_part, normalized_anchor
 
 
 def _normalize_reference(*, raw_reference: str, root: Path, source: Path) -> str | None:
@@ -188,7 +276,8 @@ def find_missing_references(
         markdown_files = markdown_files_for_freshness(root)
 
     missing: list[MissingReference] = []
-    seen: set[tuple[str, str, str]] = set()
+    seen: set[tuple[str, str, str, str | None]] = set()
+    markdown_anchor_cache: dict[Path, frozenset[str]] = {}
 
     for source in markdown_files:
         if not source.is_file():
@@ -210,15 +299,67 @@ def find_missing_references(
             if resolved.exists():
                 continue
 
-            key = (str(source), normalized, str(resolved))
-            if key in seen:
+            path_key = (str(source), normalized, str(resolved), None)
+            if path_key in seen:
                 continue
-            seen.add(key)
+            seen.add(path_key)
             missing.append(
                 MissingReference(
                     source=source,
                     reference=normalized,
                     resolved=resolved,
+                )
+            )
+
+        for raw_reference in _iter_markdown_link_targets(text):
+            anchor_reference = _normalize_anchor_reference(raw_reference)
+            if anchor_reference is None:
+                continue
+
+            raw_path, anchor = anchor_reference
+            if raw_path is None:
+                normalized_reference = f"#{anchor}"
+                resolved = source
+            else:
+                normalized_path = _normalize_reference(
+                    raw_reference=raw_path,
+                    root=root,
+                    source=source,
+                )
+                if normalized_path is None:
+                    continue
+                resolved = _resolve_reference(
+                    root=root,
+                    source=source,
+                    reference=normalized_path,
+                )
+                if not resolved.exists():
+                    continue
+                normalized_reference = f"{normalized_path}#{anchor}"
+
+            if not resolved.is_file() or resolved.suffix != ".md":
+                continue
+
+            anchors = markdown_anchor_cache.get(resolved)
+            if anchors is None:
+                anchors = _markdown_heading_anchors(
+                    resolved.read_text(encoding="utf-8")
+                )
+                markdown_anchor_cache[resolved] = anchors
+
+            if anchor in anchors:
+                continue
+
+            anchor_key = (str(source), normalized_reference, str(resolved), anchor)
+            if anchor_key in seen:
+                continue
+            seen.add(anchor_key)
+            missing.append(
+                MissingReference(
+                    source=source,
+                    reference=normalized_reference,
+                    resolved=resolved,
+                    missing_anchor=anchor,
                 )
             )
 
