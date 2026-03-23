@@ -45,6 +45,22 @@ def test_orient_boundary_triangles_outward_rejects_degenerate_input() -> None:
         orient_boundary_triangles_outward(triangles)
 
 
+def test_orient_boundary_triangles_outward_rejects_open_boundary() -> None:
+    v0 = (0.0, 0.0, 0.0)
+    v1 = (1.0, 0.0, 0.0)
+    v2 = (0.0, 1.0, 0.0)
+    v3 = (0.0, 0.0, 1.0)
+
+    open_boundary = (
+        (v0, v2, v1),
+        (v0, v1, v3),
+        (v0, v3, v2),
+    )
+
+    with pytest.raises(ValueError):
+        orient_boundary_triangles_outward(open_boundary)
+
+
 def test_orient_boundary_triangles_outward_flips_each_disconnected_shell() -> None:
     a0 = (0.0, 0.0, 0.0)
     a1 = (2.0, 0.0, 0.0)
@@ -81,28 +97,38 @@ def test_orient_boundary_triangles_outward_flips_each_disconnected_shell() -> No
 
 
 def test_orient_boundary_triangles_outward_preserves_nested_cavity_sign() -> None:
+    o0 = (0.0, 0.0, 0.0)
+    o1 = (2.0, 0.0, 0.0)
+    o2 = (0.0, 2.0, 0.0)
+    o3 = (0.0, 0.0, 2.0)
     outer = (
-        ((0.0, 0.0, 0.0), (2.0, 2.0, 0.0), (2.0, 0.0, 0.0)),
-        ((0.0, 0.0, 0.0), (2.0, 0.0, 2.0), (2.0, 2.0, 0.0)),
-        ((0.0, 0.0, 0.0), (0.0, 2.0, 2.0), (2.0, 0.0, 2.0)),
-        ((2.0, 2.0, 0.0), (2.0, 0.0, 2.0), (0.0, 2.0, 2.0)),
+        (o0, o1, o2),
+        (o0, o3, o1),
+        (o0, o2, o3),
+        (o1, o3, o2),
     )
+    i0 = (0.3, 0.3, 0.3)
+    i1 = (0.8, 0.3, 0.3)
+    i2 = (0.3, 0.8, 0.3)
+    i3 = (0.3, 0.3, 0.8)
     inner = (
-        ((0.3, 0.3, 0.3), (0.8, 0.3, 0.3), (0.3, 0.8, 0.3)),
-        ((0.3, 0.3, 0.3), (0.3, 0.3, 0.8), (0.8, 0.3, 0.3)),
-        ((0.3, 0.3, 0.3), (0.3, 0.8, 0.3), (0.3, 0.3, 0.8)),
-        ((0.8, 0.3, 0.3), (0.3, 0.3, 0.8), (0.3, 0.8, 0.3)),
+        (i0, i1, i2),
+        (i0, i3, i1),
+        (i0, i2, i3),
+        (i1, i3, i2),
     )
 
     oriented = orient_boundary_triangles_outward(outer + inner)
 
     outer_shell = tuple(
-        triangle for triangle in oriented if max(vertex[0] for vertex in triangle) > 1.0
+        triangle
+        for triangle in oriented
+        if max(max(vertex) for vertex in triangle) > 1.0
     )
     inner_shell = tuple(
         triangle
         for triangle in oriented
-        if max(vertex[0] for vertex in triangle) <= 1.0
+        if max(max(vertex) for vertex in triangle) <= 1.0
     )
 
     assert len(outer_shell) == 4

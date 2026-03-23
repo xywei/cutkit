@@ -137,7 +137,10 @@ def _vertex_key(point: Point3D, *, tol: float = 1.0e-12) -> tuple[int, int, int]
 
 
 def orient_boundary_triangles_outward(
-    triangles: tuple[Triangle3D, ...], *, tol: float = 1.0e-12
+    triangles: tuple[Triangle3D, ...],
+    *,
+    tol: float = 1.0e-12,
+    validate_closed: bool = True,
 ) -> tuple[Triangle3D, ...]:
     """Return a deduplicated boundary set with consistent outward orientation."""
 
@@ -180,6 +183,17 @@ def orient_boundary_triangles_outward(
     adjacency: dict[int, list[tuple[int, int]]] = defaultdict(list)
     for incidents in edge_incidents.values():
         if len(incidents) != 2:
+            if validate_closed:
+                if tol < 1.0e-9:
+                    return orient_boundary_triangles_outward(
+                        triangles,
+                        tol=1.0e-9,
+                        validate_closed=True,
+                    )
+                raise ValueError(
+                    "boundary triangulation must be a closed 2-manifold "
+                    "(each edge incident to exactly two triangles)"
+                )
             continue
 
         (left_index, left_dir), (right_index, right_dir) = incidents

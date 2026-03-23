@@ -350,7 +350,7 @@ def integrate_general_over_boundary_3d(
         try:
             values = integrand(x, y, z)
             return float(_np.sum(values * wt))
-        except TypeError:
+        except (TypeError, ValueError):
             total = 0.0
             for tri_index in range(x.shape[0]):
                 for quad_index in range(x.shape[1]):
@@ -452,7 +452,7 @@ def integrate_general_over_cartesian_grid_xsurface_3d(
                                 axis=0,
                             )
                             total += yz_weight * float(_np.sum(x_integrals))
-                        except TypeError:
+                        except (TypeError, ValueError):
                             for interval in range(x_samples.shape[1]):
                                 width = float(widths_np[interval])
                                 for qx, node in enumerate(nodes_np):

@@ -252,7 +252,7 @@ def _triangulate_grid(points: list[list[Point3D]]) -> list[Triangle3D]:
 def _orient_outward(
     tris: list[Triangle3D], *, tol: float = 1.0e-12
 ) -> tuple[Triangle3D, ...]:
-    return _core_orient_outward(tuple(tris), tol=tol)
+    return _core_orient_outward(tuple(tris), tol=tol, validate_closed=False)
 
 
 def build_section_6_1_3_boundary_triangles(
