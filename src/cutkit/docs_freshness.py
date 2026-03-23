@@ -8,6 +8,8 @@ import re
 
 _INLINE_CODE_RE = re.compile(r"`([^`\n]+)`")
 _MARKDOWN_LINK_RE = re.compile(r"\[[^\]]+\]\(([^)]+)\)")
+_FENCED_CODE_RE = re.compile(r"```[^\n]*\n(.*?)```", re.DOTALL)
+_FENCED_TOKEN_RE = re.compile(r"[A-Za-z0-9._/-]+")
 
 _URI_PREFIXES = ("http://", "https://", "mailto:")
 _ROOT_FILES = {
@@ -64,6 +66,12 @@ def _iter_reference_tokens(text: str) -> tuple[str, ...]:
     tokens: list[str] = []
     tokens.extend(match.group(1) for match in _MARKDOWN_LINK_RE.finditer(text))
     tokens.extend(match.group(1) for match in _INLINE_CODE_RE.finditer(text))
+    for block in _FENCED_CODE_RE.findall(text):
+        for match in _FENCED_TOKEN_RE.finditer(block):
+            token = match.group(0)
+            if token in {".", ".."}:
+                continue
+            tokens.append(token)
     return tuple(tokens)
 
 

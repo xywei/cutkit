@@ -16,6 +16,7 @@ from cutkit.topology import PanelValidationResult, validate_panel
 
 Point = tuple[float, float]
 Loop = tuple[Point, ...]
+_AREA_TOL = 1.0e-14
 
 
 @dataclass(frozen=True)
@@ -124,7 +125,11 @@ def _loop_from_raw(raw_loop: object) -> Loop:
         if not isinstance(raw_point, list) or len(raw_point) != 2:
             raise ValueError("point must be a 2-item list")
         points.append((float(raw_point[0]), float(raw_point[1])))
-    return tuple(points)
+
+    loop = PanelLoop2D(tuple(points)).points
+    if abs(signed_area(loop)) <= _AREA_TOL:
+        raise ValueError("loop must be non-degenerate")
+    return loop
 
 
 def _case_from_payload(payload: object, *, source: str) -> CutPanelCase:
@@ -189,9 +194,7 @@ def fuzz_derived_cases() -> tuple[CutPanelCase, ...]:
     return _load_fixture_cases("cutpanel-fuzz-derived.json")
 
 
-def evaluate_case(case: CutPanelCase, *, folded_order: int = 6) -> CutPanelMetrics:
-    """Compute baseline geometric metrics for one cut-panel case."""
-
+def _base_metrics(case: CutPanelCase) -> CutPanelMetrics:
     outer_area_abs = abs(signed_area(case.outer))
     hole_areas_abs = tuple(abs(signed_area(hole)) for hole in case.holes)
     area = outer_area_abs - sum(hole_areas_abs)
@@ -199,7 +202,7 @@ def evaluate_case(case: CutPanelCase, *, folded_order: int = 6) -> CutPanelMetri
     bbox_area = _bbox_area_from_loops((case.outer, *case.holes))
     cut_fraction = area / bbox_area if bbox_area > 0.0 else 0.0
 
-    metrics = CutPanelMetrics(
+    return CutPanelMetrics(
         name=case.name,
         source=case.source,
         tags=case.tags,
@@ -209,6 +212,12 @@ def evaluate_case(case: CutPanelCase, *, folded_order: int = 6) -> CutPanelMetri
         outer_orientation=orientation(case.outer),
         hole_orientations=tuple(orientation(hole) for hole in case.holes),
     )
+
+
+def evaluate_case(case: CutPanelCase, *, folded_order: int = 6) -> CutPanelMetrics:
+    """Compute baseline geometric metrics for one cut-panel case."""
+
+    metrics = _base_metrics(case)
 
     folded = folded_quadrature_rule(_to_trimmed_panel(case), order=folded_order)
     area_diag = area_consistency(folded.panel, folded.triangles, folded.rule)
@@ -236,42 +245,41 @@ def _validate_case_with_topology(
     *,
     folded_area_tol: float = 1.0e-12,
     folded_moment_tol: float = 1.0e-10,
-) -> tuple[tuple[str, ...], PanelValidationResult]:
-    outer_area_abs = abs(signed_area(case.outer))
-    hole_areas_abs = tuple(abs(signed_area(hole)) for hole in case.holes)
-    area = outer_area_abs - sum(hole_areas_abs)
-    bbox_area = _bbox_area_from_loops((case.outer, *case.holes))
-    cut_fraction = area / bbox_area if bbox_area > 0.0 else 0.0
-    outer_orientation = orientation(case.outer)
-    hole_orientations = tuple(orientation(hole) for hole in case.holes)
+) -> tuple[tuple[str, ...], PanelValidationResult | None, CutPanelMetrics | None]:
+    base_metrics = _base_metrics(case)
 
     errors: list[str] = []
 
-    if outer_orientation != "ccw":
+    if base_metrics.outer_orientation != "ccw":
         errors.append("Outer loop must be oriented ccw.")
 
-    for idx, hole_orientation in enumerate(hole_orientations):
+    for idx, hole_orientation in enumerate(base_metrics.hole_orientations):
         if hole_orientation != "cw":
             errors.append(f"Hole loop {idx} must be oriented cw.")
 
-    if area <= 0.0:
+    if base_metrics.area <= 0.0:
         errors.append("Panel area must be positive.")
 
-    if cut_fraction <= 0.0 or cut_fraction > 1.0:
+    if base_metrics.cut_fraction <= 0.0 or base_metrics.cut_fraction > 1.0:
         errors.append("Cut fraction must be in the interval (0, 1].")
 
-    topology_report = validate_panel(_to_trimmed_panel(case))
+    try:
+        topology_report = validate_panel(_to_trimmed_panel(case))
+    except ValueError as exc:
+        errors.append(f"Topology: {exc}")
+        return tuple(errors), None, None
+
     for topology_error in topology_report.errors:
         errors.append(f"Topology: {topology_error}")
     if topology_report.errors:
-        return tuple(errors), topology_report
+        return tuple(errors), topology_report, None
 
     try:
         metrics = evaluate_case(case)
     except ValueError:
         if not errors:
             errors.append("Folded diagnostics failed for panel geometry.")
-        return tuple(errors), topology_report
+        return tuple(errors), topology_report, None
 
     if metrics.folded_triangle_abs_error is None:
         errors.append("Folded triangle area diagnostics were not computed.")
@@ -288,7 +296,7 @@ def _validate_case_with_topology(
     elif metrics.folded_max_moment_abs_error > folded_moment_tol:
         errors.append("Folded moment error exceeds tolerance.")
 
-    return tuple(errors), topology_report
+    return tuple(errors), topology_report, metrics
 
 
 def validate_case(
@@ -299,7 +307,7 @@ def validate_case(
 ) -> tuple[str, ...]:
     """Validate one case against orientation and positivity invariants."""
 
-    errors, _ = _validate_case_with_topology(
+    errors, _, _ = _validate_case_with_topology(
         case,
         folded_area_tol=folded_area_tol,
         folded_moment_tol=folded_moment_tol,
@@ -424,8 +432,9 @@ def run_default_eval() -> tuple[CutPanelEvaluation, ...]:
 
     results: list[CutPanelEvaluation] = []
     for case in default_cases():
-        metrics = evaluate_case(case)
-        errors, topology = _validate_case_with_topology(case)
+        errors, topology, metrics = _validate_case_with_topology(case)
+        if metrics is None:
+            metrics = _base_metrics(case)
         results.append(
             CutPanelEvaluation(
                 case=case, metrics=metrics, errors=errors, topology=topology

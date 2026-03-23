@@ -5,9 +5,11 @@ from pathlib import Path
 
 import pytest
 
+import cutkit.evals.cutpanel as cutpanel_module
 from cutkit.evals import (
     CutPanelCase,
     CutPanelEvaluation,
+    CutPanelMetrics,
     default_cases,
     evaluate_case,
     export_failure_artifacts,
@@ -166,3 +168,37 @@ def test_export_failure_artifacts_include_topology_diagnostics(
     assert payload["case"]["source"] == "unit-test"
     assert payload["errors"]
     assert payload["topology"]["diagnostics"]["outer"]["orientation"] == "ccw"
+
+
+def test_fixture_case_payload_rejects_degenerate_outer_loop() -> None:
+    payload = {
+        "name": "degenerate-loop",
+        "outer": [[0.0, 0.0], [0.5, 0.5], [1.0, 1.0]],
+        "holes": [],
+        "tags": [],
+    }
+
+    with pytest.raises(ValueError, match="non-degenerate"):
+        cutpanel_module._case_from_payload(payload, source="unit-test")
+
+
+def test_run_default_eval_does_not_call_evaluate_for_topology_invalid_case(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    case = CutPanelCase(
+        name="degenerate-topology-only",
+        outer=((0.0, 0.0), (0.5, 0.5), (1.0, 1.0)),
+        source="unit-test",
+    )
+
+    monkeypatch.setattr(cutpanel_module, "default_cases", lambda: (case,))
+
+    def _should_not_run(*_args: object, **_kwargs: object) -> CutPanelMetrics:
+        raise AssertionError("evaluate_case should not run for topology-invalid case")
+
+    monkeypatch.setattr(cutpanel_module, "evaluate_case", _should_not_run)
+
+    results = cutpanel_module.run_default_eval()
+    assert len(results) == 1
+    assert results[0].errors
+    assert any("Topology:" in error for error in results[0].errors)
