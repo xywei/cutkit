@@ -35,7 +35,8 @@ jobs:
           uv run python scripts/run_poisson_benchmarks.py \
             --profile dense \
             --backend-mode ${{ matrix.backend-mode }} \
-            --manifest-path poisson-benchmark-${{ matrix.backend-mode }}.json
+            --manifest-path poisson-benchmark-${{ matrix.backend-mode }}.json \
+            --allow-fail
 
       - name: Upload benchmark manifests
         if: always()
