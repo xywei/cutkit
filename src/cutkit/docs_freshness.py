@@ -37,6 +37,10 @@ _KNOWN_SUFFIXES = (
     ".json",
     ".sh",
 )
+_EXEC_PLAN_STAGE_DIRS = {
+    "active/",
+    "completed/",
+}
 _EXCLUDED_DIRS = {
     ".git",
     ".venv",
@@ -45,6 +49,17 @@ _EXCLUDED_DIRS = {
     ".ruff_cache",
     ".entire",
 }
+
+
+def _is_exec_plan_stage_reference(*, reference: str, root: Path, source: Path) -> bool:
+    if reference not in _EXEC_PLAN_STAGE_DIRS:
+        return False
+    exec_plans_root = root / "docs" / "exec-plans"
+    try:
+        source.relative_to(exec_plans_root)
+    except ValueError:
+        return False
+    return True
 
 
 @dataclass(frozen=True)
@@ -127,13 +142,21 @@ def _normalize_reference(*, raw_reference: str, root: Path, source: Path) -> str
         return reference
     if reference.startswith(_ROOT_PREFIXES):
         return reference
+    if _is_exec_plan_stage_reference(reference=reference, root=root, source=source):
+        return reference
 
-    has_nested_path = "/" in reference.rstrip("/")
-    if has_nested_path and (
-        reference.endswith(_KNOWN_SUFFIXES) or reference.endswith("/")
+    is_single_segment_dir = reference.endswith("/") and "/" not in reference.rstrip("/")
+    if is_single_segment_dir:
+        return None
+
+    has_path_separator = "/" in reference
+    if (
+        has_path_separator
+        and reference != "/"
+        and (reference.endswith(_KNOWN_SUFFIXES) or reference.endswith("/"))
     ):
         return reference
-    if not has_nested_path and reference.endswith(".md"):
+    if not has_path_separator and reference.endswith(".md"):
         try:
             source_rel = source.relative_to(root)
         except ValueError:
@@ -147,6 +170,8 @@ def _normalize_reference(*, raw_reference: str, root: Path, source: Path) -> str
 def _resolve_reference(*, root: Path, source: Path, reference: str) -> Path:
     if reference.startswith("/"):
         return root / reference.lstrip("/")
+    if _is_exec_plan_stage_reference(reference=reference, root=root, source=source):
+        return root / "docs" / "exec-plans" / reference.rstrip("/")
     if reference in _ROOT_FILES or reference.startswith(_ROOT_PREFIXES):
         return root / reference
     return source.parent / reference

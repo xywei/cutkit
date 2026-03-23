@@ -75,6 +75,32 @@ def test_docs_freshness_scans_skill_docs_by_default(tmp_path: Path) -> None:
     assert missing[0].reference == "scripts/missing_from_skill.py"
 
 
+def test_docs_freshness_detects_missing_single_segment_directory_reference(
+    tmp_path: Path,
+) -> None:
+    docs_dir = tmp_path / "docs" / "exec-plans"
+    docs_dir.mkdir(parents=True, exist_ok=True)
+
+    source = docs_dir / "plan.md"
+    source.write_text("See `active/`.\n", encoding="utf-8")
+
+    missing = find_missing_references(tmp_path, markdown_files=(source,))
+    assert len(missing) == 1
+    assert missing[0].reference == "active/"
+
+
+def test_docs_freshness_ignores_conceptual_single_segment_directories(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "ARCHITECTURE.md"
+    source.write_text(
+        "Layer names: `geometry/`, `topology/`, `clipping/`.\n", encoding="utf-8"
+    )
+
+    missing = find_missing_references(tmp_path, markdown_files=(source,))
+    assert not missing
+
+
 def test_repository_docs_cross_references_are_fresh() -> None:
     repo_root = Path(__file__).resolve().parents[1]
     missing = find_missing_references(repo_root)
