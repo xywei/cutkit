@@ -302,6 +302,22 @@ def test_section_6_2_3d_grid_rejects_low_reference_order() -> None:
         )
 
 
+def test_section_6_2_3d_grid_default_reference_configuration_is_valid(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_integrate(*, resolution: int, order: int) -> float:
+        return 1.0 / resolution + 1.0 / order
+
+    monkeypatch.setattr(
+        awb3d, "_integrate_general_over_cartesian_grid_3d", fake_integrate
+    )
+
+    result = awb3d.run_general_function_experiment_3d_grid(orders=(2,))
+    assert result.reference_grid_resolution == 128
+    assert result.reference_order == 48
+    assert len(result.order_results) == 1
+
+
 def test_eval_and_core_boundary_integrators_match() -> None:
     boundary = build_section_6_1_3_boundary_triangles(surface_resolution=4)
     seed = (0.5, 0.5, 0.5)

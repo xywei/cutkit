@@ -600,7 +600,7 @@ def run_general_function_experiment_3d_grid(
     *,
     orders: tuple[int, ...],
     grid_resolutions: tuple[int, ...] = (2, 4, 8, 16, 32, 64),
-    reference_grid_resolution: int = 64,
+    reference_grid_resolution: int = 128,
     reference_order: int = 48,
 ) -> General3DGridExperimentResult:
     """Run Section 6.2 3D Cartesian cut-cell refinement protocol."""
