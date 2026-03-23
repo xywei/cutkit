@@ -618,8 +618,8 @@ def run_general_function_experiment_3d_grid(
         for index in range(len(grid_resolutions) - 1)
     ):
         raise ValueError("grid_resolutions must be strictly increasing")
-    if reference_grid_resolution < grid_resolutions[-1]:
-        raise ValueError("reference_grid_resolution must be >= max(grid_resolutions)")
+    if reference_grid_resolution <= grid_resolutions[-1]:
+        raise ValueError("reference_grid_resolution must be > max(grid_resolutions)")
     if reference_order <= max(orders):
         raise ValueError("reference_order must be greater than all sweep orders")
 

@@ -237,7 +237,7 @@ def test_section_6_2_3d_grid_reports_non_monotone_row(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     values = {
-        (3, 8): 1.0,
+        (3, 16): 1.0,
         (1, 2): 0.2,
         (1, 4): 0.05,
         (1, 8): 0.08,
@@ -253,7 +253,7 @@ def test_section_6_2_3d_grid_reports_non_monotone_row(
     result = awb3d.run_general_function_experiment_3d_grid(
         orders=(1,),
         grid_resolutions=(2, 4, 8),
-        reference_grid_resolution=8,
+        reference_grid_resolution=16,
         reference_order=3,
     )
 
@@ -278,6 +278,16 @@ def test_section_6_2_3d_grid_rejects_coarse_reference_resolution() -> None:
             orders=(2,),
             grid_resolutions=(2, 4, 8),
             reference_grid_resolution=4,
+            reference_order=8,
+        )
+
+
+def test_section_6_2_3d_grid_rejects_non_external_reference_resolution() -> None:
+    with pytest.raises(ValueError, match="reference_grid_resolution"):
+        run_general_function_experiment_3d_grid(
+            orders=(2,),
+            grid_resolutions=(2, 4, 8),
+            reference_grid_resolution=8,
             reference_order=8,
         )
 
