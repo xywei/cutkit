@@ -220,6 +220,104 @@ def test_section_6_2_3d_grid_protocol_errors_reduce() -> None:
     assert order_2.folded_abs_error[1] < order_1.folded_abs_error[1]
 
 
+def test_section_6_2_3d_grid_reports_monotone_row() -> None:
+    result = run_general_function_experiment_3d_grid(
+        orders=(2,),
+        grid_resolutions=(2, 4),
+        reference_grid_resolution=8,
+        reference_order=8,
+    )
+
+    row = result.order_results[0]
+    assert row.monotone_nonincreasing
+    assert row.monotonicity_violation_indices == ()
+
+
+def test_section_6_2_3d_grid_reports_non_monotone_row(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    values = {
+        (3, 16): 1.0,
+        (1, 2): 0.2,
+        (1, 4): 0.05,
+        (1, 8): 0.08,
+    }
+
+    def fake_integrate(*, resolution: int, order: int) -> float:
+        return values[(order, resolution)]
+
+    monkeypatch.setattr(
+        awb3d, "_integrate_general_over_cartesian_grid_3d", fake_integrate
+    )
+
+    result = awb3d.run_general_function_experiment_3d_grid(
+        orders=(1,),
+        grid_resolutions=(2, 4, 8),
+        reference_grid_resolution=16,
+        reference_order=3,
+    )
+
+    row = result.order_results[0]
+    assert not row.monotone_nonincreasing
+    assert row.monotonicity_violation_indices == (0,)
+
+
+def test_section_6_2_3d_grid_rejects_unsorted_resolutions() -> None:
+    with pytest.raises(ValueError, match="strictly increasing"):
+        run_general_function_experiment_3d_grid(
+            orders=(2,),
+            grid_resolutions=(4, 2),
+            reference_grid_resolution=8,
+            reference_order=8,
+        )
+
+
+def test_section_6_2_3d_grid_rejects_coarse_reference_resolution() -> None:
+    with pytest.raises(ValueError, match="reference_grid_resolution"):
+        run_general_function_experiment_3d_grid(
+            orders=(2,),
+            grid_resolutions=(2, 4, 8),
+            reference_grid_resolution=4,
+            reference_order=8,
+        )
+
+
+def test_section_6_2_3d_grid_rejects_non_external_reference_resolution() -> None:
+    with pytest.raises(ValueError, match="reference_grid_resolution"):
+        run_general_function_experiment_3d_grid(
+            orders=(2,),
+            grid_resolutions=(2, 4, 8),
+            reference_grid_resolution=8,
+            reference_order=8,
+        )
+
+
+def test_section_6_2_3d_grid_rejects_low_reference_order() -> None:
+    with pytest.raises(ValueError, match="reference_order"):
+        run_general_function_experiment_3d_grid(
+            orders=(2, 3),
+            grid_resolutions=(2, 4),
+            reference_grid_resolution=8,
+            reference_order=3,
+        )
+
+
+def test_section_6_2_3d_grid_default_reference_configuration_is_valid(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_integrate(*, resolution: int, order: int) -> float:
+        return 1.0 / resolution + 1.0 / order
+
+    monkeypatch.setattr(
+        awb3d, "_integrate_general_over_cartesian_grid_3d", fake_integrate
+    )
+
+    result = awb3d.run_general_function_experiment_3d_grid(orders=(2,))
+    assert result.reference_grid_resolution == 128
+    assert result.reference_order == 48
+    assert len(result.order_results) == 1
+
+
 def test_eval_and_core_boundary_integrators_match() -> None:
     boundary = build_section_6_1_3_boundary_triangles(surface_resolution=4)
     seed = (0.5, 0.5, 0.5)

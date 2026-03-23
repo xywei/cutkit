@@ -5,7 +5,7 @@
   "profile": "antolin-paper",
   "requires_cad": true,
   "schema_version": 1,
-  "scope": "2d-only",
+  "scope": "full",
   "sections": {
     "2d": {
       "status": "unavailable"

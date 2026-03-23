@@ -224,11 +224,18 @@ def _print_general_result_3d(
     )
 
     print("Section 6.2 general-function protocol (3D Cartesian cut-cell refinement)")
-    print("note: CUTKIT-adapted protocol; some (n, h) rows can be non-monotonic")
+    print("note: CUTKIT-adapted protocol; monitor per-row monotonic diagnostics")
     print("reference_value =", f"{result.reference_value:.15e}")
     for order_result in result.order_results:
         print()
         print(f"n = {order_result.order}")
+        if order_result.monotone_nonincreasing:
+            print("monotonicity: non-increasing")
+        else:
+            print(
+                "monotonicity: non-monotone at pair indices",
+                order_result.monotonicity_violation_indices,
+            )
         print("grid | h | folded_abs | folded_rel")
         print("--- | --- | --- | ---")
         for i, resolution in enumerate(order_result.grid_resolutions):
@@ -316,6 +323,10 @@ def _serialize_general_result_3d(result: Any) -> dict[str, Any]:
                 "h_values": list(order_result.h_values),
                 "folded_abs_error": list(order_result.folded_abs_error),
                 "folded_rel_error": list(order_result.folded_rel_error),
+                "monotone_nonincreasing": order_result.monotone_nonincreasing,
+                "monotonicity_violation_indices": list(
+                    order_result.monotonicity_violation_indices
+                ),
             }
             for order_result in result.order_results
         ],

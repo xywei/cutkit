@@ -9,6 +9,15 @@ This note tracks follow-up work intentionally out of scope for the 2D MVP.
 2. Singular and near-singular kernel quadrature extensions.
 3. Downstream adapter into `volumential` rule-consumption paths.
 
+## Singular Quadrature Status
+
+- CUTKIT currently focuses on regular-volume/regular-boundary folded integration.
+- Singular and near-singular kernel quadrature (including QBX/QBFEM-style
+  treatments) remains explicitly deferred follow-up work.
+- The Antolin-Wei-Buffa (2022) Section 6 reproduction target in this repository
+  is treated as a regular integration benchmark; the paper source we audited did
+  not provide a dedicated singular/near-singular quadrature protocol to mirror.
+
 ## CAD Core
 
 OpenCascade is now the designated CAD core for exact 2D Section 6 clipping

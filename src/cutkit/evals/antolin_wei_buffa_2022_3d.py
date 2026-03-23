@@ -576,6 +576,8 @@ class General3DGridOrderResult:
     h_values: tuple[float, ...]
     folded_abs_error: tuple[float, ...]
     folded_rel_error: tuple[float, ...]
+    monotone_nonincreasing: bool
+    monotonicity_violation_indices: tuple[int, ...]
 
 
 @dataclass(frozen=True)
@@ -586,14 +588,40 @@ class General3DGridExperimentResult:
     order_results: tuple[General3DGridOrderResult, ...]
 
 
+def _monotonicity_violations(values: tuple[float, ...]) -> tuple[int, ...]:
+    violations: list[int] = []
+    for index in range(len(values) - 1):
+        if values[index + 1] > values[index]:
+            violations.append(index)
+    return tuple(violations)
+
+
 def run_general_function_experiment_3d_grid(
     *,
     orders: tuple[int, ...],
     grid_resolutions: tuple[int, ...] = (2, 4, 8, 16, 32, 64),
-    reference_grid_resolution: int = 64,
+    reference_grid_resolution: int = 128,
     reference_order: int = 48,
 ) -> General3DGridExperimentResult:
     """Run Section 6.2 3D Cartesian cut-cell refinement protocol."""
+
+    if not orders:
+        raise ValueError("orders must not be empty")
+    if any(order < 1 for order in orders):
+        raise ValueError("orders must contain positive integers")
+    if not grid_resolutions:
+        raise ValueError("grid_resolutions must not be empty")
+    if any(resolution < 1 for resolution in grid_resolutions):
+        raise ValueError("grid_resolutions must contain positive integers")
+    if any(
+        grid_resolutions[index + 1] <= grid_resolutions[index]
+        for index in range(len(grid_resolutions) - 1)
+    ):
+        raise ValueError("grid_resolutions must be strictly increasing")
+    if reference_grid_resolution <= grid_resolutions[-1]:
+        raise ValueError("reference_grid_resolution must be > max(grid_resolutions)")
+    if reference_order <= max(orders):
+        raise ValueError("reference_order must be greater than all sweep orders")
 
     reference = _integrate_general_over_cartesian_grid_3d(
         resolution=reference_grid_resolution,
@@ -614,6 +642,7 @@ def run_general_function_experiment_3d_grid(
             abs_errors.append(abs(value - reference))
 
         rel_errors = tuple(error / scale for error in abs_errors)
+        violations = _monotonicity_violations(tuple(abs_errors))
         order_results.append(
             General3DGridOrderResult(
                 order=order,
@@ -621,6 +650,8 @@ def run_general_function_experiment_3d_grid(
                 h_values=h_values,
                 folded_abs_error=tuple(abs_errors),
                 folded_rel_error=rel_errors,
+                monotone_nonincreasing=not violations,
+                monotonicity_violation_indices=violations,
             )
         )
 

@@ -18,6 +18,10 @@ _NUMERIC_EXCLUDED_KEYS = set(_PARITY_METADATA_KEYS) | {
     "scope",
     "placeholder",
 }
+_EXACT_MATCH_KEYS = {
+    "monotone_nonincreasing",
+    "monotonicity_violation_indices",
+}
 
 
 @dataclass(frozen=True)
@@ -119,6 +123,36 @@ def _metadata_failures(
     return failures
 
 
+def _collect_exact_metrics(obj: Any, *, prefix: str = "") -> dict[str, Any]:
+    metrics: dict[str, Any] = {}
+
+    if isinstance(obj, dict):
+        for key in sorted(obj):
+            value = obj[key]
+            if key in _NUMERIC_EXCLUDED_KEYS:
+                continue
+            child_prefix = f"{prefix}.{key}" if prefix else str(key)
+            if key in _EXACT_MATCH_KEYS:
+                metrics[child_prefix] = value
+                continue
+            metrics.update(_collect_exact_metrics(value, prefix=child_prefix))
+        return metrics
+
+    if isinstance(obj, list):
+        for index, value in enumerate(obj):
+            child_prefix = f"{prefix}[{index}]"
+            metrics.update(_collect_exact_metrics(value, prefix=child_prefix))
+        return metrics
+
+    return metrics
+
+
+def _normalize_exact_value(value: Any) -> Any:
+    if isinstance(value, list):
+        return tuple(_normalize_exact_value(item) for item in value)
+    return value
+
+
 def compare_manifest_to_fixture(
     current: dict[str, Any],
     fixture: dict[str, Any],
@@ -150,6 +184,8 @@ def compare_manifest_to_fixture(
 
     current_metrics = _collect_numeric_metrics(current)
     fixture_metrics = _collect_numeric_metrics(fixture)
+    current_exact_metrics = _collect_exact_metrics(current)
+    fixture_exact_metrics = _collect_exact_metrics(fixture)
     fixture_scope = str(fixture.get("scope", "full"))
     is_placeholder = bool(fixture.get("placeholder", False))
 
@@ -175,7 +211,9 @@ def compare_manifest_to_fixture(
 
     failures: list[ParityFailure] = []
 
-    if fixture_scope == "full" and not (is_placeholder and not fixture_metrics):
+    if fixture_scope == "full" and not (
+        is_placeholder and not fixture_metrics and not fixture_exact_metrics
+    ):
         for key in sorted(current_metrics):
             if key in fixture_metrics:
                 continue
@@ -190,6 +228,22 @@ def compare_manifest_to_fixture(
                     rel_tol=rel_tol,
                     tolerance_bound=float("inf"),
                     detail="missing key in fixture for scope=full",
+                )
+            )
+        for key in sorted(current_exact_metrics):
+            if key in fixture_exact_metrics:
+                continue
+            failures.append(
+                ParityFailure(
+                    key=key,
+                    current=float("nan"),
+                    expected=float("nan"),
+                    abs_diff=float("inf"),
+                    rel_diff=float("inf"),
+                    abs_tol=0.0,
+                    rel_tol=0.0,
+                    tolerance_bound=0.0,
+                    detail="missing exact-match key in fixture for scope=full",
                 )
             )
 
@@ -229,7 +283,46 @@ def compare_manifest_to_fixture(
                 )
             )
 
-    checked_keys = len(set(current_metrics) & set(fixture_metrics))
+    for key in sorted(fixture_exact_metrics):
+        if key not in current_exact_metrics:
+            failures.append(
+                ParityFailure(
+                    key=key,
+                    current=float("nan"),
+                    expected=float("nan"),
+                    abs_diff=float("inf"),
+                    rel_diff=float("inf"),
+                    abs_tol=0.0,
+                    rel_tol=0.0,
+                    tolerance_bound=0.0,
+                    detail="missing key in current manifest",
+                )
+            )
+            continue
+
+        current_value = _normalize_exact_value(current_exact_metrics[key])
+        expected_value = _normalize_exact_value(fixture_exact_metrics[key])
+        if current_value != expected_value:
+            failures.append(
+                ParityFailure(
+                    key=key,
+                    current=float("nan"),
+                    expected=float("nan"),
+                    abs_diff=float("inf"),
+                    rel_diff=float("inf"),
+                    abs_tol=0.0,
+                    rel_tol=0.0,
+                    tolerance_bound=0.0,
+                    detail=(
+                        f"exact mismatch: current={current_value!r}, "
+                        f"expected={expected_value!r}"
+                    ),
+                )
+            )
+
+    checked_keys = len(set(current_metrics) & set(fixture_metrics)) + len(
+        set(current_exact_metrics) & set(fixture_exact_metrics)
+    )
     if not failures and checked_keys == 0:
         if not bool(fixture.get("placeholder", False)):
             return ParityReport(

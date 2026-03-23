@@ -19,5 +19,5 @@ Current mode/profile coverage:
 
 - `quick-polygonized-full.json`
 - `quick-cad-native-full.json`
-- `antolin-paper-polygonized-2d-only.json`
-- `antolin-paper-cad-native-2d-only.json`
+- `antolin-paper-polygonized-full.json`
+- `antolin-paper-cad-native-full.json`

@@ -9,7 +9,10 @@ from cutkit.quadrature import (
     folded_seeds_without_jplus_3d,
     integrate_bernstein_over_boundary_3d,
     integrate_general_over_boundary_3d,
+    integrate_general_over_cartesian_grid_surface_3d,
     integrate_general_over_cartesian_grid_xsurface_3d,
+    integrate_general_over_cartesian_grid_ysurface_3d,
+    integrate_general_over_cartesian_grid_zsurface_3d,
     seed_grid_3d,
     signed_boundary_volume_3d,
 )
@@ -97,6 +100,43 @@ def test_integrate_general_over_cartesian_grid_xsurface_3d_cube_fraction() -> No
         integrand=lambda _x, _y, _z: 1.0,
     )
     assert half_cube == pytest.approx(0.5, rel=1.0e-12, abs=1.0e-12)
+
+
+def test_integrate_general_over_cartesian_grid_surface_3d_axis_half_cube() -> None:
+    half_x = integrate_general_over_cartesian_grid_surface_3d(
+        resolution=6,
+        order=4,
+        axis="x",
+        surface_from_orthogonal=lambda _y, _z: 0.5,
+        integrand=lambda _x, _y, _z: 1.0,
+    )
+    half_y = integrate_general_over_cartesian_grid_ysurface_3d(
+        resolution=6,
+        order=4,
+        y_surface_from_xz=lambda _x, _z: 0.5,
+        integrand=lambda _x, _y, _z: 1.0,
+    )
+    half_z = integrate_general_over_cartesian_grid_zsurface_3d(
+        resolution=6,
+        order=4,
+        z_surface_from_xy=lambda _x, _y: 0.5,
+        integrand=lambda _x, _y, _z: 1.0,
+    )
+
+    assert half_x == pytest.approx(0.5, rel=1.0e-12, abs=1.0e-12)
+    assert half_y == pytest.approx(0.5, rel=1.0e-12, abs=1.0e-12)
+    assert half_z == pytest.approx(0.5, rel=1.0e-12, abs=1.0e-12)
+
+
+def test_integrate_general_over_cartesian_grid_surface_rejects_axis() -> None:
+    with pytest.raises(ValueError):
+        integrate_general_over_cartesian_grid_surface_3d(
+            resolution=4,
+            order=4,
+            axis="w",  # type: ignore[arg-type]
+            surface_from_orthogonal=lambda _a, _b: 0.5,
+            integrand=lambda _x, _y, _z: 1.0,
+        )
 
 
 def test_integrate_general_over_boundary_supports_scalar_only_callable() -> None:
