@@ -605,6 +605,16 @@ def run_general_function_experiment_3d_grid(
 ) -> General3DGridExperimentResult:
     """Run Section 6.2 3D Cartesian cut-cell refinement protocol."""
 
+    if not grid_resolutions:
+        raise ValueError("grid_resolutions must not be empty")
+    if any(resolution < 1 for resolution in grid_resolutions):
+        raise ValueError("grid_resolutions must contain positive integers")
+    if any(
+        grid_resolutions[index + 1] <= grid_resolutions[index]
+        for index in range(len(grid_resolutions) - 1)
+    ):
+        raise ValueError("grid_resolutions must be strictly increasing")
+
     reference = _integrate_general_over_cartesian_grid_3d(
         resolution=reference_grid_resolution,
         order=reference_order,

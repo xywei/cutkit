@@ -262,6 +262,16 @@ def test_section_6_2_3d_grid_reports_non_monotone_row(
     assert row.monotonicity_violation_indices == (0,)
 
 
+def test_section_6_2_3d_grid_rejects_unsorted_resolutions() -> None:
+    with pytest.raises(ValueError, match="strictly increasing"):
+        run_general_function_experiment_3d_grid(
+            orders=(2,),
+            grid_resolutions=(4, 2),
+            reference_grid_resolution=8,
+            reference_order=8,
+        )
+
+
 def test_eval_and_core_boundary_integrators_match() -> None:
     boundary = build_section_6_1_3_boundary_triangles(surface_resolution=4)
     seed = (0.5, 0.5, 0.5)
