@@ -35,3 +35,10 @@ geometry clipping.
 - [x] Add script mode selector (`auto`, `polygonized`, `cad-native`).
 - [x] Update docs to reflect CAD-native + OpenCascade direction.
 - [x] Run full checks.
+
+## Final Outcome
+
+- Status: merged.
+- Delivered via: `https://github.com/xywei/cutkit/pull/6`
+- Follow-ups: 3D core and parity scaffolding landed in
+  `https://github.com/xywei/cutkit/pull/7`.

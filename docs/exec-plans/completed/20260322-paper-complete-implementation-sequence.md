@@ -38,3 +38,11 @@ remaining gap between CUTKIT and the folded-decomposition paper workflow.
 - 3D folded migration can accidentally drift numerics in existing reproductions.
 - CAD availability differences can complicate parity checks.
 - Poisson benchmark dependency footprint may be heavier than current CI defaults.
+
+## Final Outcome
+
+- Status: merged.
+- Delivered via: `https://github.com/xywei/cutkit/pull/7`
+- Follow-ups: seam/degenerate corpus and remaining 3D parity gaps completed in
+  `https://github.com/xywei/cutkit/pull/9` and
+  `https://github.com/xywei/cutkit/pull/11`.

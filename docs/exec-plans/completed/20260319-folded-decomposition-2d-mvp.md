@@ -40,3 +40,11 @@ Implement a first folded-decomposition quadrature path for polygonized trimmed
 
 - Cancellation in thin features can magnify floating-point error.
 - Anchor selection robustness for pathological panels may need extra heuristics.
+
+## Final Outcome
+
+- Status: merged.
+- Delivered via: `https://github.com/xywei/cutkit/pull/6`
+- Follow-ups: superseded by later 3D/parity work in
+  `https://github.com/xywei/cutkit/pull/7` and
+  `https://github.com/xywei/cutkit/pull/11`.
