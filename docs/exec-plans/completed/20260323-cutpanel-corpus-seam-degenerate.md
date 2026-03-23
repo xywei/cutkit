@@ -42,3 +42,9 @@ Related issue: `#8`
 
 - Very thin geometry may increase numerical sensitivity in diagnostics.
 - Seam-adjacent coordinates may accidentally become seam-touching after edits.
+
+## Final Outcome
+
+- Status: merged.
+- Delivered via: `https://github.com/xywei/cutkit/pull/9`
+- Follow-ups: none open from this plan.

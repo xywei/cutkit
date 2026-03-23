@@ -40,10 +40,16 @@ Related issue: `#10`
 - [x] Update docs/tests for fixture matrix and singular-quadrature status.
 - [x] Run focused tests.
 - [x] Run `make dev`.
-- [ ] Prepare PR.
+- [x] Prepare PR.
 
 ## Risks
 
 - Axis permutations can introduce subtle coordinate-order bugs.
 - Full-profile fixture generation can be expensive.
 - Diagnostics may surface instability without immediate numerical remedy.
+
+## Final Outcome
+
+- Status: merged.
+- Delivered via: `https://github.com/xywei/cutkit/pull/11`
+- Follow-ups: none open from this plan.

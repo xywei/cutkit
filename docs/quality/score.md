@@ -16,12 +16,13 @@ Scores are intentionally coarse:
 | Repository map and docs index | B | `AGENTS.md` and doc index exist, coverage should grow with features |
 | Architecture boundaries | B | target layering is documented and checked via `scripts/check_architecture.py` |
 | Dev workflow and checks | B | `uv`, `prek`, CI, and local bootstrap are active |
-| Execution planning hygiene | C | plan directories exist; usage habits still forming |
-| Geometry/topology regression coverage | C | cut-panel harness now includes seam-adjacent and near-degenerate cases; broader production corpus still limited |
+| Execution planning hygiene | B | active/completed plan split is now enforced with merged plans moved out of `active/` |
+| Docs freshness guardrails | B | markdown cross-reference freshness is checked in quality gates |
+| Geometry/topology regression coverage | B | cut-panel harness now includes seam-adjacent, near-degenerate, imported-production, and fuzz-derived cases |
 | Maintenance automation | B | weekly janitor workflow can auto-open maintenance PRs |
 
 ## Next Improvements
 
-1. Add richer topology diagnostics and artifact exports for debugging failures.
-2. Add docs freshness checks that fail CI on stale cross-references.
-3. Expand corpus further with imported production fixtures and fuzz-derived edge cases.
+1. Add concise visual diff snapshots for cut-panel failure artifacts.
+2. Add anchor-level markdown heading validation for in-file docs links.
+3. Add larger imported corpus packs and deterministic fuzz minimization workflow.

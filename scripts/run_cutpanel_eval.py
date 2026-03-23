@@ -3,10 +3,25 @@
 
 from __future__ import annotations
 
-from cutkit.evals import run_default_eval
+import argparse
+from pathlib import Path
+
+from cutkit.evals import export_failure_artifacts, run_default_eval
+
+
+def _parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--artifact-dir",
+        type=Path,
+        default=None,
+        help="Write JSON artifacts for failing cases to this directory.",
+    )
+    return parser.parse_args()
 
 
 def main() -> int:
+    args = _parse_args()
     results = run_default_eval()
     failures = []
 
@@ -33,6 +48,27 @@ def main() -> int:
         print(f"- {result.metrics.name}")
         for error in result.errors:
             print(f"  - {error}")
+
+        if result.topology is not None:
+            diagnostics = result.topology.diagnostics
+            print(
+                "  - "
+                f"topology.outer.orientation={diagnostics.outer.orientation}, "
+                f"topology.outer.self_intersects={diagnostics.outer.self_intersects}, "
+                f"topology.panel_area={diagnostics.panel_area:.6e}"
+            )
+
+    if args.artifact_dir is not None:
+        artifact_paths = export_failure_artifacts(
+            tuple(failures),
+            output_dir=args.artifact_dir,
+        )
+        if artifact_paths:
+            print(
+                f"Wrote {len(artifact_paths)} failure artifacts to {args.artifact_dir}"
+            )
+            for path in artifact_paths:
+                print(f"  - {path}")
     return 1
 
 

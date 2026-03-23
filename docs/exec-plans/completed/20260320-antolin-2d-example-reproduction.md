@@ -41,3 +41,11 @@ scriptable examples and regression tests in the active PR.
 - [x] Add script to run the reproductions and print tabulated errors.
 - [x] Add tests for polynomial and non-polynomial 2D and 3D experiments.
 - [x] Run full repository checks.
+
+## Final Outcome
+
+- Status: merged.
+- Delivered via: `https://github.com/xywei/cutkit/pull/6` and
+  `https://github.com/xywei/cutkit/pull/7`
+- Follow-ups: parity hardening and full-scope fixture coverage completed in
+  `https://github.com/xywei/cutkit/pull/11`.
