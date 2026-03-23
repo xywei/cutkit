@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
+Axis3D = Literal["x", "y", "z"]
+
 
 @dataclass(frozen=True)
 class CartesianCell3D:
@@ -106,14 +108,79 @@ def classify_x_aligned_cell(
     boundary x-location over the cell yz footprint.
     """
 
-    if surface_min_x is None and surface_max_x is None:
+    return classify_axis_aligned_cell(
+        cell,
+        axis="x",
+        surface_min=surface_min_x,
+        surface_max=surface_max_x,
+    )
+
+
+def _cell_axis_interval(cell: CartesianCell3D, axis: Axis3D) -> tuple[float, float]:
+    if axis == "x":
+        return (cell.x0, cell.x1)
+    if axis == "y":
+        return (cell.y0, cell.y1)
+    return (cell.z0, cell.z1)
+
+
+def classify_axis_aligned_cell(
+    cell: CartesianCell3D,
+    *,
+    axis: Axis3D,
+    surface_min: float | None,
+    surface_max: float | None,
+) -> CellClip3D:
+    """Classify *cell* against an axis-aligned trim interval.
+
+    For the selected axis, ``surface_min``/``surface_max`` represent lower/upper
+    bounds of the trimmed boundary coordinate over the orthogonal footprint.
+    """
+
+    if axis not in {"x", "y", "z"}:
+        raise ValueError(f"unsupported axis: {axis!r}")
+
+    if surface_min is None and surface_max is None:
         return CellClip3D(cell=cell, kind="outside")
 
-    lo = cell.x0 if surface_min_x is None else surface_min_x
-    hi = cell.x1 if surface_max_x is None else surface_max_x
+    cell_lo, cell_hi = _cell_axis_interval(cell, axis)
+    lo = cell_lo if surface_min is None else surface_min
+    hi = cell_hi if surface_max is None else surface_max
 
-    if lo >= cell.x1:
+    if lo >= cell_hi:
         return CellClip3D(cell=cell, kind="outside")
-    if hi <= cell.x0:
+    if hi <= cell_lo:
         return CellClip3D(cell=cell, kind="inside")
     return CellClip3D(cell=cell, kind="trimmed")
+
+
+def classify_y_aligned_cell(
+    cell: CartesianCell3D,
+    *,
+    surface_min_y: float | None,
+    surface_max_y: float | None,
+) -> CellClip3D:
+    """Classify *cell* against a y-aligned trim interval."""
+
+    return classify_axis_aligned_cell(
+        cell,
+        axis="y",
+        surface_min=surface_min_y,
+        surface_max=surface_max_y,
+    )
+
+
+def classify_z_aligned_cell(
+    cell: CartesianCell3D,
+    *,
+    surface_min_z: float | None,
+    surface_max_z: float | None,
+) -> CellClip3D:
+    """Classify *cell* against a z-aligned trim interval."""
+
+    return classify_axis_aligned_cell(
+        cell,
+        axis="z",
+        surface_min=surface_min_z,
+        surface_max=surface_max_z,
+    )

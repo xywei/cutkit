@@ -576,6 +576,8 @@ class General3DGridOrderResult:
     h_values: tuple[float, ...]
     folded_abs_error: tuple[float, ...]
     folded_rel_error: tuple[float, ...]
+    monotone_nonincreasing: bool
+    monotonicity_violation_indices: tuple[int, ...]
 
 
 @dataclass(frozen=True)
@@ -584,6 +586,14 @@ class General3DGridExperimentResult:
     reference_order: int
     reference_value: float
     order_results: tuple[General3DGridOrderResult, ...]
+
+
+def _monotonicity_violations(values: tuple[float, ...]) -> tuple[int, ...]:
+    violations: list[int] = []
+    for index in range(len(values) - 1):
+        if values[index + 1] > values[index]:
+            violations.append(index)
+    return tuple(violations)
 
 
 def run_general_function_experiment_3d_grid(
@@ -614,6 +624,7 @@ def run_general_function_experiment_3d_grid(
             abs_errors.append(abs(value - reference))
 
         rel_errors = tuple(error / scale for error in abs_errors)
+        violations = _monotonicity_violations(tuple(abs_errors))
         order_results.append(
             General3DGridOrderResult(
                 order=order,
@@ -621,6 +632,8 @@ def run_general_function_experiment_3d_grid(
                 h_values=h_values,
                 folded_abs_error=tuple(abs_errors),
                 folded_rel_error=rel_errors,
+                monotone_nonincreasing=not violations,
+                monotonicity_violation_indices=violations,
             )
         )
 

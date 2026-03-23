@@ -36,7 +36,9 @@ Current limitations:
 
 - 3D folded decomposition is currently centered on Section 6.1.3-style
   boundary-driven workflows; broader 3D clipping/geometry coverage remains follow-up work
-- no singular-kernel-specialized quadrature yet
+- singular/near-singular kernel quadrature (including QBFEM-style workflows)
+  is intentionally deferred; current Antolin Section 6 reproductions target
+  regular integration behavior
 
 Reproduction script for Antolin-Wei-Buffa (2022) Section 6 examples:
 

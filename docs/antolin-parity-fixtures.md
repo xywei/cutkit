@@ -26,15 +26,14 @@ This note describes how to generate and review Section 6 parity fixtures.
      --write-parity-fixture
    ```
 
-   Example: antolin-paper polygonized 2D-only fixture
+   Example: antolin-paper polygonized full fixture
 
    ```bash
    uv run --with numpy python scripts/reproduce_antolin_2022_examples.py \
      --antolin-paper \
      --geometry-mode polygonized \
-     --skip-3d \
-     --parity-fixture tests/fixtures/antolin-section6/antolin-paper-polygonized-2d-only.json \
-     --write-parity-fixture
+      --parity-fixture tests/fixtures/antolin-section6/antolin-paper-polygonized-full.json \
+      --write-parity-fixture
    ```
 
 2. Re-run parity against the same fixture with matching flags.
@@ -60,5 +59,5 @@ explicit status when OpenCascade is unavailable.
 
 - `quick-polygonized-full.json`
 - `quick-cad-native-full.json`
-- `antolin-paper-polygonized-2d-only.json`
-- `antolin-paper-cad-native-2d-only.json`
+- `antolin-paper-polygonized-full.json`
+- `antolin-paper-cad-native-full.json`

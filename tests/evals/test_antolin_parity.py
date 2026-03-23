@@ -353,8 +353,8 @@ def test_fixture_self_compare_passes() -> None:
     (
         "quick-polygonized-full.json",
         "quick-cad-native-full.json",
-        "antolin-paper-polygonized-2d-only.json",
-        "antolin-paper-cad-native-2d-only.json",
+        "antolin-paper-polygonized-full.json",
+        "antolin-paper-cad-native-full.json",
     ),
 )
 def test_mode_profile_fixtures_exist(fixture_name: str) -> None:
