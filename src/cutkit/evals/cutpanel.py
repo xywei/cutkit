@@ -209,6 +209,18 @@ def default_cases() -> tuple[CutPanelCase, ...]:
 
     hole_ccw: Loop = ((0.25, 0.25), (0.75, 0.25), (0.75, 0.75), (0.25, 0.75))
     notch_hole_ccw: Loop = ((0.9, 0.45), (1.1, 0.45), (1.1, 0.55), (0.9, 0.55))
+    seam_slot_hole_ccw: Loop = (
+        (0.996, 0.2),
+        (0.999, 0.2),
+        (0.999, 0.8),
+        (0.996, 0.8),
+    )
+    ultra_thin_frame_hole_ccw: Loop = (
+        (0.003, 0.003),
+        (0.997, 0.003),
+        (0.997, 0.997),
+        (0.003, 0.997),
+    )
 
     return (
         CutPanelCase(
@@ -224,6 +236,16 @@ def default_cases() -> tuple[CutPanelCase, ...]:
             name="rect-with-thin-hole",
             outer=((0.0, 0.0), (2.0, 0.0), (2.0, 1.0), (0.0, 1.0)),
             holes=(tuple(reversed(notch_hole_ccw)),),
+        ),
+        CutPanelCase(
+            name="square-with-seam-adjacent-slot",
+            outer=((0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)),
+            holes=(tuple(reversed(seam_slot_hole_ccw)),),
+        ),
+        CutPanelCase(
+            name="square-with-ultra-thin-frame",
+            outer=((0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)),
+            holes=(tuple(reversed(ultra_thin_frame_hole_ccw)),),
         ),
     )
 

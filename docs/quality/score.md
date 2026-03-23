@@ -17,11 +17,11 @@ Scores are intentionally coarse:
 | Architecture boundaries | B | target layering is documented and checked via `scripts/check_architecture.py` |
 | Dev workflow and checks | B | `uv`, `prek`, CI, and local bootstrap are active |
 | Execution planning hygiene | C | plan directories exist; usage habits still forming |
-| Geometry/topology regression coverage | C | baseline cut-panel eval harness exists; corpus depth still limited |
+| Geometry/topology regression coverage | C | cut-panel harness now includes seam-adjacent and near-degenerate cases; broader production corpus still limited |
 | Maintenance automation | B | weekly janitor workflow can auto-open maintenance PRs |
 
 ## Next Improvements
 
-1. Expand cut-panel corpus with seam and near-degenerate production cases.
-2. Add richer topology diagnostics and artifact exports for debugging failures.
-3. Add docs freshness checks that fail CI on stale cross-references.
+1. Add richer topology diagnostics and artifact exports for debugging failures.
+2. Add docs freshness checks that fail CI on stale cross-references.
+3. Expand corpus further with imported production fixtures and fuzz-derived edge cases.

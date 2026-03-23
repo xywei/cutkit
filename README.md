@@ -125,6 +125,9 @@ For cut-panel harness checks:
 uv run python scripts/run_cutpanel_eval.py
 ```
 
+The default cut-panel corpus includes baseline, seam-adjacent, and
+near-degenerate panel cases. See `docs/cutpanel-corpus.md` for details.
+
 ## OpenSpec Workflow
 
 This repository is bootstrapped for OpenSpec-driven changes.
