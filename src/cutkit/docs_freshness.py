@@ -10,10 +10,11 @@ from urllib.parse import unquote
 _INLINE_CODE_RE = re.compile(r"`([^`\n]+)`")
 _MARKDOWN_LINK_RE = re.compile(r"\[[^\]]+\]\(([^)]+)\)")
 _FENCED_CODE_RE = re.compile(r"```[^\n]*\n(.*?)```", re.DOTALL)
+_TILDE_FENCED_CODE_RE = re.compile(r"~~~[^\n]*\n(.*?)~~~", re.DOTALL)
 _FENCED_TOKEN_RE = re.compile(r"[A-Za-z0-9._/-]+")
 _MARKDOWN_HEADING_RE = re.compile(r"^\s{0,3}#{1,6}\s+(.+?)\s*$")
 _SETEXT_HEADING_UNDERLINE_RE = re.compile(r"^\s{0,3}(=+|-+)\s*$")
-_FENCE_DELIMITER_RE = re.compile(r"^\s*```")
+_FENCE_DELIMITER_RE = re.compile(r"^\s*(```|~~~)")
 _MARKDOWN_LINK_LABEL_RE = re.compile(r"\[([^\]]+)\]\([^)]+\)")
 _TRAILING_HEADING_HASHES_RE = re.compile(r"\s+#+\s*$")
 _ANCHOR_INVALID_CHARS_RE = re.compile(r"[^\w\s-]")
@@ -137,6 +138,12 @@ def _iter_reference_tokens(text: str) -> tuple[str, ...]:
             if token in {".", ".."}:
                 continue
             tokens.append(token)
+    for block in _TILDE_FENCED_CODE_RE.findall(text):
+        for match in _FENCED_TOKEN_RE.finditer(block):
+            token = match.group(0)
+            if token in {".", ".."}:
+                continue
+            tokens.append(token)
     return tuple(tokens)
 
 
@@ -175,6 +182,7 @@ def _normalize_anchor_fragment(raw_fragment: str) -> str | None:
 
 def _extract_explicit_html_anchors(text: str) -> frozenset[str]:
     sanitized = _FENCED_CODE_RE.sub("\n", text)
+    sanitized = _TILDE_FENCED_CODE_RE.sub("\n", sanitized)
     sanitized = _INLINE_CODE_RE.sub("", sanitized)
     sanitized = _HTML_COMMENT_RE.sub("", sanitized)
     sanitized_lines: list[str] = []
@@ -274,7 +282,8 @@ def _markdown_heading_anchors(text: str) -> _AnchorCatalog:
     heading_anchors: set[str] = set()
     counts: dict[str, int] = {}
     in_fenced_block = False
-    lines = text.splitlines()
+    sanitized_for_headings = _HTML_COMMENT_RE.sub("", text)
+    lines = sanitized_for_headings.splitlines()
     frontmatter_end = _frontmatter_end_index(lines)
     explicit_anchors = _extract_explicit_html_anchors(text)
 
