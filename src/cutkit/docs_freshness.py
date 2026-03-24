@@ -25,7 +25,7 @@ _HTML_ANCHOR_TAG_RE = re.compile(
     re.IGNORECASE | re.DOTALL,
 )
 _HTML_ANCHOR_ATTR_RE = re.compile(
-    r"\b(?:id|name)\s*=\s*(?:\"([^\"]*)\"|'([^']*)')",
+    r"(?:^|\s)(?:id|name)\s*=\s*(?:\"([^\"]*)\"|'([^']*)')",
     re.IGNORECASE,
 )
 

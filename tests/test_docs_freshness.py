@@ -332,6 +332,22 @@ def test_docs_freshness_ignores_inline_html_anchor_samples(tmp_path: Path) -> No
     assert missing[0].reference == "guide.md#custom-target"
 
 
+def test_docs_freshness_ignores_data_id_anchor_like_attributes(tmp_path: Path) -> None:
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir(parents=True, exist_ok=True)
+
+    source = docs_dir / "index.md"
+    source.write_text("See [anchor](guide.md#custom-target).\n", encoding="utf-8")
+    (docs_dir / "guide.md").write_text(
+        '<a data-id="custom-target"></a>\n',
+        encoding="utf-8",
+    )
+
+    missing = find_missing_references(tmp_path, markdown_files=(source,))
+    assert len(missing) == 1
+    assert missing[0].reference == "guide.md#custom-target"
+
+
 def test_repository_docs_cross_references_are_fresh() -> None:
     repo_root = Path(__file__).resolve().parents[1]
     missing = find_missing_references(repo_root)
