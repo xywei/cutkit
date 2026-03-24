@@ -323,9 +323,15 @@ def _extract_explicit_html_anchors(text: str) -> frozenset[str]:
             list_marker_indent = None
 
         if not in_multiline_anchor and leading_spaces >= 4:
+            indent_delta = (
+                leading_spaces - list_marker_indent
+                if list_marker_indent is not None
+                else None
+            )
             list_continuation_anchor = (
                 list_marker_indent is not None
-                and leading_spaces > list_marker_indent
+                and indent_delta is not None
+                and 0 < indent_delta <= 4
                 and _HTML_ANCHOR_TAG_START_RE.search(line) is not None
             )
             if not list_continuation_anchor:
