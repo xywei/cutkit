@@ -348,6 +348,36 @@ def test_docs_freshness_ignores_data_id_anchor_like_attributes(tmp_path: Path) -
     assert missing[0].reference == "guide.md#custom-target"
 
 
+def test_docs_freshness_allows_heading_after_thematic_break(tmp_path: Path) -> None:
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir(parents=True, exist_ok=True)
+
+    source = docs_dir / "index.md"
+    source.write_text("See [anchor](guide.md#real-heading).\n", encoding="utf-8")
+    (docs_dir / "guide.md").write_text(
+        "---\n# Real Heading\n",
+        encoding="utf-8",
+    )
+
+    missing = find_missing_references(tmp_path, markdown_files=(source,))
+    assert not missing
+
+
+def test_docs_freshness_allows_frontmatter_closed_with_ellipsis(tmp_path: Path) -> None:
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir(parents=True, exist_ok=True)
+
+    source = docs_dir / "index.md"
+    source.write_text("See [anchor](guide.md#real-heading).\n", encoding="utf-8")
+    (docs_dir / "guide.md").write_text(
+        "---\ntitle: Sample\n...\n# Real Heading\n",
+        encoding="utf-8",
+    )
+
+    missing = find_missing_references(tmp_path, markdown_files=(source,))
+    assert not missing
+
+
 def test_repository_docs_cross_references_are_fresh() -> None:
     repo_root = Path(__file__).resolve().parents[1]
     missing = find_missing_references(repo_root)

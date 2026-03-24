@@ -206,12 +206,25 @@ def _add_heading_anchor(
     anchors.add(anchor)
 
 
+def _frontmatter_end_index(lines: list[str]) -> int | None:
+    if not lines:
+        return None
+    if lines[0].strip() != "---":
+        return None
+
+    for index in range(1, len(lines)):
+        marker = lines[index].strip()
+        if marker in {"---", "..."}:
+            return index
+    return None
+
+
 def _markdown_heading_anchors(text: str) -> _AnchorCatalog:
     heading_anchors: set[str] = set()
     counts: dict[str, int] = {}
     in_fenced_block = False
-    in_frontmatter = False
     lines = text.splitlines()
+    frontmatter_end = _frontmatter_end_index(lines)
     explicit_anchors = _extract_explicit_html_anchors(text)
 
     for index, line in enumerate(lines):
@@ -219,12 +232,7 @@ def _markdown_heading_anchors(text: str) -> _AnchorCatalog:
         leading_spaces = len(expanded_line) - len(expanded_line.lstrip(" "))
         stripped = line.strip()
 
-        if index == 0 and stripped == "---":
-            in_frontmatter = True
-            continue
-        if in_frontmatter:
-            if stripped == "---":
-                in_frontmatter = False
+        if frontmatter_end is not None and index <= frontmatter_end:
             continue
 
         if _FENCE_DELIMITER_RE.match(line):
