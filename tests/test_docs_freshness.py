@@ -401,6 +401,26 @@ def test_docs_freshness_recognizes_id_and_name_on_same_anchor(tmp_path: Path) ->
     assert not missing
 
 
+def test_docs_freshness_allows_unquoted_explicit_anchor_attributes(
+    tmp_path: Path,
+) -> None:
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir(parents=True, exist_ok=True)
+
+    source = docs_dir / "index.md"
+    source.write_text(
+        "See [id](guide.md#custom-target) and [name](guide.md#legacy).\n",
+        encoding="utf-8",
+    )
+    (docs_dir / "guide.md").write_text(
+        "<a id=custom-target name=legacy></a>\n",
+        encoding="utf-8",
+    )
+
+    missing = find_missing_references(tmp_path, markdown_files=(source,))
+    assert not missing
+
+
 def test_docs_freshness_allows_heading_after_thematic_break(tmp_path: Path) -> None:
     docs_dir = tmp_path / "docs"
     docs_dir.mkdir(parents=True, exist_ok=True)

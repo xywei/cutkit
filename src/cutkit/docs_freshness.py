@@ -27,7 +27,7 @@ _HTML_ANCHOR_TAG_RE = re.compile(
     re.IGNORECASE | re.DOTALL,
 )
 _HTML_ANCHOR_ATTR_RE = re.compile(
-    r"(?:^|\s)(id|name)\s*=\s*(?:\"([^\"]*)\"|'([^']*)')",
+    r"(?:^|\s)(id|name)\s*=\s*(?:\"([^\"]*)\"|'([^']*)'|([^\s\"'=<>`]+))",
     re.IGNORECASE,
 )
 
@@ -205,7 +205,9 @@ def _extract_explicit_html_anchors(text: str) -> frozenset[str]:
     for tag_match in _HTML_ANCHOR_TAG_RE.finditer(sanitized):
         attrs = tag_match.group("attrs")
         for attr_match in _HTML_ANCHOR_ATTR_RE.finditer(attrs):
-            value = (attr_match.group(2) or attr_match.group(3) or "").strip()
+            value = (
+                attr_match.group(2) or attr_match.group(3) or attr_match.group(4) or ""
+            ).strip()
             if not value:
                 continue
             anchors.add(value)
