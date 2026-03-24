@@ -22,12 +22,9 @@ _WHITESPACE_RE = re.compile(r"\s+")
 _MULTI_DASH_RE = re.compile(r"-{2,}")
 _FRONTMATTER_KEY_VALUE_RE = re.compile(r"^[A-Za-z0-9_.\"' -]+\s*:\s*.*$")
 _LIST_ITEM_RE = re.compile(r"^\s{0,3}(?:[-+*]|\d+[.)])\s+\S")
+_BLOCKQUOTE_PREFIX_RE = re.compile(r"^\s{0,3}(?:>\s?)+(.*)$")
 _HTML_COMMENT_RE = re.compile(r"<!--.*?-->", re.DOTALL)
 _HTML_ANCHOR_TAG_START_RE = re.compile(r"<a\b", re.IGNORECASE)
-_HTML_ANCHOR_TAG_RE = re.compile(
-    r"<a\b(?P<attrs>[^>]*)>",
-    re.IGNORECASE | re.DOTALL,
-)
 
 _URI_PREFIXES = ("http://", "https://", "mailto:")
 _ROOT_FILES = {
@@ -301,6 +298,51 @@ def _iter_html_anchor_attributes(attrs: str) -> tuple[tuple[str, str], ...]:
     return tuple(parsed)
 
 
+def _iter_html_anchor_attribute_strings(text: str) -> tuple[str, ...]:
+    attrs_list: list[str] = []
+    index = 0
+    length = len(text)
+
+    while index < length:
+        start_match = _HTML_ANCHOR_TAG_START_RE.search(text, index)
+        if start_match is None:
+            break
+
+        attrs_start = start_match.end()
+        cursor = attrs_start
+        quote: str | None = None
+
+        while cursor < length:
+            char = text[cursor]
+            if quote is None:
+                if char in {'"', "'"}:
+                    quote = char
+                elif char == ">":
+                    attrs_list.append(text[attrs_start:cursor])
+                    cursor += 1
+                    break
+            elif char == quote:
+                quote = None
+
+            cursor += 1
+
+        if cursor >= length:
+            break
+        index = cursor
+
+    return tuple(attrs_list)
+
+
+def _is_blockquote_indented_code_line(line: str) -> bool:
+    expanded_line = line.expandtabs(4)
+    match = _BLOCKQUOTE_PREFIX_RE.match(expanded_line)
+    if match is None:
+        return False
+    remainder = match.group(1)
+    leading_spaces = len(remainder) - len(remainder.lstrip(" "))
+    return leading_spaces >= 4
+
+
 def _extract_explicit_html_anchors(text: str) -> frozenset[str]:
     sanitized = _strip_fenced_code_blocks(text)
     sanitized = _INLINE_CODE_RE.sub("", sanitized)
@@ -322,14 +364,20 @@ def _extract_explicit_html_anchors(text: str) -> frozenset[str]:
         ):
             list_marker_indent = None
 
-        if not in_multiline_anchor and leading_spaces >= 4:
+        is_indented_code_line = leading_spaces >= 4
+        is_blockquote_indented_code = _is_blockquote_indented_code_line(line)
+
+        if not in_multiline_anchor and (
+            is_indented_code_line or is_blockquote_indented_code
+        ):
             indent_delta = (
                 leading_spaces - list_marker_indent
                 if list_marker_indent is not None
                 else None
             )
             list_continuation_anchor = (
-                list_marker_indent is not None
+                is_indented_code_line
+                and list_marker_indent is not None
                 and indent_delta is not None
                 and 0 < indent_delta <= 4
                 and _HTML_ANCHOR_TAG_START_RE.search(line) is not None
@@ -354,8 +402,7 @@ def _extract_explicit_html_anchors(text: str) -> frozenset[str]:
     sanitized = "\n".join(sanitized_lines)
 
     anchors: set[str] = set()
-    for tag_match in _HTML_ANCHOR_TAG_RE.finditer(sanitized):
-        attrs = tag_match.group("attrs")
+    for attrs in _iter_html_anchor_attribute_strings(sanitized):
         for name, raw_value in _iter_html_anchor_attributes(attrs):
             if name not in {"id", "name"}:
                 continue

@@ -454,6 +454,23 @@ def test_docs_freshness_allows_unquoted_explicit_anchor_attributes(
     assert not missing
 
 
+def test_docs_freshness_allows_explicit_anchor_with_gt_in_quoted_attr(
+    tmp_path: Path,
+) -> None:
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir(parents=True, exist_ok=True)
+
+    source = docs_dir / "index.md"
+    source.write_text("See [anchor](guide.md#target).\n", encoding="utf-8")
+    (docs_dir / "guide.md").write_text(
+        '<a title="1 > 0" id="target"></a>\n',
+        encoding="utf-8",
+    )
+
+    missing = find_missing_references(tmp_path, markdown_files=(source,))
+    assert not missing
+
+
 def test_docs_freshness_ignores_tilde_fenced_html_anchor_samples(
     tmp_path: Path,
 ) -> None:
@@ -488,6 +505,24 @@ def test_docs_freshness_ignores_mismatched_fence_delimiter_inside_code(
     missing = find_missing_references(tmp_path, markdown_files=(source,))
     assert len(missing) == 1
     assert missing[0].reference == "guide.md#fake"
+
+
+def test_docs_freshness_ignores_blockquote_indented_code_anchor_sample(
+    tmp_path: Path,
+) -> None:
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir(parents=True, exist_ok=True)
+
+    source = docs_dir / "index.md"
+    source.write_text("See [anchor](guide.md#sample).\n", encoding="utf-8")
+    (docs_dir / "guide.md").write_text(
+        '>     <a id="sample"></a>\n',
+        encoding="utf-8",
+    )
+
+    missing = find_missing_references(tmp_path, markdown_files=(source,))
+    assert len(missing) == 1
+    assert missing[0].reference == "guide.md#sample"
 
 
 def test_docs_freshness_ignores_anchor_after_malformed_fence_closer(
