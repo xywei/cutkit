@@ -357,3 +357,17 @@ def test_section_6_1_3_boundary_builder_supports_resolution(
     vol_b = _tetra_volume_sum(boundary, (0.5, 0.5, 0.5))
     assert vol_a > 0.0
     assert vol_a == pytest.approx(vol_b, rel=1.0e-10, abs=1.0e-10)
+
+
+@pytest.mark.parametrize("side_resolution", [1, 2, 3])
+def test_section_6_1_3_boundary_builder_supports_side_refinement(
+    side_resolution: int,
+) -> None:
+    boundary = build_section_6_1_3_boundary_triangles(
+        surface_resolution=8,
+        side_resolution=side_resolution,
+    )
+    vol_a = _tetra_volume_sum(boundary, (1.0, 1.0, 0.5))
+    vol_b = _tetra_volume_sum(boundary, (0.5, 0.5, 0.5))
+    assert vol_a > 0.0
+    assert vol_a == pytest.approx(vol_b, rel=1.0e-10, abs=1.0e-10)

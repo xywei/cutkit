@@ -4,10 +4,8 @@ This note tracks follow-up work intentionally out of scope for the 2D MVP.
 
 ## Priority Follow-ups
 
-1. Extend 3D folded decomposition beyond Section 6.1.3-style boundary workflows
-   to broader curved-polyhedra clipping and geometry classes.
-2. Singular and near-singular kernel quadrature extensions.
-3. Downstream adapter into `volumential` rule-consumption paths.
+1. Singular and near-singular kernel quadrature extensions.
+2. Downstream adapter into `volumential` rule-consumption paths.
 
 ## Singular Quadrature Status
 
@@ -21,8 +19,16 @@ This note tracks follow-up work intentionally out of scope for the 2D MVP.
 ## CAD Core
 
 OpenCascade is now the designated CAD core for exact 2D Section 6 clipping
-workflows. Remaining follow-ups focus on extending that CAD-native path to
-broader geometry classes and 3D.
+workflows and CAD-native 3D solid ingest/axis-aligned clipping adapters.
+
+Recent 3D broadening now in-tree:
+
+- axis-general Cartesian graph-surface integration includes bounded-slab support
+  between lower/upper trim surfaces;
+- Section 6.1.3 boundary builder supports side-face refinement beyond
+  `side_resolution=1`;
+- CAD-native 3D solid ingestion supports triangulated oriented boundary export
+  and axis-aligned box clipping hooks.
 
 ## Rationale
 
