@@ -20,6 +20,7 @@ _ANCHOR_INVALID_CHARS_RE = re.compile(r"[^\w\s-]")
 _WHITESPACE_RE = re.compile(r"\s+")
 _MULTI_DASH_RE = re.compile(r"-{2,}")
 _FRONTMATTER_KEY_VALUE_RE = re.compile(r"^[A-Za-z0-9_.\"' -]+\s*:\s*.*$")
+_LIST_ITEM_RE = re.compile(r"^\s{0,3}(?:[-+*]|\d+[.)])\s+\S")
 _HTML_COMMENT_RE = re.compile(r"<!--.*?-->", re.DOTALL)
 _HTML_ANCHOR_TAG_START_RE = re.compile(r"<a\b", re.IGNORECASE)
 _HTML_ANCHOR_TAG_RE = re.compile(
@@ -178,13 +179,30 @@ def _extract_explicit_html_anchors(text: str) -> frozenset[str]:
     sanitized = _HTML_COMMENT_RE.sub("", sanitized)
     sanitized_lines: list[str] = []
     in_multiline_anchor = False
+    list_marker_indent: int | None = None
     for line in sanitized.splitlines():
         expanded_line = line.expandtabs(4)
         leading_spaces = len(expanded_line) - len(expanded_line.lstrip(" "))
+        stripped = line.strip()
+
+        if _LIST_ITEM_RE.match(expanded_line):
+            list_marker_indent = leading_spaces
+        elif (
+            stripped
+            and list_marker_indent is not None
+            and leading_spaces <= list_marker_indent
+        ):
+            list_marker_indent = None
 
         if not in_multiline_anchor and leading_spaces >= 4:
-            sanitized_lines.append("")
-            continue
+            list_continuation_anchor = (
+                list_marker_indent is not None
+                and leading_spaces > list_marker_indent
+                and _HTML_ANCHOR_TAG_START_RE.search(line) is not None
+            )
+            if not list_continuation_anchor:
+                sanitized_lines.append("")
+                continue
 
         sanitized_lines.append(line)
 

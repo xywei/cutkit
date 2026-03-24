@@ -333,6 +333,21 @@ def test_docs_freshness_allows_multiline_anchor_with_indented_attr(
     assert not missing
 
 
+def test_docs_freshness_allows_list_indented_html_anchor(tmp_path: Path) -> None:
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir(parents=True, exist_ok=True)
+
+    source = docs_dir / "index.md"
+    source.write_text("See [anchor](guide.md#list-target).\n", encoding="utf-8")
+    (docs_dir / "guide.md").write_text(
+        '- Item\n    <a id="list-target"></a>\n',
+        encoding="utf-8",
+    )
+
+    missing = find_missing_references(tmp_path, markdown_files=(source,))
+    assert not missing
+
+
 def test_docs_freshness_ignores_inline_html_anchor_samples(tmp_path: Path) -> None:
     docs_dir = tmp_path / "docs"
     docs_dir.mkdir(parents=True, exist_ok=True)
