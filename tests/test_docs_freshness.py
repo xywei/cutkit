@@ -233,6 +233,25 @@ def test_docs_freshness_ignores_indented_setext_like_code(tmp_path: Path) -> Non
     assert missing[0].reference == "guide.md#not-a-heading"
 
 
+def test_docs_freshness_ignores_tab_indented_setext_like_code(tmp_path: Path) -> None:
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir(parents=True, exist_ok=True)
+
+    source = docs_dir / "index.md"
+    source.write_text(
+        "See [bad anchor](guide.md#not-a-heading).\n",
+        encoding="utf-8",
+    )
+    (docs_dir / "guide.md").write_text(
+        "\tnot a heading\n---\n",
+        encoding="utf-8",
+    )
+
+    missing = find_missing_references(tmp_path, markdown_files=(source,))
+    assert len(missing) == 1
+    assert missing[0].reference == "guide.md#not-a-heading"
+
+
 def test_docs_freshness_allows_explicit_html_anchor_id(tmp_path: Path) -> None:
     docs_dir = tmp_path / "docs"
     docs_dir.mkdir(parents=True, exist_ok=True)

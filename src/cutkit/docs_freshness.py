@@ -215,7 +215,8 @@ def _markdown_heading_anchors(text: str) -> _AnchorCatalog:
     explicit_anchors = _extract_explicit_html_anchors(text)
 
     for index, line in enumerate(lines):
-        leading_spaces = len(line) - len(line.lstrip(" "))
+        expanded_line = line.expandtabs(4)
+        leading_spaces = len(expanded_line) - len(expanded_line.lstrip(" "))
         stripped = line.strip()
 
         if index == 0 and stripped == "---":
