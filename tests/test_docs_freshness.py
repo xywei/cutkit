@@ -348,6 +348,42 @@ def test_docs_freshness_ignores_data_id_anchor_like_attributes(tmp_path: Path) -
     assert missing[0].reference == "guide.md#custom-target"
 
 
+def test_docs_freshness_ignores_indented_html_anchor_code_samples(
+    tmp_path: Path,
+) -> None:
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir(parents=True, exist_ok=True)
+
+    source = docs_dir / "index.md"
+    source.write_text("See [anchor](guide.md#custom-target).\n", encoding="utf-8")
+    (docs_dir / "guide.md").write_text(
+        '    <a id="custom-target"></a>\n',
+        encoding="utf-8",
+    )
+
+    missing = find_missing_references(tmp_path, markdown_files=(source,))
+    assert len(missing) == 1
+    assert missing[0].reference == "guide.md#custom-target"
+
+
+def test_docs_freshness_recognizes_id_and_name_on_same_anchor(tmp_path: Path) -> None:
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir(parents=True, exist_ok=True)
+
+    source = docs_dir / "index.md"
+    source.write_text(
+        "See [new](guide.md#new) and [legacy](guide.md#legacy).\n",
+        encoding="utf-8",
+    )
+    (docs_dir / "guide.md").write_text(
+        '<a id="new" name="legacy"></a>\n',
+        encoding="utf-8",
+    )
+
+    missing = find_missing_references(tmp_path, markdown_files=(source,))
+    assert not missing
+
+
 def test_docs_freshness_allows_heading_after_thematic_break(tmp_path: Path) -> None:
     docs_dir = tmp_path / "docs"
     docs_dir.mkdir(parents=True, exist_ok=True)

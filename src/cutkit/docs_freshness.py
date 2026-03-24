@@ -26,7 +26,7 @@ _HTML_ANCHOR_TAG_RE = re.compile(
     re.IGNORECASE | re.DOTALL,
 )
 _HTML_ANCHOR_ATTR_RE = re.compile(
-    r"(?:^|\s)(?:id|name)\s*=\s*(?:\"([^\"]*)\"|'([^']*)')",
+    r"(?:^|\s)(id|name)\s*=\s*(?:\"([^\"]*)\"|'([^']*)')",
     re.IGNORECASE,
 )
 
@@ -175,18 +175,21 @@ def _extract_explicit_html_anchors(text: str) -> frozenset[str]:
     sanitized = _FENCED_CODE_RE.sub("\n", text)
     sanitized = _INLINE_CODE_RE.sub("", sanitized)
     sanitized = _HTML_COMMENT_RE.sub("", sanitized)
+    sanitized = "\n".join(
+        ""
+        if (len(line.expandtabs(4)) - len(line.expandtabs(4).lstrip(" "))) >= 4
+        else line
+        for line in sanitized.splitlines()
+    )
 
     anchors: set[str] = set()
     for tag_match in _HTML_ANCHOR_TAG_RE.finditer(sanitized):
         attrs = tag_match.group("attrs")
-        attr_match = _HTML_ANCHOR_ATTR_RE.search(attrs)
-        if attr_match is None:
-            continue
-
-        value = (attr_match.group(1) or attr_match.group(2) or "").strip()
-        if not value:
-            continue
-        anchors.add(value)
+        for attr_match in _HTML_ANCHOR_ATTR_RE.finditer(attrs):
+            value = (attr_match.group(2) or attr_match.group(3) or "").strip()
+            if not value:
+                continue
+            anchors.add(value)
 
     return frozenset(anchors)
 
