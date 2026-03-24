@@ -440,6 +440,8 @@ def _markdown_heading_anchors(text: str) -> _AnchorCatalog:
             continue
         if not stripped:
             continue
+        if _LIST_ITEM_RE.match(expanded_line):
+            continue
         if stripped.startswith(("#", ">", "-", "*", "+", "|", "```", "~~~")):
             continue
         if _SETEXT_HEADING_UNDERLINE_RE.match(lines[index + 1]) is None:
