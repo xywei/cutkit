@@ -21,6 +21,7 @@ _WHITESPACE_RE = re.compile(r"\s+")
 _MULTI_DASH_RE = re.compile(r"-{2,}")
 _FRONTMATTER_KEY_VALUE_RE = re.compile(r"^[A-Za-z0-9_.\"' -]+\s*:\s*.*$")
 _HTML_COMMENT_RE = re.compile(r"<!--.*?-->", re.DOTALL)
+_HTML_ANCHOR_TAG_START_RE = re.compile(r"<a\b", re.IGNORECASE)
 _HTML_ANCHOR_TAG_RE = re.compile(
     r"<a\b(?P<attrs>[^>]*)>",
     re.IGNORECASE | re.DOTALL,
@@ -175,12 +176,30 @@ def _extract_explicit_html_anchors(text: str) -> frozenset[str]:
     sanitized = _FENCED_CODE_RE.sub("\n", text)
     sanitized = _INLINE_CODE_RE.sub("", sanitized)
     sanitized = _HTML_COMMENT_RE.sub("", sanitized)
-    sanitized = "\n".join(
-        ""
-        if (len(line.expandtabs(4)) - len(line.expandtabs(4).lstrip(" "))) >= 4
-        else line
-        for line in sanitized.splitlines()
-    )
+    sanitized_lines: list[str] = []
+    in_multiline_anchor = False
+    for line in sanitized.splitlines():
+        expanded_line = line.expandtabs(4)
+        leading_spaces = len(expanded_line) - len(expanded_line.lstrip(" "))
+
+        if not in_multiline_anchor and leading_spaces >= 4:
+            sanitized_lines.append("")
+            continue
+
+        sanitized_lines.append(line)
+
+        if in_multiline_anchor:
+            if ">" in line:
+                in_multiline_anchor = False
+            continue
+
+        start_match = _HTML_ANCHOR_TAG_START_RE.search(line)
+        if start_match is None:
+            continue
+        if ">" not in line[start_match.start() :]:
+            in_multiline_anchor = True
+
+    sanitized = "\n".join(sanitized_lines)
 
     anchors: set[str] = set()
     for tag_match in _HTML_ANCHOR_TAG_RE.finditer(sanitized):
