@@ -19,6 +19,7 @@ _TRAILING_HEADING_HASHES_RE = re.compile(r"\s+#+\s*$")
 _ANCHOR_INVALID_CHARS_RE = re.compile(r"[^\w\s-]")
 _WHITESPACE_RE = re.compile(r"\s+")
 _MULTI_DASH_RE = re.compile(r"-{2,}")
+_FRONTMATTER_KEY_VALUE_RE = re.compile(r"^[A-Za-z0-9_.\"' -]+\s*:\s*.*$")
 _HTML_COMMENT_RE = re.compile(r"<!--.*?-->", re.DOTALL)
 _HTML_ANCHOR_TAG_RE = re.compile(
     r"<a\b(?P<attrs>[^>]*)>",
@@ -215,6 +216,14 @@ def _frontmatter_end_index(lines: list[str]) -> int | None:
     for index in range(1, len(lines)):
         marker = lines[index].strip()
         if marker in {"---", "..."}:
+            metadata_block = lines[1:index]
+            has_key_value = any(
+                _FRONTMATTER_KEY_VALUE_RE.match(line.strip())
+                for line in metadata_block
+                if line.strip()
+            )
+            if not has_key_value:
+                return None
             return index
     return None
 
