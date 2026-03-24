@@ -14,7 +14,7 @@ _TILDE_FENCED_CODE_RE = re.compile(r"~~~[^\n]*\n(.*?)~~~", re.DOTALL)
 _FENCED_TOKEN_RE = re.compile(r"[A-Za-z0-9._/-]+")
 _MARKDOWN_HEADING_RE = re.compile(r"^\s{0,3}#{1,6}\s+(.+?)\s*$")
 _SETEXT_HEADING_UNDERLINE_RE = re.compile(r"^\s{0,3}(=+|-+)\s*$")
-_FENCE_DELIMITER_RE = re.compile(r"^\s*(```|~~~)")
+_FENCE_LINE_RE = re.compile(r"^\s{0,3}(`{3,}|~{3,})")
 _MARKDOWN_LINK_LABEL_RE = re.compile(r"\[([^\]]+)\]\([^)]+\)")
 _TRAILING_HEADING_HASHES_RE = re.compile(r"\s+#+\s*$")
 _ANCHOR_INVALID_CHARS_RE = re.compile(r"[^\w\s-]")
@@ -27,10 +27,6 @@ _HTML_ANCHOR_TAG_START_RE = re.compile(r"<a\b", re.IGNORECASE)
 _HTML_ANCHOR_TAG_RE = re.compile(
     r"<a\b(?P<attrs>[^>]*)>",
     re.IGNORECASE | re.DOTALL,
-)
-_HTML_ANCHOR_ATTR_RE = re.compile(
-    r"(?:^|\s)(id|name)\s*=\s*(?:\"([^\"]*)\"|'([^']*)'|([^\s\"'=<>`]+))",
-    re.IGNORECASE,
 )
 
 _URI_PREFIXES = ("http://", "https://", "mailto:")
@@ -180,6 +176,64 @@ def _normalize_anchor_fragment(raw_fragment: str) -> str | None:
     return normalized
 
 
+def _iter_html_anchor_attributes(attrs: str) -> tuple[tuple[str, str], ...]:
+    parsed: list[tuple[str, str]] = []
+    index = 0
+    length = len(attrs)
+
+    while index < length:
+        while index < length and attrs[index].isspace():
+            index += 1
+        if index >= length:
+            break
+
+        if attrs[index] in {"/", ">"}:
+            index += 1
+            continue
+
+        name_start = index
+        while index < length and (
+            attrs[index].isalnum() or attrs[index] in {"-", "_", ":"}
+        ):
+            index += 1
+        name = attrs[name_start:index].lower()
+        if not name:
+            index += 1
+            continue
+
+        while index < length and attrs[index].isspace():
+            index += 1
+
+        value = ""
+        if index < length and attrs[index] == "=":
+            index += 1
+            while index < length and attrs[index].isspace():
+                index += 1
+
+            if index < length and attrs[index] in {'"', "'"}:
+                quote = attrs[index]
+                index += 1
+                value_start = index
+                while index < length and attrs[index] != quote:
+                    index += 1
+                value = attrs[value_start:index]
+                if index < length and attrs[index] == quote:
+                    index += 1
+            else:
+                value_start = index
+                while (
+                    index < length
+                    and not attrs[index].isspace()
+                    and attrs[index] not in {"/", ">"}
+                ):
+                    index += 1
+                value = attrs[value_start:index]
+
+        parsed.append((name, value))
+
+    return tuple(parsed)
+
+
 def _extract_explicit_html_anchors(text: str) -> frozenset[str]:
     sanitized = _FENCED_CODE_RE.sub("\n", text)
     sanitized = _TILDE_FENCED_CODE_RE.sub("\n", sanitized)
@@ -230,10 +284,10 @@ def _extract_explicit_html_anchors(text: str) -> frozenset[str]:
     anchors: set[str] = set()
     for tag_match in _HTML_ANCHOR_TAG_RE.finditer(sanitized):
         attrs = tag_match.group("attrs")
-        for attr_match in _HTML_ANCHOR_ATTR_RE.finditer(attrs):
-            value = (
-                attr_match.group(2) or attr_match.group(3) or attr_match.group(4) or ""
-            ).strip()
+        for name, raw_value in _iter_html_anchor_attributes(attrs):
+            if name not in {"id", "name"}:
+                continue
+            value = raw_value.strip()
             if not value:
                 continue
             anchors.add(value)
@@ -281,7 +335,7 @@ def _frontmatter_end_index(lines: list[str]) -> int | None:
 def _markdown_heading_anchors(text: str) -> _AnchorCatalog:
     heading_anchors: set[str] = set()
     counts: dict[str, int] = {}
-    in_fenced_block = False
+    open_fence: tuple[str, int] | None = None
     sanitized_for_headings = _HTML_COMMENT_RE.sub("", text)
     lines = sanitized_for_headings.splitlines()
     frontmatter_end = _frontmatter_end_index(lines)
@@ -295,10 +349,20 @@ def _markdown_heading_anchors(text: str) -> _AnchorCatalog:
         if frontmatter_end is not None and index <= frontmatter_end:
             continue
 
-        if _FENCE_DELIMITER_RE.match(line):
-            in_fenced_block = not in_fenced_block
+        fence_match = _FENCE_LINE_RE.match(line)
+        if fence_match is not None:
+            fence = fence_match.group(1)
+            fence_char = fence[0]
+            fence_length = len(fence)
+
+            if open_fence is None:
+                open_fence = (fence_char, fence_length)
+            else:
+                open_char, open_length = open_fence
+                if fence_char == open_char and fence_length >= open_length:
+                    open_fence = None
             continue
-        if in_fenced_block:
+        if open_fence is not None:
             continue
 
         heading_match = _MARKDOWN_HEADING_RE.match(line)
@@ -315,7 +379,7 @@ def _markdown_heading_anchors(text: str) -> _AnchorCatalog:
             continue
         if not stripped:
             continue
-        if stripped.startswith(("#", ">", "-", "*", "+", "|", "```")):
+        if stripped.startswith(("#", ">", "-", "*", "+", "|", "```", "~~~")):
             continue
         if _SETEXT_HEADING_UNDERLINE_RE.match(lines[index + 1]) is None:
             continue

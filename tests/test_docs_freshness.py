@@ -454,6 +454,24 @@ def test_docs_freshness_ignores_tilde_fenced_html_anchor_samples(
     assert missing[0].reference == "guide.md#custom-target"
 
 
+def test_docs_freshness_ignores_mismatched_fence_delimiter_inside_code(
+    tmp_path: Path,
+) -> None:
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir(parents=True, exist_ok=True)
+
+    source = docs_dir / "index.md"
+    source.write_text("See [anchor](guide.md#fake).\n", encoding="utf-8")
+    (docs_dir / "guide.md").write_text(
+        "```\ncode\n~~~\n# fake\n```\n",
+        encoding="utf-8",
+    )
+
+    missing = find_missing_references(tmp_path, markdown_files=(source,))
+    assert len(missing) == 1
+    assert missing[0].reference == "guide.md#fake"
+
+
 def test_docs_freshness_ignores_setext_heading_inside_html_comment(
     tmp_path: Path,
 ) -> None:
@@ -470,6 +488,24 @@ def test_docs_freshness_ignores_setext_heading_inside_html_comment(
     missing = find_missing_references(tmp_path, markdown_files=(source,))
     assert len(missing) == 1
     assert missing[0].reference == "guide.md#not-a-heading"
+
+
+def test_docs_freshness_ignores_name_substring_inside_other_attribute_value(
+    tmp_path: Path,
+) -> None:
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir(parents=True, exist_ok=True)
+
+    source = docs_dir / "index.md"
+    source.write_text("See [anchor](guide.md#custom-target).\n", encoding="utf-8")
+    (docs_dir / "guide.md").write_text(
+        '<a title="x name=custom-target"></a>\n',
+        encoding="utf-8",
+    )
+
+    missing = find_missing_references(tmp_path, markdown_files=(source,))
+    assert len(missing) == 1
+    assert missing[0].reference == "guide.md#custom-target"
 
 
 def test_docs_freshness_allows_heading_after_thematic_break(tmp_path: Path) -> None:
