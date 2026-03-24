@@ -472,6 +472,24 @@ def test_docs_freshness_ignores_mismatched_fence_delimiter_inside_code(
     assert missing[0].reference == "guide.md#fake"
 
 
+def test_docs_freshness_ignores_anchor_after_malformed_fence_closer(
+    tmp_path: Path,
+) -> None:
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir(parents=True, exist_ok=True)
+
+    source = docs_dir / "index.md"
+    source.write_text("See [anchor](guide.md#custom-target).\n", encoding="utf-8")
+    (docs_dir / "guide.md").write_text(
+        '```html\ncode\n``` not-close\n<a id="custom-target"></a>\n```\n',
+        encoding="utf-8",
+    )
+
+    missing = find_missing_references(tmp_path, markdown_files=(source,))
+    assert len(missing) == 1
+    assert missing[0].reference == "guide.md#custom-target"
+
+
 def test_docs_freshness_ignores_setext_heading_inside_html_comment(
     tmp_path: Path,
 ) -> None:

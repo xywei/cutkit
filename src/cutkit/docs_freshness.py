@@ -124,17 +124,84 @@ def markdown_files_for_freshness(root: Path) -> tuple[Path, ...]:
     return tuple(sorted(filtered, key=lambda path: str(path.relative_to(root))))
 
 
+def _opening_fence(line: str) -> tuple[str, int] | None:
+    match = _FENCE_LINE_RE.match(line)
+    if match is None:
+        return None
+
+    fence = match.group(1)
+    return fence[0], len(fence)
+
+
+def _is_closing_fence(line: str, *, char: str, min_length: int) -> bool:
+    expanded = line.expandtabs(4)
+    stripped = expanded.lstrip(" ")
+    leading_spaces = len(expanded) - len(stripped)
+    if leading_spaces > 3:
+        return False
+
+    run_length = 0
+    while run_length < len(stripped) and stripped[run_length] == char:
+        run_length += 1
+
+    if run_length < min_length:
+        return False
+
+    return stripped[run_length:].strip() == ""
+
+
+def _fenced_block_contents(text: str) -> tuple[str, ...]:
+    blocks: list[str] = []
+    active_fence: tuple[str, int] | None = None
+    current_lines: list[str] = []
+
+    for line in text.splitlines():
+        if active_fence is None:
+            opening = _opening_fence(line)
+            if opening is not None:
+                active_fence = opening
+                current_lines = []
+            continue
+
+        char, min_length = active_fence
+        if _is_closing_fence(line, char=char, min_length=min_length):
+            blocks.append("\n".join(current_lines))
+            active_fence = None
+            current_lines = []
+            continue
+
+        current_lines.append(line)
+
+    return tuple(blocks)
+
+
+def _strip_fenced_code_blocks(text: str) -> str:
+    stripped_lines: list[str] = []
+    active_fence: tuple[str, int] | None = None
+
+    for line in text.splitlines():
+        if active_fence is None:
+            opening = _opening_fence(line)
+            if opening is not None:
+                active_fence = opening
+                stripped_lines.append("")
+                continue
+            stripped_lines.append(line)
+            continue
+
+        char, min_length = active_fence
+        stripped_lines.append("")
+        if _is_closing_fence(line, char=char, min_length=min_length):
+            active_fence = None
+
+    return "\n".join(stripped_lines)
+
+
 def _iter_reference_tokens(text: str) -> tuple[str, ...]:
     tokens: list[str] = []
     tokens.extend(match.group(1) for match in _MARKDOWN_LINK_RE.finditer(text))
     tokens.extend(match.group(1) for match in _INLINE_CODE_RE.finditer(text))
-    for block in _FENCED_CODE_RE.findall(text):
-        for match in _FENCED_TOKEN_RE.finditer(block):
-            token = match.group(0)
-            if token in {".", ".."}:
-                continue
-            tokens.append(token)
-    for block in _TILDE_FENCED_CODE_RE.findall(text):
+    for block in _fenced_block_contents(text):
         for match in _FENCED_TOKEN_RE.finditer(block):
             token = match.group(0)
             if token in {".", ".."}:
@@ -235,8 +302,7 @@ def _iter_html_anchor_attributes(attrs: str) -> tuple[tuple[str, str], ...]:
 
 
 def _extract_explicit_html_anchors(text: str) -> frozenset[str]:
-    sanitized = _FENCED_CODE_RE.sub("\n", text)
-    sanitized = _TILDE_FENCED_CODE_RE.sub("\n", sanitized)
+    sanitized = _strip_fenced_code_blocks(text)
     sanitized = _INLINE_CODE_RE.sub("", sanitized)
     sanitized = _HTML_COMMENT_RE.sub("", sanitized)
     sanitized_lines: list[str] = []
@@ -349,20 +415,15 @@ def _markdown_heading_anchors(text: str) -> _AnchorCatalog:
         if frontmatter_end is not None and index <= frontmatter_end:
             continue
 
-        fence_match = _FENCE_LINE_RE.match(line)
-        if fence_match is not None:
-            fence = fence_match.group(1)
-            fence_char = fence[0]
-            fence_length = len(fence)
-
-            if open_fence is None:
-                open_fence = (fence_char, fence_length)
-            else:
-                open_char, open_length = open_fence
-                if fence_char == open_char and fence_length >= open_length:
-                    open_fence = None
-            continue
-        if open_fence is not None:
+        if open_fence is None:
+            opening = _opening_fence(line)
+            if opening is not None:
+                open_fence = opening
+                continue
+        else:
+            open_char, open_length = open_fence
+            if _is_closing_fence(line, char=open_char, min_length=open_length):
+                open_fence = None
             continue
 
         heading_match = _MARKDOWN_HEADING_RE.match(line)
