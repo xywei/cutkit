@@ -450,7 +450,7 @@ def _markdown_heading_anchors(text: str) -> _AnchorCatalog:
             continue
         if stripped.startswith(("#", ">", "-", "*", "+", "|", "```", "~~~")):
             continue
-        if _SETEXT_HEADING_UNDERLINE_RE.match(lines[index + 1]) is None:
+        if _SETEXT_HEADING_UNDERLINE_RE.match(lines[index + 1].expandtabs(4)) is None:
             continue
 
         _add_heading_anchor(stripped, anchors=heading_anchors, counts=counts)

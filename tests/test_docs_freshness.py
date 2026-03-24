@@ -562,6 +562,22 @@ def test_docs_freshness_ignores_ordered_list_setext_like_sequence(
     assert missing[0].reference == "guide.md#1-not-a-heading"
 
 
+def test_docs_freshness_ignores_tab_indented_setext_underline(tmp_path: Path) -> None:
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir(parents=True, exist_ok=True)
+
+    source = docs_dir / "index.md"
+    source.write_text("See [anchor](guide.md#not-a-heading).\n", encoding="utf-8")
+    (docs_dir / "guide.md").write_text(
+        "not a heading\n\t---\n",
+        encoding="utf-8",
+    )
+
+    missing = find_missing_references(tmp_path, markdown_files=(source,))
+    assert len(missing) == 1
+    assert missing[0].reference == "guide.md#not-a-heading"
+
+
 def test_docs_freshness_allows_heading_after_thematic_break(tmp_path: Path) -> None:
     docs_dir = tmp_path / "docs"
     docs_dir.mkdir(parents=True, exist_ok=True)
