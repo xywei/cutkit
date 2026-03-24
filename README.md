@@ -132,11 +132,20 @@ The default cut-panel corpus includes baseline, seam-adjacent,
 near-degenerate, imported-production, and fuzz-derived panel cases.
 See `docs/cutpanel-corpus.md` for details.
 
+To regenerate minimized fuzz-derived fixtures from the candidate pack:
+
+```bash
+uv run python scripts/minimize_cutpanel_fuzz_cases.py
+```
+
 For per-case JSON failure artifacts with topology diagnostics:
 
 ```bash
 uv run python scripts/run_cutpanel_eval.py --artifact-dir .artifacts/cutpanel
 ```
+
+Artifacts include compact visual diff snapshots that highlight parity-vs-signed
+occupancy disagreements for failing geometry.
 
 ## OpenSpec Workflow
 

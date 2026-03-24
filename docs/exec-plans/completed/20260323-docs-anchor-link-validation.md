@@ -42,3 +42,10 @@ gates early.
 - Anchor normalization can differ across markdown ecosystems.
 - Overly strict parsing could produce false positives for uncommon heading forms.
 - Performance may regress if anchor extraction repeatedly reparses large files.
+
+## Final Outcome
+
+- Status: merged.
+- Delivered via: `https://github.com/xywei/cutkit/pull/13`
+- Follow-ups: expanded renderer-style anchor edge coverage delivered in
+  `docs/exec-plans/completed/20260323-scorecard-open-items-consolidation.md`.

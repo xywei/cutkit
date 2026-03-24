@@ -1,6 +1,8 @@
 """Evaluation harnesses for CUTKIT geometry and integration workflows."""
 
 from cutkit.evals.cutpanel import (
+    case_to_fixture_payload,
+    cases_from_fixture_payload,
     CutPanelCase,
     CutPanelEvaluation,
     CutPanelMetrics,
@@ -9,6 +11,7 @@ from cutkit.evals.cutpanel import (
     export_failure_artifacts,
     fuzz_derived_cases,
     imported_production_cases,
+    minimize_fuzz_cases,
     run_default_eval,
     validate_case,
 )
@@ -60,6 +63,8 @@ from cutkit.evals.poisson_benchmarks import (
 )
 
 __all__ = [
+    "case_to_fixture_payload",
+    "cases_from_fixture_payload",
     "CutPanelCase",
     "CutPanelEvaluation",
     "CutPanelMetrics",
@@ -68,6 +73,7 @@ __all__ = [
     "export_failure_artifacts",
     "fuzz_derived_cases",
     "imported_production_cases",
+    "minimize_fuzz_cases",
     "run_default_eval",
     "validate_case",
     "GeneralFunctionOrderResult",

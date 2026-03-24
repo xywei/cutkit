@@ -196,6 +196,468 @@ def test_docs_freshness_allows_duplicate_heading_anchor_suffixes(
     assert not missing
 
 
+def test_docs_freshness_allows_setext_heading_anchor(tmp_path: Path) -> None:
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir(parents=True, exist_ok=True)
+
+    source = docs_dir / "index.md"
+    source.write_text(
+        "See [setext](guide.md#setext-title).\n",
+        encoding="utf-8",
+    )
+    (docs_dir / "guide.md").write_text(
+        "Setext Title\n------------\n",
+        encoding="utf-8",
+    )
+
+    missing = find_missing_references(tmp_path, markdown_files=(source,))
+    assert not missing
+
+
+def test_docs_freshness_ignores_indented_setext_like_code(tmp_path: Path) -> None:
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir(parents=True, exist_ok=True)
+
+    source = docs_dir / "index.md"
+    source.write_text(
+        "See [bad anchor](guide.md#not-a-heading).\n",
+        encoding="utf-8",
+    )
+    (docs_dir / "guide.md").write_text(
+        "    not a heading\n---\n",
+        encoding="utf-8",
+    )
+
+    missing = find_missing_references(tmp_path, markdown_files=(source,))
+    assert len(missing) == 1
+    assert missing[0].reference == "guide.md#not-a-heading"
+
+
+def test_docs_freshness_ignores_tab_indented_setext_like_code(tmp_path: Path) -> None:
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir(parents=True, exist_ok=True)
+
+    source = docs_dir / "index.md"
+    source.write_text(
+        "See [bad anchor](guide.md#not-a-heading).\n",
+        encoding="utf-8",
+    )
+    (docs_dir / "guide.md").write_text(
+        "\tnot a heading\n---\n",
+        encoding="utf-8",
+    )
+
+    missing = find_missing_references(tmp_path, markdown_files=(source,))
+    assert len(missing) == 1
+    assert missing[0].reference == "guide.md#not-a-heading"
+
+
+def test_docs_freshness_allows_explicit_html_anchor_id(tmp_path: Path) -> None:
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir(parents=True, exist_ok=True)
+
+    source = docs_dir / "index.md"
+    source.write_text(
+        "See [anchor](guide.md#custom-target).\n",
+        encoding="utf-8",
+    )
+    (docs_dir / "guide.md").write_text(
+        '<a id="custom-target"></a>\n',
+        encoding="utf-8",
+    )
+
+    missing = find_missing_references(tmp_path, markdown_files=(source,))
+    assert not missing
+
+
+def test_docs_freshness_allows_explicit_html_anchor_name(tmp_path: Path) -> None:
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir(parents=True, exist_ok=True)
+
+    source = docs_dir / "index.md"
+    source.write_text(
+        "See [anchor](guide.md#legacy-anchor).\n",
+        encoding="utf-8",
+    )
+    (docs_dir / "guide.md").write_text(
+        '<a name="legacy-anchor"></a>\n',
+        encoding="utf-8",
+    )
+
+    missing = find_missing_references(tmp_path, markdown_files=(source,))
+    assert not missing
+
+
+def test_docs_freshness_treats_explicit_html_anchor_as_literal(tmp_path: Path) -> None:
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir(parents=True, exist_ok=True)
+
+    source = docs_dir / "index.md"
+    source.write_text("See [anchor](guide.md#foo-bar).\n", encoding="utf-8")
+    (docs_dir / "guide.md").write_text('<a id="Foo Bar"></a>\n', encoding="utf-8")
+
+    missing = find_missing_references(tmp_path, markdown_files=(source,))
+    assert len(missing) == 1
+    assert missing[0].reference == "guide.md#foo-bar"
+
+
+def test_docs_freshness_allows_multiline_explicit_html_anchor(tmp_path: Path) -> None:
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir(parents=True, exist_ok=True)
+
+    source = docs_dir / "index.md"
+    source.write_text("See [anchor](guide.md#custom-target).\n", encoding="utf-8")
+    (docs_dir / "guide.md").write_text(
+        '<a\n  id="custom-target"\n></a>\n',
+        encoding="utf-8",
+    )
+
+    missing = find_missing_references(tmp_path, markdown_files=(source,))
+    assert not missing
+
+
+def test_docs_freshness_allows_multiline_anchor_with_indented_attr(
+    tmp_path: Path,
+) -> None:
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir(parents=True, exist_ok=True)
+
+    source = docs_dir / "index.md"
+    source.write_text("See [anchor](guide.md#custom-target).\n", encoding="utf-8")
+    (docs_dir / "guide.md").write_text(
+        '<a\n    id="custom-target"\n></a>\n',
+        encoding="utf-8",
+    )
+
+    missing = find_missing_references(tmp_path, markdown_files=(source,))
+    assert not missing
+
+
+def test_docs_freshness_allows_list_indented_html_anchor(tmp_path: Path) -> None:
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir(parents=True, exist_ok=True)
+
+    source = docs_dir / "index.md"
+    source.write_text("See [anchor](guide.md#list-target).\n", encoding="utf-8")
+    (docs_dir / "guide.md").write_text(
+        '- Item\n    <a id="list-target"></a>\n',
+        encoding="utf-8",
+    )
+
+    missing = find_missing_references(tmp_path, markdown_files=(source,))
+    assert not missing
+
+
+def test_docs_freshness_ignores_list_item_code_block_anchor_sample(
+    tmp_path: Path,
+) -> None:
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir(parents=True, exist_ok=True)
+
+    source = docs_dir / "index.md"
+    source.write_text("See [anchor](guide.md#list-target).\n", encoding="utf-8")
+    (docs_dir / "guide.md").write_text(
+        '- Item\n        <a id="list-target"></a>\n',
+        encoding="utf-8",
+    )
+
+    missing = find_missing_references(tmp_path, markdown_files=(source,))
+    assert len(missing) == 1
+    assert missing[0].reference == "guide.md#list-target"
+
+
+def test_docs_freshness_ignores_inline_html_anchor_samples(tmp_path: Path) -> None:
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir(parents=True, exist_ok=True)
+
+    source = docs_dir / "index.md"
+    source.write_text("See [anchor](guide.md#custom-target).\n", encoding="utf-8")
+    (docs_dir / "guide.md").write_text(
+        'Use `<a id="custom-target"></a>` as an example.\n',
+        encoding="utf-8",
+    )
+
+    missing = find_missing_references(tmp_path, markdown_files=(source,))
+    assert len(missing) == 1
+    assert missing[0].reference == "guide.md#custom-target"
+
+
+def test_docs_freshness_ignores_data_id_anchor_like_attributes(tmp_path: Path) -> None:
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir(parents=True, exist_ok=True)
+
+    source = docs_dir / "index.md"
+    source.write_text("See [anchor](guide.md#custom-target).\n", encoding="utf-8")
+    (docs_dir / "guide.md").write_text(
+        '<a data-id="custom-target"></a>\n',
+        encoding="utf-8",
+    )
+
+    missing = find_missing_references(tmp_path, markdown_files=(source,))
+    assert len(missing) == 1
+    assert missing[0].reference == "guide.md#custom-target"
+
+
+def test_docs_freshness_ignores_indented_html_anchor_code_samples(
+    tmp_path: Path,
+) -> None:
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir(parents=True, exist_ok=True)
+
+    source = docs_dir / "index.md"
+    source.write_text("See [anchor](guide.md#custom-target).\n", encoding="utf-8")
+    (docs_dir / "guide.md").write_text(
+        '    <a id="custom-target"></a>\n',
+        encoding="utf-8",
+    )
+
+    missing = find_missing_references(tmp_path, markdown_files=(source,))
+    assert len(missing) == 1
+    assert missing[0].reference == "guide.md#custom-target"
+
+
+def test_docs_freshness_recognizes_id_and_name_on_same_anchor(tmp_path: Path) -> None:
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir(parents=True, exist_ok=True)
+
+    source = docs_dir / "index.md"
+    source.write_text(
+        "See [new](guide.md#new) and [legacy](guide.md#legacy).\n",
+        encoding="utf-8",
+    )
+    (docs_dir / "guide.md").write_text(
+        '<a id="new" name="legacy"></a>\n',
+        encoding="utf-8",
+    )
+
+    missing = find_missing_references(tmp_path, markdown_files=(source,))
+    assert not missing
+
+
+def test_docs_freshness_allows_unquoted_explicit_anchor_attributes(
+    tmp_path: Path,
+) -> None:
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir(parents=True, exist_ok=True)
+
+    source = docs_dir / "index.md"
+    source.write_text(
+        "See [id](guide.md#custom-target) and [name](guide.md#legacy).\n",
+        encoding="utf-8",
+    )
+    (docs_dir / "guide.md").write_text(
+        "<a id=custom-target name=legacy></a>\n",
+        encoding="utf-8",
+    )
+
+    missing = find_missing_references(tmp_path, markdown_files=(source,))
+    assert not missing
+
+
+def test_docs_freshness_allows_explicit_anchor_with_gt_in_quoted_attr(
+    tmp_path: Path,
+) -> None:
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir(parents=True, exist_ok=True)
+
+    source = docs_dir / "index.md"
+    source.write_text("See [anchor](guide.md#target).\n", encoding="utf-8")
+    (docs_dir / "guide.md").write_text(
+        '<a title="1 > 0" id="target"></a>\n',
+        encoding="utf-8",
+    )
+
+    missing = find_missing_references(tmp_path, markdown_files=(source,))
+    assert not missing
+
+
+def test_docs_freshness_ignores_tilde_fenced_html_anchor_samples(
+    tmp_path: Path,
+) -> None:
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir(parents=True, exist_ok=True)
+
+    source = docs_dir / "index.md"
+    source.write_text("See [anchor](guide.md#custom-target).\n", encoding="utf-8")
+    (docs_dir / "guide.md").write_text(
+        '~~~html\n<a id="custom-target"></a>\n~~~\n',
+        encoding="utf-8",
+    )
+
+    missing = find_missing_references(tmp_path, markdown_files=(source,))
+    assert len(missing) == 1
+    assert missing[0].reference == "guide.md#custom-target"
+
+
+def test_docs_freshness_ignores_mismatched_fence_delimiter_inside_code(
+    tmp_path: Path,
+) -> None:
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir(parents=True, exist_ok=True)
+
+    source = docs_dir / "index.md"
+    source.write_text("See [anchor](guide.md#fake).\n", encoding="utf-8")
+    (docs_dir / "guide.md").write_text(
+        "```\ncode\n~~~\n# fake\n```\n",
+        encoding="utf-8",
+    )
+
+    missing = find_missing_references(tmp_path, markdown_files=(source,))
+    assert len(missing) == 1
+    assert missing[0].reference == "guide.md#fake"
+
+
+def test_docs_freshness_ignores_blockquote_indented_code_anchor_sample(
+    tmp_path: Path,
+) -> None:
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir(parents=True, exist_ok=True)
+
+    source = docs_dir / "index.md"
+    source.write_text("See [anchor](guide.md#sample).\n", encoding="utf-8")
+    (docs_dir / "guide.md").write_text(
+        '>     <a id="sample"></a>\n',
+        encoding="utf-8",
+    )
+
+    missing = find_missing_references(tmp_path, markdown_files=(source,))
+    assert len(missing) == 1
+    assert missing[0].reference == "guide.md#sample"
+
+
+def test_docs_freshness_ignores_anchor_after_malformed_fence_closer(
+    tmp_path: Path,
+) -> None:
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir(parents=True, exist_ok=True)
+
+    source = docs_dir / "index.md"
+    source.write_text("See [anchor](guide.md#custom-target).\n", encoding="utf-8")
+    (docs_dir / "guide.md").write_text(
+        '```html\ncode\n``` not-close\n<a id="custom-target"></a>\n```\n',
+        encoding="utf-8",
+    )
+
+    missing = find_missing_references(tmp_path, markdown_files=(source,))
+    assert len(missing) == 1
+    assert missing[0].reference == "guide.md#custom-target"
+
+
+def test_docs_freshness_ignores_setext_heading_inside_html_comment(
+    tmp_path: Path,
+) -> None:
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir(parents=True, exist_ok=True)
+
+    source = docs_dir / "index.md"
+    source.write_text("See [anchor](guide.md#not-a-heading).\n", encoding="utf-8")
+    (docs_dir / "guide.md").write_text(
+        "<!--\nnot a heading\n---\n-->\n",
+        encoding="utf-8",
+    )
+
+    missing = find_missing_references(tmp_path, markdown_files=(source,))
+    assert len(missing) == 1
+    assert missing[0].reference == "guide.md#not-a-heading"
+
+
+def test_docs_freshness_ignores_name_substring_inside_other_attribute_value(
+    tmp_path: Path,
+) -> None:
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir(parents=True, exist_ok=True)
+
+    source = docs_dir / "index.md"
+    source.write_text("See [anchor](guide.md#custom-target).\n", encoding="utf-8")
+    (docs_dir / "guide.md").write_text(
+        '<a title="x name=custom-target"></a>\n',
+        encoding="utf-8",
+    )
+
+    missing = find_missing_references(tmp_path, markdown_files=(source,))
+    assert len(missing) == 1
+    assert missing[0].reference == "guide.md#custom-target"
+
+
+def test_docs_freshness_ignores_ordered_list_setext_like_sequence(
+    tmp_path: Path,
+) -> None:
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir(parents=True, exist_ok=True)
+
+    source = docs_dir / "index.md"
+    source.write_text("See [anchor](guide.md#1-not-a-heading).\n", encoding="utf-8")
+    (docs_dir / "guide.md").write_text(
+        "1. not a heading\n---\n",
+        encoding="utf-8",
+    )
+
+    missing = find_missing_references(tmp_path, markdown_files=(source,))
+    assert len(missing) == 1
+    assert missing[0].reference == "guide.md#1-not-a-heading"
+
+
+def test_docs_freshness_ignores_tab_indented_setext_underline(tmp_path: Path) -> None:
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir(parents=True, exist_ok=True)
+
+    source = docs_dir / "index.md"
+    source.write_text("See [anchor](guide.md#not-a-heading).\n", encoding="utf-8")
+    (docs_dir / "guide.md").write_text(
+        "not a heading\n\t---\n",
+        encoding="utf-8",
+    )
+
+    missing = find_missing_references(tmp_path, markdown_files=(source,))
+    assert len(missing) == 1
+    assert missing[0].reference == "guide.md#not-a-heading"
+
+
+def test_docs_freshness_allows_heading_after_thematic_break(tmp_path: Path) -> None:
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir(parents=True, exist_ok=True)
+
+    source = docs_dir / "index.md"
+    source.write_text("See [anchor](guide.md#real-heading).\n", encoding="utf-8")
+    (docs_dir / "guide.md").write_text(
+        "---\n# Real Heading\n",
+        encoding="utf-8",
+    )
+
+    missing = find_missing_references(tmp_path, markdown_files=(source,))
+    assert not missing
+
+
+def test_docs_freshness_allows_frontmatter_closed_with_ellipsis(tmp_path: Path) -> None:
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir(parents=True, exist_ok=True)
+
+    source = docs_dir / "index.md"
+    source.write_text("See [anchor](guide.md#real-heading).\n", encoding="utf-8")
+    (docs_dir / "guide.md").write_text(
+        "---\ntitle: Sample\n...\n# Real Heading\n",
+        encoding="utf-8",
+    )
+
+    missing = find_missing_references(tmp_path, markdown_files=(source,))
+    assert not missing
+
+
+def test_docs_freshness_ignores_thematic_break_as_frontmatter(tmp_path: Path) -> None:
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir(parents=True, exist_ok=True)
+
+    source = docs_dir / "index.md"
+    source.write_text("See [anchor](guide.md#real-heading).\n", encoding="utf-8")
+    (docs_dir / "guide.md").write_text(
+        "---\n# Real Heading\n---\n",
+        encoding="utf-8",
+    )
+
+    missing = find_missing_references(tmp_path, markdown_files=(source,))
+    assert not missing
+
+
 def test_repository_docs_cross_references_are_fresh() -> None:
     repo_root = Path(__file__).resolve().parents[1]
     missing = find_missing_references(repo_root)

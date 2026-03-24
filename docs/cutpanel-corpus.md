@@ -17,6 +17,8 @@
   `src/cutkit/evals/fixtures/cutpanel-production-imported.json`).
 - Fuzz-derived deterministic edge cases (from
   `src/cutkit/evals/fixtures/cutpanel-fuzz-derived.json`).
+- Fuzz candidate pack used for deterministic minimization workflow (from
+  `src/cutkit/evals/fixtures/cutpanel-fuzz-candidates.json`).
 
 ## Why These Cases
 
@@ -26,7 +28,19 @@
 - Stress geometry: seam-adjacent and near-degenerate dimensions that are prone
   to regression.
 - Production-style shape mix: multi-hole and corridor-like fixtures.
-- Fuzz-style edge behavior: slim slots and jittered multi-hole placements.
+- Fuzz-style edge behavior: slim slots, seam-adjacent holes, and expanded
+  multi-pocket configurations.
+
+## Deterministic Fuzz Minimization
+
+Regenerate the checked-in fuzz-derived fixture from the candidate pack:
+
+```bash
+uv run python scripts/minimize_cutpanel_fuzz_cases.py
+```
+
+The minimizer deduplicates by canonical geometry signature, ranks complexity
+deterministically, and emits a bounded selected subset.
 
 ## Run
 
@@ -39,7 +53,8 @@ and tests.
 
 ## Failure Artifacts
 
-When debugging failures, write per-case JSON artifacts with topology diagnostics:
+When debugging failures, write per-case JSON artifacts with topology diagnostics
+and compact visual diff snapshots:
 
 ```bash
 uv run python scripts/run_cutpanel_eval.py --artifact-dir .artifacts/cutpanel
