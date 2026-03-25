@@ -393,6 +393,12 @@ def _axis_xyz_inputs(
     return orthogonal_a, orthogonal_b, primary
 
 
+def _clamp_unit_interval_bound(value: float | None, *, fallback: float) -> float:
+    if value is None:
+        return fallback
+    return max(0.0, min(1.0, float(value)))
+
+
 def integrate_general_over_cartesian_grid_surface_3d(
     *,
     resolution: int,
@@ -528,6 +534,150 @@ def integrate_general_over_cartesian_grid_surface_3d(
     return total
 
 
+def integrate_general_over_cartesian_grid_bounded_surface_3d(
+    *,
+    resolution: int,
+    order: int,
+    axis: Axis3D,
+    lower_surface_from_orthogonal: Callable[[float, float], float | None],
+    upper_surface_from_orthogonal: Callable[[float, float], float | None],
+    integrand: Callable[[Any, Any, Any], Any],
+) -> float:
+    """Integrate over Cartesian cut-cells between two axis-aligned graph surfaces.
+
+    ``axis`` selects the graph direction:
+    - ``x`` uses ``x in [s_min(y, z), s_max(y, z)]``
+    - ``y`` uses ``y in [s_min(x, z), s_max(x, z)]``
+    - ``z`` uses ``z in [s_min(x, y), s_max(x, y)]``
+
+    Returning ``None`` from a bound callback means no bound on that side inside the
+    unit cube (``0`` for lower, ``1`` for upper).
+    """
+
+    if resolution < 1:
+        raise ValueError("resolution must be positive")
+    if axis not in {"x", "y", "z"}:
+        raise ValueError(f"unsupported axis: {axis!r}")
+
+    nodes, weights = gauss_legendre_01(order)
+    h = 1.0 / resolution
+
+    if _np is not None:
+        nodes_arr = _np.asarray(nodes, dtype=float)
+        weights_arr = _np.asarray(weights, dtype=float)
+        starts = _np.arange(resolution, dtype=float) * h
+    else:
+        nodes_arr = nodes
+        weights_arr = weights
+        starts = tuple(index * h for index in range(resolution))
+
+    total = 0.0
+    for ia in range(resolution):
+        a0 = ia * h
+        a_nodes = tuple(a0 + float(node) * h for node in nodes_arr)
+        a_weights = tuple(float(weight) * h for weight in weights_arr)
+
+        for ib in range(resolution):
+            b0 = ib * h
+            b_nodes = tuple(b0 + float(node) * h for node in nodes_arr)
+            b_weights = tuple(float(weight) * h for weight in weights_arr)
+
+            for ja, orthogonal_a in enumerate(a_nodes):
+                wa = a_weights[ja]
+                for jb, orthogonal_b in enumerate(b_nodes):
+                    wb = b_weights[jb]
+                    orthogonal_weight = wa * wb
+
+                    lower_raw = lower_surface_from_orthogonal(
+                        orthogonal_a, orthogonal_b
+                    )
+                    upper_raw = upper_surface_from_orthogonal(
+                        orthogonal_a, orthogonal_b
+                    )
+                    lower = _clamp_unit_interval_bound(lower_raw, fallback=0.0)
+                    upper = _clamp_unit_interval_bound(upper_raw, fallback=1.0)
+                    if upper <= lower:
+                        continue
+
+                    if _np is not None:
+                        starts_np = cast(Any, starts)
+                        nodes_np = cast(Any, nodes_arr)
+                        weights_np = cast(Any, weights_arr)
+
+                        left = _np.maximum(starts_np, lower)
+                        right = _np.minimum(starts_np + h, upper)
+                        widths = right - left
+                        valid = widths > 0.0
+                        if not _np.any(valid):
+                            continue
+
+                        left = left[valid]
+                        widths = widths[valid]
+                        left_np = cast(Any, left)
+                        widths_np = cast(Any, widths)
+                        primary_samples = (
+                            left_np[None, :] + nodes_np[:, None] * widths_np[None, :]
+                        )
+
+                        x_values, y_values, z_values = _axis_xyz_inputs(
+                            axis,
+                            primary_samples,
+                            orthogonal_a,
+                            orthogonal_b,
+                        )
+                        try:
+                            vals = integrand(x_values, y_values, z_values)
+                            primary_integrals = _np.sum(
+                                vals * (weights_np[:, None] * widths_np[None, :]),
+                                axis=0,
+                            )
+                            total += orthogonal_weight * float(
+                                _np.sum(primary_integrals)
+                            )
+                        except (TypeError, ValueError):
+                            for interval in range(primary_samples.shape[1]):
+                                width = float(widths_np[interval])
+                                for q, node in enumerate(nodes_np):
+                                    primary = float(left_np[interval] + node * width)
+                                    w_primary = float(weights_np[q]) * width
+                                    x, y, z = _axis_xyz_inputs(
+                                        axis,
+                                        primary,
+                                        orthogonal_a,
+                                        orthogonal_b,
+                                    )
+                                    total += (
+                                        orthogonal_weight
+                                        * w_primary
+                                        * float(integrand(x, y, z))
+                                    )
+                    else:
+                        for coord0 in starts:
+                            coord1 = coord0 + h
+                            left = coord0 if coord0 >= lower else lower
+                            right = coord1 if coord1 <= upper else upper
+                            if left >= right:
+                                continue
+
+                            width = right - left
+                            for q, node in enumerate(nodes_arr):
+                                primary = left + float(node) * width
+                                w_primary = float(weights_arr[q]) * width
+                                x, y, z = _axis_xyz_inputs(
+                                    axis,
+                                    primary,
+                                    orthogonal_a,
+                                    orthogonal_b,
+                                )
+                                total += (
+                                    orthogonal_weight
+                                    * w_primary
+                                    * float(integrand(x, y, z))
+                                )
+
+    return total
+
+
 def integrate_general_over_cartesian_grid_xsurface_3d(
     *,
     resolution: int,
@@ -578,5 +728,65 @@ def integrate_general_over_cartesian_grid_zsurface_3d(
         order=order,
         axis="z",
         surface_from_orthogonal=z_surface_from_xy,
+        integrand=integrand,
+    )
+
+
+def integrate_general_over_cartesian_grid_bounded_xsurface_3d(
+    *,
+    resolution: int,
+    order: int,
+    lower_x_surface_from_yz: Callable[[float, float], float | None],
+    upper_x_surface_from_yz: Callable[[float, float], float | None],
+    integrand: Callable[[Any, Any, Any], Any],
+) -> float:
+    """Integrate over Cartesian cells between ``x = x_min(y, z)`` and ``x_max``."""
+
+    return integrate_general_over_cartesian_grid_bounded_surface_3d(
+        resolution=resolution,
+        order=order,
+        axis="x",
+        lower_surface_from_orthogonal=lower_x_surface_from_yz,
+        upper_surface_from_orthogonal=upper_x_surface_from_yz,
+        integrand=integrand,
+    )
+
+
+def integrate_general_over_cartesian_grid_bounded_ysurface_3d(
+    *,
+    resolution: int,
+    order: int,
+    lower_y_surface_from_xz: Callable[[float, float], float | None],
+    upper_y_surface_from_xz: Callable[[float, float], float | None],
+    integrand: Callable[[Any, Any, Any], Any],
+) -> float:
+    """Integrate over Cartesian cells between ``y = y_min(x, z)`` and ``y_max``."""
+
+    return integrate_general_over_cartesian_grid_bounded_surface_3d(
+        resolution=resolution,
+        order=order,
+        axis="y",
+        lower_surface_from_orthogonal=lower_y_surface_from_xz,
+        upper_surface_from_orthogonal=upper_y_surface_from_xz,
+        integrand=integrand,
+    )
+
+
+def integrate_general_over_cartesian_grid_bounded_zsurface_3d(
+    *,
+    resolution: int,
+    order: int,
+    lower_z_surface_from_xy: Callable[[float, float], float | None],
+    upper_z_surface_from_xy: Callable[[float, float], float | None],
+    integrand: Callable[[Any, Any, Any], Any],
+) -> float:
+    """Integrate over Cartesian cells between ``z = z_min(x, y)`` and ``z_max``."""
+
+    return integrate_general_over_cartesian_grid_bounded_surface_3d(
+        resolution=resolution,
+        order=order,
+        axis="z",
+        lower_surface_from_orthogonal=lower_z_surface_from_xy,
+        upper_surface_from_orthogonal=upper_z_surface_from_xy,
         integrand=integrand,
     )

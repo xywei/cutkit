@@ -8,6 +8,10 @@ from cutkit.quadrature import (
     boundary_quadrature_rule_3d,
     folded_seeds_without_jplus_3d,
     integrate_bernstein_over_boundary_3d,
+    integrate_general_over_cartesian_grid_bounded_surface_3d,
+    integrate_general_over_cartesian_grid_bounded_xsurface_3d,
+    integrate_general_over_cartesian_grid_bounded_ysurface_3d,
+    integrate_general_over_cartesian_grid_bounded_zsurface_3d,
     integrate_general_over_boundary_3d,
     integrate_general_over_cartesian_grid_surface_3d,
     integrate_general_over_cartesian_grid_xsurface_3d,
@@ -135,6 +139,78 @@ def test_integrate_general_over_cartesian_grid_surface_rejects_axis() -> None:
             order=4,
             axis="w",  # type: ignore[arg-type]
             surface_from_orthogonal=lambda _a, _b: 0.5,
+            integrand=lambda _x, _y, _z: 1.0,
+        )
+
+
+def test_integrate_general_over_cartesian_grid_bounded_xsurface_3d_slab() -> None:
+    slab = integrate_general_over_cartesian_grid_bounded_xsurface_3d(
+        resolution=6,
+        order=4,
+        lower_x_surface_from_yz=lambda _y, _z: 0.25,
+        upper_x_surface_from_yz=lambda _y, _z: 0.75,
+        integrand=lambda _x, _y, _z: 1.0,
+    )
+    assert slab == pytest.approx(0.5, rel=1.0e-12, abs=1.0e-12)
+
+
+def test_integrate_general_over_cartesian_grid_bounded_surface_axis_slab() -> None:
+    slab_x = integrate_general_over_cartesian_grid_bounded_surface_3d(
+        resolution=8,
+        order=4,
+        axis="x",
+        lower_surface_from_orthogonal=lambda _a, _b: 0.2,
+        upper_surface_from_orthogonal=lambda _a, _b: 0.6,
+        integrand=lambda _x, _y, _z: 1.0,
+    )
+    slab_y = integrate_general_over_cartesian_grid_bounded_ysurface_3d(
+        resolution=8,
+        order=4,
+        lower_y_surface_from_xz=lambda _x, _z: 0.2,
+        upper_y_surface_from_xz=lambda _x, _z: 0.6,
+        integrand=lambda _x, _y, _z: 1.0,
+    )
+    slab_z = integrate_general_over_cartesian_grid_bounded_zsurface_3d(
+        resolution=8,
+        order=4,
+        lower_z_surface_from_xy=lambda _x, _y: 0.2,
+        upper_z_surface_from_xy=lambda _x, _y: 0.6,
+        integrand=lambda _x, _y, _z: 1.0,
+    )
+
+    assert slab_x == pytest.approx(0.4, rel=1.0e-12, abs=1.0e-12)
+    assert slab_y == pytest.approx(0.4, rel=1.0e-12, abs=1.0e-12)
+    assert slab_z == pytest.approx(0.4, rel=1.0e-12, abs=1.0e-12)
+
+
+def test_integrate_general_over_cartesian_grid_bounded_surface_none_bounds() -> None:
+    lower_unbounded = integrate_general_over_cartesian_grid_bounded_xsurface_3d(
+        resolution=6,
+        order=4,
+        lower_x_surface_from_yz=lambda _y, _z: None,
+        upper_x_surface_from_yz=lambda _y, _z: 0.5,
+        integrand=lambda _x, _y, _z: 1.0,
+    )
+    upper_unbounded = integrate_general_over_cartesian_grid_bounded_xsurface_3d(
+        resolution=6,
+        order=4,
+        lower_x_surface_from_yz=lambda _y, _z: 0.5,
+        upper_x_surface_from_yz=lambda _y, _z: None,
+        integrand=lambda _x, _y, _z: 1.0,
+    )
+
+    assert lower_unbounded == pytest.approx(0.5, rel=1.0e-12, abs=1.0e-12)
+    assert upper_unbounded == pytest.approx(0.5, rel=1.0e-12, abs=1.0e-12)
+
+
+def test_integrate_general_over_cartesian_grid_bounded_surface_rejects_axis() -> None:
+    with pytest.raises(ValueError):
+        integrate_general_over_cartesian_grid_bounded_surface_3d(
+            resolution=4,
+            order=4,
+            axis="w",  # type: ignore[arg-type]
+            lower_surface_from_orthogonal=lambda _a, _b: 0.2,
+            upper_surface_from_orthogonal=lambda _a, _b: 0.7,
             integrand=lambda _x, _y, _z: 1.0,
         )
 

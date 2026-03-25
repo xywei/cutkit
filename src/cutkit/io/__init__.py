@@ -11,6 +11,18 @@ from cutkit.io.opencascade2d import (
     opencascade_available,
     opencascade_status,
 )
+from cutkit.io.opencascade3d import (
+    OpenCascade3DStatus,
+    OpenCascade3DUnavailableError,
+    build_axis_aligned_box_solid,
+    clip_solid_with_axis_aligned_box,
+    clip_solid_with_axis_aligned_box_to_oriented_boundary,
+    opencascade3d_available,
+    opencascade3d_status,
+    solid_to_boundary_triangulation,
+    solid_to_boundary_triangles,
+    solid_to_oriented_boundary_triangles,
+)
 
 __all__ = [
     "OpenCascadeStatus",
@@ -22,4 +34,14 @@ __all__ = [
     "intersect_face_with_rectangle",
     "opencascade_available",
     "opencascade_status",
+    "OpenCascade3DStatus",
+    "OpenCascade3DUnavailableError",
+    "build_axis_aligned_box_solid",
+    "clip_solid_with_axis_aligned_box",
+    "clip_solid_with_axis_aligned_box_to_oriented_boundary",
+    "opencascade3d_available",
+    "opencascade3d_status",
+    "solid_to_boundary_triangulation",
+    "solid_to_boundary_triangles",
+    "solid_to_oriented_boundary_triangles",
 ]

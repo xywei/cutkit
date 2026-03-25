@@ -31,11 +31,13 @@ Current 2D scope is CAD-native first, with a polygonized MVP fallback:
 - folded decomposition on line and curved CAD edges
 - OpenCascade-backed exact cell clipping for Section 6 reproductions
 - area and low-order moment diagnostics
+- axis-general Cartesian 3D graph-surface integration, including bounded slabs
+  between paired trim surfaces
+- CAD-native 3D solid ingestion and axis-aligned clipping adapters for folded
+  boundary-triangulation workflows
 
 Current limitations:
 
-- 3D folded decomposition is currently centered on Section 6.1.3-style
-  boundary-driven workflows; broader 3D clipping/geometry coverage remains follow-up work
 - singular/near-singular kernel quadrature (including QBFEM-style workflows)
   is intentionally deferred; current Antolin Section 6 reproductions target
   regular integration behavior

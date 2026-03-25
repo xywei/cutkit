@@ -266,11 +266,6 @@ def build_section_6_1_3_boundary_triangles(
         raise ValueError("surface_resolution must be >= 2")
     if side_resolution < 1:
         raise ValueError("side_resolution must be >= 1")
-    if side_resolution != 1:
-        raise ValueError(
-            "side_resolution must be 1; higher values create non-conforming "
-            "side-face refinements"
-        )
 
     # Curved face (r=0) and opposite planar face (x=1)
     curved = _triangulate_grid(
