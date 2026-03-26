@@ -5,6 +5,7 @@ from __future__ import annotations
 import importlib
 from dataclasses import dataclass
 from functools import lru_cache
+from pathlib import Path
 from typing import Any
 
 from cutkit.geometry import BoundaryTriangulation3D, Point3D, Triangle3D
@@ -39,6 +40,7 @@ def _ocp_modules_3d() -> dict[str, Any]:
         "TopoDS": _import_module("OCP.TopoDS"),
         "TopLoc": _import_module("OCP.TopLoc"),
         "BRep": _import_module("OCP.BRep"),
+        "BRepTools": _import_module("OCP.BRepTools"),
         "BRepAlgoAPI": _import_module("OCP.BRepAlgoAPI"),
         "BRepMesh": _import_module("OCP.BRepMesh"),
         "BRepPrimAPI": _import_module("OCP.BRepPrimAPI"),
@@ -79,6 +81,102 @@ def _shape_faces(shape: Any, mods: dict[str, Any]) -> tuple[Any, ...]:
         faces.append(_topods_cast(mods, explorer.Current(), "Face"))
         explorer.Next()
     return tuple(faces)
+
+
+def _shape_solids(shape: Any, mods: dict[str, Any]) -> tuple[Any, ...]:
+    solids: list[Any] = []
+    explorer = mods["TopExp"].TopExp_Explorer(shape, mods["TopAbs"].TopAbs_SOLID)
+    while explorer.More():
+        solids.append(_topods_cast(mods, explorer.Current(), "Solid"))
+        explorer.Next()
+    return tuple(solids)
+
+
+def _brep_tools_api(mods: dict[str, Any]) -> Any:
+    btools = mods["BRepTools"]
+    btools_class = getattr(btools, "BRepTools", None)
+    if btools_class is not None:
+        return btools_class
+    return btools
+
+
+def _read_shape_from_brep(mods: dict[str, Any], brep_path: Path) -> Any:
+    if not brep_path.exists():
+        raise FileNotFoundError(brep_path)
+
+    shape_cls = getattr(mods["TopoDS"], "TopoDS_Shape", None)
+    builder_cls = getattr(mods["BRep"], "BRep_Builder", None)
+    if shape_cls is None or builder_cls is None:
+        raise RuntimeError("OpenCascade BREP read API unavailable")
+
+    shape = shape_cls()
+    builder = builder_cls()
+    btools = _brep_tools_api(mods)
+    reader = getattr(btools, "Read_s", None)
+    if not callable(reader):
+        reader = getattr(btools, "Read", None)
+    if not callable(reader):
+        raise RuntimeError("OpenCascade BREP read API unavailable")
+
+    read_result = reader(shape, str(brep_path), builder)
+    if isinstance(read_result, bool) and not read_result:
+        raise ValueError(f"failed to read BREP shape from {brep_path}")
+
+    is_null = getattr(shape, "IsNull", None)
+    if callable(is_null) and is_null():
+        raise ValueError(f"BREP shape is null: {brep_path}")
+    return shape
+
+
+def _write_shape_to_brep(mods: dict[str, Any], shape: Any, brep_path: Path) -> None:
+    brep_path.parent.mkdir(parents=True, exist_ok=True)
+
+    btools = _brep_tools_api(mods)
+    writer = getattr(btools, "Write_s", None)
+    if not callable(writer):
+        writer = getattr(btools, "Write", None)
+    if not callable(writer):
+        raise RuntimeError("OpenCascade BREP write API unavailable")
+
+    write_result = writer(shape, str(brep_path))
+    if isinstance(write_result, bool) and not write_result:
+        raise ValueError(f"failed to write BREP shape to {brep_path}")
+
+
+def load_brep_shape_3d(brep_path: str | Path) -> Any:
+    """Load one OpenCascade shape from a BREP file path."""
+
+    mods = _ocp_modules_3d()
+    return _read_shape_from_brep(mods, Path(brep_path))
+
+
+def load_brep_solids(brep_path: str | Path) -> tuple[Any, ...]:
+    """Load all solids from one BREP file."""
+
+    mods = _ocp_modules_3d()
+    shape = _read_shape_from_brep(mods, Path(brep_path))
+    solids = _shape_solids(shape, mods)
+    if not solids:
+        raise ValueError("BREP shape has no solids")
+    return solids
+
+
+def load_brep_solid(brep_path: str | Path) -> Any:
+    """Load one solid from BREP and enforce single-solid topology."""
+
+    solids = load_brep_solids(brep_path)
+    if len(solids) != 1:
+        raise ValueError(f"expected exactly one solid in BREP, got {len(solids)}")
+    return solids[0]
+
+
+def write_brep_shape_3d(shape: Any, *, brep_path: str | Path) -> Path:
+    """Write one OpenCascade shape to a BREP file path."""
+
+    mods = _ocp_modules_3d()
+    path = Path(brep_path)
+    _write_shape_to_brep(mods, shape, path)
+    return path
 
 
 def _run_incremental_mesh(

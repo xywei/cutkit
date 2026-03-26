@@ -3,6 +3,15 @@
 This repository includes Poisson-oriented benchmark runners over trimmed planar
 and trimmed volume domains.
 
+For the immersed Galerkin solve workflow (assembly + linear solve), see
+`docs/poisson-galerkin-solver.md`.
+
+For paper-style convergence plot generation from solver benchmarks, use
+`scripts/plot_poisson_galerkin_benchmark.py`.
+
+For geometry + solution + convergence figure packs, use
+`scripts/plot_poisson_galerkin_figure_pack.py`.
+
 ## Entry Point
 
 ```bash

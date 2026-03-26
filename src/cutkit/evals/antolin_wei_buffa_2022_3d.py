@@ -8,7 +8,7 @@ Source and credit:
 - arXiv: https://arxiv.org/abs/2109.03734
 
 This module targets the 3D geometry from Section 6.1.3 (single parent cell)
-and provides CUTKIT-adapted polynomial and general-function experiments.
+and provides paper-parity polynomial and general-function experiments.
 """
 
 from __future__ import annotations
@@ -141,6 +141,9 @@ _Y_MAX = max(pt[1] for row in _CONTROL_NET for pt in row)
 _Z_MIN = min(pt[2] for row in _CONTROL_NET for pt in row)
 _Z_MAX = max(pt[2] for row in _CONTROL_NET for pt in row)
 
+_PROJECTION_STRICT_TOL_SQ = (1.0e-12) ** 2
+_PROJECTION_ACCEPT_TOL_SQ = (5.0e-8) ** 2
+
 
 @lru_cache(maxsize=8)
 def _projection_seed_samples(
@@ -156,6 +159,85 @@ def _projection_seed_samples(
     return tuple(samples)
 
 
+def _newton_project_x_from_yz(
+    y_target: float,
+    z_target: float,
+    *,
+    u0: float,
+    v0: float,
+    max_iterations: int = 35,
+) -> tuple[float, float]:
+    """Return best x candidate and residual from one projected Newton solve."""
+
+    u = u0
+    v = v0
+    best_x = 0.0
+    best_res_sq = float("inf")
+
+    for _ in range(max_iterations):
+        x, y, z, dy_du, dy_dv, dz_du, dz_dv = _eval_surface_with_yz_partials(u, v)
+        fy = y - y_target
+        fz = z - z_target
+        res_sq = fy * fy + fz * fz
+        if res_sq < best_res_sq:
+            best_res_sq = res_sq
+            best_x = x
+
+        if res_sq <= _PROJECTION_STRICT_TOL_SQ:
+            break
+
+        det = dy_du * dz_dv - dy_dv * dz_du
+        if abs(det) <= 1.0e-14:
+            break
+
+        du = (fy * dz_dv - fz * dy_dv) / det
+        dv = (-fy * dz_du + fz * dy_du) / det
+
+        u -= du
+        v -= dv
+        if u < 0.0:
+            u = 0.0
+        elif u > 1.0:
+            u = 1.0
+        if v < 0.0:
+            v = 0.0
+        elif v > 1.0:
+            v = 1.0
+
+    return best_x, best_res_sq
+
+
+def _x_surface_candidates_from_yz(
+    y_target: float,
+    z_target: float,
+) -> tuple[float, ...]:
+    """Return converged x candidates for one (y, z) projection sample."""
+
+    seeds = _projection_seed_samples()
+    nearest = sorted(
+        seeds,
+        key=lambda item: (item[0] - y_target) ** 2 + (item[1] - z_target) ** 2,
+    )[:6]
+
+    candidates: list[float] = []
+    for _, _, u0, v0 in nearest:
+        x, res_sq = _newton_project_x_from_yz(
+            y_target,
+            z_target,
+            u0=u0,
+            v0=v0,
+        )
+        if res_sq > _PROJECTION_ACCEPT_TOL_SQ:
+            continue
+
+        x_val = float(x)
+        if any(abs(existing - x_val) <= 1.0e-8 for existing in candidates):
+            continue
+        candidates.append(x_val)
+
+    return tuple(candidates)
+
+
 @lru_cache(maxsize=200000)
 def _x_surface_from_yz(y_target: float, z_target: float) -> float | None:
     """Solve for x_s(y,z) on the curved face; return None if outside projection."""
@@ -165,51 +247,12 @@ def _x_surface_from_yz(y_target: float, z_target: float) -> float | None:
     if z_target < _Z_MIN - 1.0e-10 or z_target > _Z_MAX + 1.0e-10:
         return None
 
-    seeds = _projection_seed_samples()
-    nearest = sorted(
-        seeds,
-        key=lambda item: (item[0] - y_target) ** 2 + (item[1] - z_target) ** 2,
-    )[:6]
+    candidates = _x_surface_candidates_from_yz(y_target, z_target)
+    if not candidates:
+        return None
 
-    best_x: float | None = None
-    best_res_sq = float("inf")
-
-    for _, _, u0, v0 in nearest:
-        u = u0
-        v = v0
-        for _ in range(30):
-            x, y, z, dy_du, dy_dv, dz_du, dz_dv = _eval_surface_with_yz_partials(u, v)
-            fy = y - y_target
-            fz = z - z_target
-            res_sq = fy * fy + fz * fz
-            if res_sq < best_res_sq:
-                best_res_sq = res_sq
-                best_x = x
-
-            if res_sq <= (1.0e-12) ** 2:
-                return x
-
-            det = dy_du * dz_dv - dy_dv * dz_du
-            if abs(det) <= 1.0e-14:
-                break
-
-            du = (fy * dz_dv - fz * dy_dv) / det
-            dv = (-fy * dz_du + fz * dy_du) / det
-
-            u -= du
-            v -= dv
-            if u < 0.0:
-                u = 0.0
-            elif u > 1.0:
-                u = 1.0
-            if v < 0.0:
-                v = 0.0
-            elif v > 1.0:
-                v = 1.0
-
-    if best_x is not None and best_res_sq <= (5.0e-8) ** 2:
-        return best_x
-    return None
+    # Lower-envelope selection resolves folded multi-branch projections.
+    return min(candidates)
 
 
 def _x1_face_point(u: float, v: float) -> Point3D:
@@ -551,7 +594,7 @@ def _integrate_general_over_cartesian_grid_3d(
 ) -> float:
     """Integrate the 3D Section 6.2 integrand over Cartesian cut-cells.
 
-    CUTKIT-adapted protocol: the curved boundary is queried via the Section 6.1.3
+    Paper-parity protocol: the curved boundary is queried via the Section 6.1.3
     bi-quadratic surface projection ``x = x_s(y, z)`` and each Cartesian cell is
     integrated elementwise.
     """

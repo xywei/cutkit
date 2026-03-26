@@ -21,6 +21,7 @@ Repository-local documentation is the system of record for CUTKIT.
 - `docs/folded-decomposition-followups.md`: tracked post-MVP folded-decomposition extensions
 - `docs/antolin-parity-fixtures.md`: Section 6 parity fixture and update workflow
 - `docs/poisson-benchmarks.md`: Poisson-oriented benchmark usage and profiles
+- `docs/poisson-galerkin-solver.md`: immersed Poisson Galerkin solve + validation workflow
 - `scripts/check_docs_freshness.py`: stale docs path + markdown-anchor checker
 - `scripts/minimize_cutpanel_fuzz_cases.py`: deterministic fuzz-candidate minimizer
 - `docs/entire-transcript-policy.md`: Entire transcript handling policy
