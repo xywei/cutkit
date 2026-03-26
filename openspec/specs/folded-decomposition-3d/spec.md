@@ -1,5 +1,8 @@
-## MODIFIED Requirements
+# folded-decomposition-3d Specification
 
+## Purpose
+TBD - created by archiving change 2026-03-24-3d-bounded-surface-refinement. Update Purpose after archive.
+## Requirements
 ### Requirement: 3D Boundary Orientation Normalization
 The system SHALL build a closed, consistently outward-oriented boundary
 triangulation for a curved trimmed volume before folded quadrature is assembled.
@@ -14,3 +17,4 @@ triangulation for a curved trimmed volume before folded quadrature is assembled.
 - **WHEN** signed domain volume is reconstructed from two valid seeds on a
   side-refined Section 6.1.3 boundary triangulation
 - **THEN** both reconstructions match within tolerance and remain positive
+

@@ -48,7 +48,9 @@ This note describes how to generate and review Section 6 parity fixtures.
    dependency change, tolerance policy update, etc).
 
 4. CAD fixtures require OpenCascade (`uv sync --extra cad`) and system GL.
-   When CAD is unavailable, CAD fixture comparison is reported as skipped.
+   Current CAD fixtures are numeric full-scope baselines generated on a
+   CAD-capable host. When CAD is unavailable, CAD fixture comparison is
+   reported as skipped.
 
 ## CAD-Unavailable Behavior
 

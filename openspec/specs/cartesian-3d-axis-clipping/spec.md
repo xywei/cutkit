@@ -1,5 +1,8 @@
-## MODIFIED Requirements
+# cartesian-3d-axis-clipping Specification
 
+## Purpose
+TBD - created by archiving change 2026-03-24-3d-bounded-surface-refinement. Update Purpose after archive.
+## Requirements
 ### Requirement: Cartesian graph-surface integration supports x/y/z axes
 The quadrature layer SHALL integrate Cartesian graph-surface trim domains for
 x-, y-, and z-aligned surfaces with consistent semantics.
@@ -18,3 +21,4 @@ x-, y-, and z-aligned surfaces with consistent semantics.
 - **WHEN** either lower or upper bounded-surface callback returns `None`
 - **THEN** that side defaults to `0` (lower) or `1` (upper) for bounded
   integration semantics
+

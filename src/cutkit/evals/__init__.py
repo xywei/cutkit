@@ -61,6 +61,17 @@ from cutkit.evals.poisson_benchmarks import (
     run_poisson_benchmarks,
     run_volume_poisson_benchmark,
 )
+from cutkit.evals.poisson_galerkin import (
+    PROFILES as GALERKIN_PROFILES,
+    PoissonGalerkinBenchmarkResult,
+    PoissonGalerkinGeometrySnapshot,
+    PoissonGalerkinProfile,
+    PoissonGalerkinResolutionResult,
+    PoissonGalerkinSolveResult,
+    build_poisson_galerkin_geometry_snapshot,
+    run_poisson_galerkin_benchmark,
+    solve_trimmed_poisson_galerkin,
+)
 
 __all__ = [
     "case_to_fixture_payload",
@@ -114,4 +125,13 @@ __all__ = [
     "run_planar_poisson_benchmark",
     "run_poisson_benchmarks",
     "run_volume_poisson_benchmark",
+    "GALERKIN_PROFILES",
+    "PoissonGalerkinBenchmarkResult",
+    "PoissonGalerkinGeometrySnapshot",
+    "PoissonGalerkinProfile",
+    "PoissonGalerkinResolutionResult",
+    "PoissonGalerkinSolveResult",
+    "build_poisson_galerkin_geometry_snapshot",
+    "run_poisson_galerkin_benchmark",
+    "solve_trimmed_poisson_galerkin",
 ]

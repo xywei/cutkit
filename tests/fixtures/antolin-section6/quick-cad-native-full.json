@@ -1,17 +1,265 @@
 {
-  "cad_available": false,
+  "cad_available": true,
   "geometry_mode": "cad-native",
-  "placeholder": true,
+  "numpy_acceleration": true,
   "profile": "quick",
   "requires_cad": true,
   "schema_version": 1,
   "scope": "full",
   "sections": {
     "2d": {
-      "status": "unavailable"
+      "general": {
+        "order_results": [
+          {
+            "folded_abs_error": [
+              0.0017231869977968328,
+              0.0031777949509510517,
+              0.0007577763213829636
+            ],
+            "folded_rel_error": [
+              0.0033485227359162464,
+              0.0061751386570025844,
+              0.0014725222765341445
+            ],
+            "grid_resolutions": [
+              2,
+              4,
+              8
+            ],
+            "h_values": [
+              0.5,
+              0.25,
+              0.125
+            ],
+            "jplus_abs_error": [
+              0.004876313791013609,
+              0.0008688956772199274,
+              0.0007657879060074535
+            ],
+            "jplus_rel_error": [
+              0.009475725860018455,
+              0.0016884510700406927,
+              0.0014880905075503493
+            ],
+            "order": 1
+          },
+          {
+            "folded_abs_error": [
+              0.02350141491094415,
+              0.0004364283024076432,
+              0.0003185094718600734
+            ],
+            "folded_rel_error": [
+              0.04566830080317022,
+              0.0008480740018801053,
+              0.0006189323674631617
+            ],
+            "grid_resolutions": [
+              2,
+              4,
+              8
+            ],
+            "h_values": [
+              0.5,
+              0.25,
+              0.125
+            ],
+            "jplus_abs_error": [
+              0.0017096753266562237,
+              0.00023357438465465563,
+              0.0002164312241720312
+            ],
+            "jplus_rel_error": [
+              0.0033222666545551405,
+              0.0004538852362185568,
+              0.0004205723904769614
+            ],
+            "order": 2
+          }
+        ],
+        "reference_grid_resolution": 16,
+        "reference_order": 24,
+        "reference_value": 0.5146111087477273
+      },
+      "polynomial": {
+        "6.1.1": {
+          "degree_results": [
+            {
+              "degree": 1,
+              "folded_abs_error": [
+                0.0001843589772640051,
+                4.016373949053973e-05
+              ],
+              "folded_reference_scale": 0.0039044463689459114,
+              "folded_rel_error": [
+                0.047217699986945076,
+                0.010286666967686584
+              ],
+              "jplus_abs_error": [
+                0.00016996808235869598,
+                3.664972781425931e-05
+              ],
+              "jplus_reference_scale": 0.0039044463689459114,
+              "jplus_rel_error": [
+                0.04353192906183585,
+                0.009386664420787954
+              ],
+              "orders": [
+                2,
+                4
+              ],
+              "trimmed_cell_count": 11
+            },
+            {
+              "degree": 2,
+              "folded_abs_error": [
+                0.0002199911379512766,
+                2.416989845129675e-05
+              ],
+              "folded_reference_scale": 0.001736098215628081,
+              "folded_rel_error": [
+                0.12671583667960212,
+                0.013921964917493234
+              ],
+              "jplus_abs_error": [
+                0.00013986947537878856,
+                2.1999764564430624e-05
+              ],
+              "jplus_reference_scale": 0.001736098215628081,
+              "jplus_rel_error": [
+                0.080565416241838,
+                0.012671958513863
+              ],
+              "orders": [
+                2,
+                4
+              ],
+              "trimmed_cell_count": 11
+            }
+          ],
+          "grid_resolution": 8,
+          "label": "6.1.1",
+          "reference_order": 24,
+          "seed_grid_size": 5
+        },
+        "6.1.2": {
+          "degree_results": [
+            {
+              "degree": 2,
+              "folded_abs_error": [
+                0.00014924384844556323,
+                1.5910427886203088e-09
+              ],
+              "folded_reference_scale": 0.001736069753751882,
+              "folded_rel_error": [
+                0.08596650458486882,
+                9.164624780668229e-07
+              ],
+              "jplus_abs_error": [
+                0.00013291664322233852,
+                8.643027459096647e-10
+              ],
+              "jplus_reference_scale": 0.001736069753751882,
+              "jplus_rel_error": [
+                0.07656181033918001,
+                4.978502413522207e-07
+              ],
+              "orders": [
+                2,
+                4
+              ],
+              "trimmed_cell_count": 7
+            }
+          ],
+          "grid_resolution": 8,
+          "label": "6.1.2",
+          "reference_order": 24,
+          "seed_grid_size": 5
+        }
+      }
     },
     "3d": {
-      "status": "skipped"
+      "general": {
+        "order_results": [
+          {
+            "folded_abs_error": [
+              0.003004976526749359,
+              0.002975442307658893
+            ],
+            "folded_rel_error": [
+              0.011571938781808996,
+              0.011458204723575565
+            ],
+            "grid_resolutions": [
+              2,
+              4
+            ],
+            "h_values": [
+              0.5,
+              0.25
+            ],
+            "monotone_nonincreasing": true,
+            "monotonicity_violation_indices": [],
+            "order": 2
+          },
+          {
+            "folded_abs_error": [
+              0.0022340553108251004,
+              0.0005950746944772267
+            ],
+            "folded_rel_error": [
+              0.008603179113684852,
+              0.002291587928822622
+            ],
+            "grid_resolutions": [
+              2,
+              4
+            ],
+            "h_values": [
+              0.5,
+              0.25
+            ],
+            "monotone_nonincreasing": true,
+            "monotonicity_violation_indices": [],
+            "order": 3
+          }
+        ],
+        "reference_grid_resolution": 16,
+        "reference_order": 12,
+        "reference_value": 0.25967787968885214
+      },
+      "polynomial": {
+        "degree_results": [
+          {
+            "degree": 3,
+            "folded_best_abs_error": [
+              8.720000077651682e-06,
+              1.5203441769418014e-09
+            ],
+            "folded_worst_abs_error": [
+              0.0003183532637144993,
+              9.18747641273903e-07
+            ],
+            "jplus_abs_error": [
+              2.4604066713724074e-05,
+              1.8894140661751546e-09
+            ],
+            "orders": [
+              3,
+              5
+            ]
+          }
+        ],
+        "domain_volume": 0.33532266666666666,
+        "jplus_seed": [
+          1.0,
+          1.0,
+          0.5
+        ],
+        "reference_order": 7,
+        "seed_grid_size": 3,
+        "surface_resolution": 5
+      }
     }
   }
 }

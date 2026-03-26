@@ -262,6 +262,36 @@ def test_section_6_2_3d_grid_reports_non_monotone_row(
     assert row.monotonicity_violation_indices == (0,)
 
 
+def test_x_surface_from_yz_selects_lower_envelope_candidate(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        awb3d,
+        "_x_surface_candidates_from_yz",
+        lambda _y, _z: (0.72, 0.19, 0.44),
+    )
+    awb3d._x_surface_from_yz.cache_clear()
+
+    y = 0.5 * (awb3d._Y_MIN + awb3d._Y_MAX)
+    z = 0.5 * (awb3d._Z_MIN + awb3d._Z_MAX)
+    assert awb3d._x_surface_from_yz(y, z) == pytest.approx(0.19)
+
+
+def test_x_surface_from_yz_returns_none_without_candidates(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        awb3d,
+        "_x_surface_candidates_from_yz",
+        lambda _y, _z: (),
+    )
+    awb3d._x_surface_from_yz.cache_clear()
+
+    y = 0.5 * (awb3d._Y_MIN + awb3d._Y_MAX)
+    z = 0.5 * (awb3d._Z_MIN + awb3d._Z_MAX)
+    assert awb3d._x_surface_from_yz(y, z) is None
+
+
 def test_section_6_2_3d_grid_rejects_unsorted_resolutions() -> None:
     with pytest.raises(ValueError, match="strictly increasing"):
         run_general_function_experiment_3d_grid(

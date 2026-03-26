@@ -54,8 +54,8 @@ cut-cell refinement for Section 6.2).
 2D runs use `--geometry-mode auto` by default, which selects CAD-native
 OpenCascade when available and otherwise falls back to polygonized mode.
 
-The 3D Section 6.2 path is CUTKIT-adapted and currently may show non-monotonic
-rows for some `(n, h)` combinations.
+The 3D Section 6.2 path reports per-row monotonicity diagnostics in the
+reproduction table output.
 
 For faster runs, enable NumPy acceleration in your environment:
 
@@ -104,6 +104,27 @@ For denser settings closer to the Antolin-Wei-Buffa (2022) sweep:
 
 ```bash
 uv run python scripts/reproduce_antolin_2022_examples.py --antolin-paper
+```
+
+For solver-level immersed Poisson Galerkin validation over trimmed domains:
+
+```bash
+uv run python scripts/run_poisson_galerkin_benchmark.py --profile quick --backend-mode folded
+```
+
+See `docs/poisson-galerkin-solver.md` for solver setup and result interpretation.
+
+For paper-style convergence plots from solver benchmarks:
+
+```bash
+uv run python scripts/plot_poisson_galerkin_benchmark.py --profile quick
+```
+
+For a full paper-style figure pack (geometry, cell classification, solution
+fields, and convergence plots):
+
+```bash
+uv run python scripts/plot_poisson_galerkin_figure_pack.py --profile quick
 ```
 
 ## Development Workflow

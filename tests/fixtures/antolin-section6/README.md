@@ -10,10 +10,10 @@ Naming convention:
 Notes:
 
 - CAD-native fixtures set `requires_cad: true`.
-- In environments without OpenCascade, CAD fixtures should be reported as
-  unavailable rather than hard-failed.
-- Placeholder CAD fixtures set `placeholder: true` and are treated as skipped
-  baselines when no comparable numeric metrics are present.
+- CAD-native fixtures are numeric full-scope baselines generated in a
+  CAD-capable environment.
+- In environments without OpenCascade, CAD fixture comparisons are expected to
+  report as skipped rather than hard-failed.
 
 Current mode/profile coverage:
 

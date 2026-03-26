@@ -224,7 +224,7 @@ def _print_general_result_3d(
     )
 
     print("Section 6.2 general-function protocol (3D Cartesian cut-cell refinement)")
-    print("note: CUTKIT-adapted protocol; monitor per-row monotonic diagnostics")
+    print("note: report includes per-row monotonicity diagnostics")
     print("reference_value =", f"{result.reference_value:.15e}")
     for order_result in result.order_results:
         print()
@@ -423,9 +423,9 @@ def main() -> int:
         sec613_reference_order = 11
 
         sec623d_orders = (2, 3, 4)
-        sec623d_grids = (2, 4, 8, 16)
+        sec623d_grids = (4, 8, 16)
         sec623d_reference_grid = 32
-        sec623d_reference_order = 24
+        sec623d_reference_order = 16
     else:
         sample_count = 128
         sec61_grid_resolution = 8

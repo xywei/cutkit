@@ -58,4 +58,4 @@ CUTKIT:
 - Status: completed; ready for review.
 - Validation: focused 3D tests passed and full `make dev` passed.
 - Spec workflow: OpenSpec change artifacts added under
-  `openspec/changes/2026-03-24-3d-bounded-surface-refinement/`.
+  `openspec/changes/archive/2026-03-25-2026-03-24-3d-bounded-surface-refinement/`.
