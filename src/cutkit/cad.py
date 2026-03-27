@@ -463,6 +463,7 @@ class CadSolid3D:
         angular_deflection: float = 0.5,
         tol: float = 1.0e-12,
         strict: bool = True,
+        validate_boundary: bool = True,
     ) -> CadBatchClip3D:
         """Clip this solid by one or many boxes (object mode or array mode)."""
 
@@ -507,24 +508,25 @@ class CadSolid3D:
                 errors.append(None)
                 continue
 
-            try:
-                if not _has_extractable_boundary(
-                    clipped.solid,
-                    linear_deflection=linear_deflection,
-                    angular_deflection=angular_deflection,
-                    tol=tol,
-                ):
-                    statuses.append("empty")
+            if validate_boundary:
+                try:
+                    if not _has_extractable_boundary(
+                        clipped.solid,
+                        linear_deflection=linear_deflection,
+                        angular_deflection=angular_deflection,
+                        tol=tol,
+                    ):
+                        statuses.append("empty")
+                        clipped_solids.append(None)
+                        errors.append(None)
+                        continue
+                except Exception as exc:
+                    if strict:
+                        raise
+                    statuses.append("backend_error")
                     clipped_solids.append(None)
-                    errors.append(None)
+                    errors.append(str(exc))
                     continue
-            except Exception as exc:
-                if strict:
-                    raise
-                statuses.append("backend_error")
-                clipped_solids.append(None)
-                errors.append(str(exc))
-                continue
 
             statuses.append("ok")
             clipped_solids.append(clipped)
@@ -614,6 +616,7 @@ class CadSolid3D:
             angular_deflection=angular_deflection,
             tol=tol,
             strict=strict,
+            validate_boundary=False,
         )
 
         statuses: list[BatchStatus] = []

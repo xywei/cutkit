@@ -503,6 +503,83 @@ def test_integrate_over_boxes_3d_uses_caller_meshing_tolerances(
     assert first_tol == pytest.approx(1.0e-9)
 
 
+def test_integrate_over_boxes_3d_skips_clip_pretriangulation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    solid = CadSolid3D.from_solid("solid")
+
+    def fake_clip(
+        _solid: object,
+        *,
+        x0: float,
+        x1: float,
+        y0: float,
+        y1: float,
+        z0: float,
+        z1: float,
+    ) -> Any:
+        _ = (x0, x1, y0, y1, z0, z1)
+        return {"non_null": True}
+
+    def fail_if_called(*args: Any, **kwargs: Any) -> bool:
+        _ = (args, kwargs)
+        raise AssertionError("clip pretriangulation should not run")
+
+    def fake_boundary(
+        _shape: Any,
+        *,
+        linear_deflection: float,
+        angular_deflection: float,
+        tol: float,
+    ) -> tuple[
+        tuple[
+            tuple[float, float, float],
+            tuple[float, float, float],
+            tuple[float, float, float],
+        ],
+        ...,
+    ]:
+        _ = (linear_deflection, angular_deflection, tol)
+        return (((0.0, 0.0, 0.0), (0.1, 0.0, 0.0), (0.0, 0.1, 0.0)),)
+
+    def fake_integrate(
+        boundary: tuple[
+            tuple[
+                tuple[float, float, float],
+                tuple[float, float, float],
+                tuple[float, float, float],
+            ],
+            ...,
+        ],
+        *,
+        seed: tuple[float, float, float],
+        order: int,
+        integrand: Any,
+    ) -> float:
+        _ = (boundary, seed, order, integrand)
+        return 2.0
+
+    monkeypatch.setattr(cad, "clip_solid_with_axis_aligned_box", fake_clip)
+    monkeypatch.setattr(cad, "_has_extractable_boundary", fail_if_called)
+    monkeypatch.setattr(cad, "solid_to_oriented_boundary_triangles", fake_boundary)
+    monkeypatch.setattr(cad, "integrate_general_over_boundary_3d", fake_integrate)
+
+    result = solid.integrate_over_boxes(
+        lambda x, y, z: x + y + z,
+        order=5,
+        x0=0.0,
+        x1=0.5,
+        y0=0.0,
+        y1=1.0,
+        z0=0.0,
+        z1=1.0,
+        strict=True,
+    )
+
+    assert result.statuses == ("ok",)
+    assert result.values == (2.0,)
+
+
 def test_cad_session_load_requires_available_backend(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
