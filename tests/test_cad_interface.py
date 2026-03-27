@@ -227,6 +227,47 @@ def test_integrate_over_boxes_3d_non_strict_marks_backend_errors(
     assert result.errors[1] and "simulated clipping failure" in result.errors[1]
 
 
+def test_clip_boxes_3d_marks_empty_when_shape_is_null(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    solid = CadSolid3D.from_solid("solid")
+
+    class NullShape:
+        def IsNull(self) -> bool:  # noqa: N802 - OCC-style API
+            return True
+
+    def fake_clip(
+        _solid: object,
+        *,
+        x0: float,
+        x1: float,
+        y0: float,
+        y1: float,
+        z0: float,
+        z1: float,
+    ) -> Any:
+        _ = (x1, y0, y1, z0, z1)
+        if x0 < 0.5:
+            return {"non_null": True}
+        return NullShape()
+
+    monkeypatch.setattr(cad, "clip_solid_with_axis_aligned_box", fake_clip)
+
+    result = solid.clip_boxes(
+        x0=(0.0, 0.5),
+        x1=(0.4, 0.9),
+        y0=0.0,
+        y1=1.0,
+        z0=0.0,
+        z1=1.0,
+        strict=True,
+    )
+
+    assert result.statuses == ("ok", "empty")
+    assert result.solids[0] is not None
+    assert result.solids[1] is None
+
+
 def test_integrate_over_boxes_3d_object_and_array_modes_match(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

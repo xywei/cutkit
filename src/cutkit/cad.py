@@ -498,6 +498,12 @@ class CadSolid3D:
                 errors.append(str(exc))
                 continue
 
+            if _is_null_shape(clipped.solid):
+                statuses.append("empty")
+                clipped_solids.append(None)
+                errors.append(None)
+                continue
+
             statuses.append("ok")
             clipped_solids.append(clipped)
             errors.append(None)
@@ -997,6 +1003,16 @@ def _is_empty_boundary_error(exc: ValueError) -> bool:
     return (
         "no boundary triangles" in message or "no non-degenerate triangles" in message
     )
+
+
+def _is_null_shape(shape: Any) -> bool:
+    is_null = getattr(shape, "IsNull", None)
+    if not callable(is_null):
+        return False
+    try:
+        return bool(is_null())
+    except Exception:
+        return False
 
 
 __all__ = [
