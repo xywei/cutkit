@@ -212,6 +212,40 @@ def test_clip_boxes_2d_non_strict_keeps_processing_with_numpy(
     assert call_count == 1
 
 
+def test_clip_boxes_2d_non_strict_marks_overflow_without_numpy(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    face = CadFace2D.from_face("face")
+    call_count = 0
+
+    def fake_intersect(
+        _face: object,
+        *,
+        x0: float,
+        x1: float,
+        y0: float,
+        y1: float,
+    ) -> tuple[Any, ...]:
+        nonlocal call_count
+        call_count += 1
+        return ((x0, x1, y0, y1),)
+
+    monkeypatch.setattr(cad, "_np", None)
+    monkeypatch.setattr(cad, "intersect_face_with_rectangle", fake_intersect)
+
+    result = face.clip_boxes(
+        x0=(0.0, 10**10000),
+        x1=(0.5, 1.5),
+        y0=0.0,
+        y1=1.0,
+        strict=False,
+    )
+
+    assert result.statuses == ("ok", "invalid_box")
+    assert result.errors[1]
+    assert call_count == 1
+
+
 def test_clip_boxes_2d_strict_raises_on_invalid_box(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

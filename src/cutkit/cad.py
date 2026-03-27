@@ -284,7 +284,7 @@ class CadFace2D:
         for bounds in normalized.box_bounds:
             try:
                 box = Box2D(*bounds)
-            except (ValueError, TypeError) as exc:
+            except (ValueError, TypeError, OverflowError) as exc:
                 if strict:
                     raise
                 statuses.append("invalid_box")
@@ -484,7 +484,7 @@ class CadSolid3D:
         for bounds in normalized.box_bounds:
             try:
                 box = Box3D(*bounds)
-            except (ValueError, TypeError) as exc:
+            except (ValueError, TypeError, OverflowError) as exc:
                 if strict:
                     raise
                 statuses.append("invalid_box")
