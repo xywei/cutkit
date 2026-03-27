@@ -711,6 +711,13 @@ def _coerce_finite(value: Any, *, name: str) -> float:
     return numeric
 
 
+def _coerce_numeric(value: Any, *, name: str) -> float:
+    try:
+        return float(value)
+    except Exception as exc:
+        raise TypeError(f"{name} must be numeric") from exc
+
+
 def _reshape_flat(values: Sequence[Any], shape: tuple[int, ...]) -> Any:
     if shape == ():
         if not values:
@@ -740,7 +747,7 @@ def _coerce_1d_numeric_sequence(name: str, value: Any) -> tuple[float, ...]:
     for item in value:
         if isinstance(item, Sequence) and not isinstance(item, (str, bytes)):
             raise TypeError(f"{name} without NumPy supports only 1D sequences")
-        out.append(_coerce_finite(item, name=name))
+        out.append(_coerce_numeric(item, name=name))
     if not out:
         raise ValueError(f"{name} sequence must not be empty")
     return tuple(out)
@@ -778,7 +785,7 @@ def _broadcast_coordinate_values(
     for name, value in zip(names, values, strict=True):
         if _is_scalar(value):
             scalar_flags.append(True)
-            normalized.append((_coerce_finite(value, name=name),))
+            normalized.append((_coerce_numeric(value, name=name),))
             continue
         scalar_flags.append(False)
         normalized.append(_coerce_1d_numeric_sequence(name, value))
