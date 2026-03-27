@@ -284,7 +284,7 @@ class CadFace2D:
         for bounds in normalized.box_bounds:
             try:
                 box = Box2D(*bounds)
-            except ValueError as exc:
+            except (ValueError, TypeError) as exc:
                 if strict:
                     raise
                 statuses.append("invalid_box")
@@ -484,7 +484,7 @@ class CadSolid3D:
         for bounds in normalized.box_bounds:
             try:
                 box = Box3D(*bounds)
-            except ValueError as exc:
+            except (ValueError, TypeError) as exc:
                 if strict:
                     raise
                 statuses.append("invalid_box")
@@ -752,12 +752,8 @@ def _broadcast_coordinate_values(
 ) -> tuple[tuple[int, ...], tuple[tuple[Any, ...], ...]]:
     if _np is not None:
         arrays: list[Any] = []
-        for name, value in zip(names, values, strict=True):
-            try:
-                arr = cast(Any, _np).asarray(value, dtype=float)
-            except Exception as exc:
-                raise TypeError(f"{name} must be numeric") from exc
-            arrays.append(arr)
+        for _name, value in zip(names, values, strict=True):
+            arrays.append(cast(Any, _np).asarray(value))
 
         try:
             broadcasted = tuple(cast(Any, _np).broadcast_arrays(*arrays))
@@ -765,10 +761,10 @@ def _broadcast_coordinate_values(
             raise ValueError("box coordinate arrays could not broadcast") from exc
 
         shape = tuple(int(dim) for dim in broadcasted[0].shape)
-        flat_values: list[tuple[float, ...]] = []
+        flat_values: list[tuple[Any, ...]] = []
         for arr in broadcasted:
             flat = cast(Any, arr).ravel(order="C")
-            flat_values.append(tuple(float(item) for item in flat))
+            flat_values.append(tuple(item for item in flat))
         if not flat_values[0]:
             raise ValueError("at least one box is required")
         return shape, tuple(flat_values)
