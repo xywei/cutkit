@@ -459,6 +459,9 @@ class CadSolid3D:
         y1: Any | None = None,
         z0: Any | None = None,
         z1: Any | None = None,
+        linear_deflection: float = 1.0e-3,
+        angular_deflection: float = 0.5,
+        tol: float = 1.0e-12,
         strict: bool = True,
     ) -> CadBatchClip3D:
         """Clip this solid by one or many boxes (object mode or array mode)."""
@@ -505,7 +508,12 @@ class CadSolid3D:
                 continue
 
             try:
-                if not _has_extractable_boundary(clipped.solid):
+                if not _has_extractable_boundary(
+                    clipped.solid,
+                    linear_deflection=linear_deflection,
+                    angular_deflection=angular_deflection,
+                    tol=tol,
+                ):
                     statuses.append("empty")
                     clipped_solids.append(None)
                     errors.append(None)
@@ -602,6 +610,9 @@ class CadSolid3D:
             y1=y1,
             z0=z0,
             z1=z1,
+            linear_deflection=linear_deflection,
+            angular_deflection=angular_deflection,
+            tol=tol,
             strict=strict,
         )
 
@@ -1029,13 +1040,19 @@ def _is_null_shape(shape: Any) -> bool:
         return False
 
 
-def _has_extractable_boundary(shape: Any) -> bool:
+def _has_extractable_boundary(
+    shape: Any,
+    *,
+    linear_deflection: float,
+    angular_deflection: float,
+    tol: float,
+) -> bool:
     try:
         boundary = solid_to_oriented_boundary_triangles(
             shape,
-            linear_deflection=1.0e-3,
-            angular_deflection=0.5,
-            tol=1.0e-12,
+            linear_deflection=linear_deflection,
+            angular_deflection=angular_deflection,
+            tol=tol,
         )
     except ValueError as exc:
         if _is_empty_boundary_error(exc):

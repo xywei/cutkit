@@ -419,6 +419,90 @@ def test_integrate_over_boxes_3d_object_and_array_modes_match(
     assert object_mode.values == array_mode.values
 
 
+def test_integrate_over_boxes_3d_uses_caller_meshing_tolerances(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    solid = CadSolid3D.from_solid("solid")
+    seen_tolerances: list[tuple[float, float, float]] = []
+
+    def fake_clip(
+        _solid: object,
+        *,
+        x0: float,
+        x1: float,
+        y0: float,
+        y1: float,
+        z0: float,
+        z1: float,
+    ) -> Any:
+        _ = (x0, x1, y0, y1, z0, z1)
+        return {"non_null": True}
+
+    def fake_boundary(
+        _shape: Any,
+        *,
+        linear_deflection: float,
+        angular_deflection: float,
+        tol: float,
+    ) -> tuple[
+        tuple[
+            tuple[float, float, float],
+            tuple[float, float, float],
+            tuple[float, float, float],
+        ],
+        ...,
+    ]:
+        seen_tolerances.append((linear_deflection, angular_deflection, tol))
+        if linear_deflection > 5.0e-4:
+            raise ValueError("solid triangulation produced no boundary triangles")
+        return (((0.0, 0.0, 0.0), (0.1, 0.0, 0.0), (0.0, 0.1, 0.0)),)
+
+    def fake_integrate(
+        boundary: tuple[
+            tuple[
+                tuple[float, float, float],
+                tuple[float, float, float],
+                tuple[float, float, float],
+            ],
+            ...,
+        ],
+        *,
+        seed: tuple[float, float, float],
+        order: int,
+        integrand: Any,
+    ) -> float:
+        _ = (boundary, seed, order, integrand)
+        return 1.0
+
+    monkeypatch.setattr(cad, "clip_solid_with_axis_aligned_box", fake_clip)
+    monkeypatch.setattr(cad, "solid_to_oriented_boundary_triangles", fake_boundary)
+    monkeypatch.setattr(cad, "integrate_general_over_boundary_3d", fake_integrate)
+
+    result = solid.integrate_over_boxes(
+        lambda x, y, z: x + y + z,
+        order=5,
+        x0=0.0,
+        x1=0.5,
+        y0=0.0,
+        y1=1.0,
+        z0=0.0,
+        z1=1.0,
+        linear_deflection=1.0e-4,
+        angular_deflection=0.25,
+        tol=1.0e-9,
+        strict=True,
+    )
+
+    assert result.shape == ()
+    assert result.statuses == ("ok",)
+    assert result.values == (1.0,)
+    assert seen_tolerances
+    first_linear, first_angular, first_tol = seen_tolerances[0]
+    assert first_linear == pytest.approx(1.0e-4)
+    assert first_angular == pytest.approx(0.25)
+    assert first_tol == pytest.approx(1.0e-9)
+
+
 def test_cad_session_load_requires_available_backend(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
