@@ -72,6 +72,32 @@ uv sync --extra cad
 Note: OpenCascade wheels may require system OpenGL libraries (for example
 `libGL.so.1`) to be present.
 
+## Consumer CAD Interface
+
+CUTKIT includes a consumer-facing CAD facade (`cutkit.cad`) for loading BREP
+geometry, clipping by one or many axis-aligned boxes, and running folded
+integration with object-or-arrays batch inputs.
+
+```python
+from cutkit.cad import CadSession
+
+cad = CadSession.opencascade()
+solid = cad.load_solid("example-solid.brep")
+batch = solid.integrate_over_boxes(
+    integrand=lambda x, y, z: 1.0,
+    order=5,
+    x0=[0.0, 0.5],
+    x1=[0.5, 1.0],
+    y0=0.0,
+    y1=1.0,
+    z0=0.0,
+    z1=1.0,
+    strict=False,
+)
+```
+
+See `docs/cad-box-batch-interface.md` for API details.
+
 Source and credit for the reproduced Section 6 2D protocols:
 
 - Pablo Antolin, Xiaodong Wei, Annalisa Buffa

@@ -20,6 +20,7 @@ Repository-local documentation is the system of record for CUTKIT.
 - `docs/cutpanel-corpus.md`: default cut-panel regression corpus and intent
 - `docs/folded-decomposition-followups.md`: tracked post-MVP folded-decomposition extensions
 - `docs/antolin-parity-fixtures.md`: Section 6 parity fixture and update workflow
+- `docs/cad-box-batch-interface.md`: consumer-facing CAD object-or-arrays clip/integrate interface
 - `docs/poisson-benchmarks.md`: Poisson-oriented benchmark usage and profiles
 - `docs/poisson-galerkin-solver.md`: immersed Poisson Galerkin solve + validation workflow
 - `scripts/check_docs_freshness.py`: stale docs path + markdown-anchor checker
