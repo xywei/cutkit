@@ -251,7 +251,25 @@ def test_clip_boxes_3d_marks_empty_when_shape_is_null(
             return {"non_null": True}
         return NullShape()
 
+    def fake_boundary(
+        _shape: Any,
+        *,
+        linear_deflection: float,
+        angular_deflection: float,
+        tol: float,
+    ) -> tuple[
+        tuple[
+            tuple[float, float, float],
+            tuple[float, float, float],
+            tuple[float, float, float],
+        ],
+        ...,
+    ]:
+        _ = (linear_deflection, angular_deflection, tol)
+        return (((0.0, 0.0, 0.0), (0.1, 0.0, 0.0), (0.0, 0.1, 0.0)),)
+
     monkeypatch.setattr(cad, "clip_solid_with_axis_aligned_box", fake_clip)
+    monkeypatch.setattr(cad, "solid_to_oriented_boundary_triangles", fake_boundary)
 
     result = solid.clip_boxes(
         x0=(0.0, 0.5),
@@ -266,6 +284,59 @@ def test_clip_boxes_3d_marks_empty_when_shape_is_null(
     assert result.statuses == ("ok", "empty")
     assert result.solids[0] is not None
     assert result.solids[1] is None
+
+
+def test_clip_boxes_3d_marks_empty_when_boundary_not_extractable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    solid = CadSolid3D.from_solid("solid")
+
+    def fake_clip(
+        _solid: object,
+        *,
+        x0: float,
+        x1: float,
+        y0: float,
+        y1: float,
+        z0: float,
+        z1: float,
+    ) -> Any:
+        _ = (x0, x1, y0, y1, z0, z1)
+        return {"non_null": True}
+
+    def fake_boundary(
+        _shape: Any,
+        *,
+        linear_deflection: float,
+        angular_deflection: float,
+        tol: float,
+    ) -> tuple[
+        tuple[
+            tuple[float, float, float],
+            tuple[float, float, float],
+            tuple[float, float, float],
+        ],
+        ...,
+    ]:
+        _ = (linear_deflection, angular_deflection, tol)
+        raise ValueError("solid triangulation produced no boundary triangles")
+
+    monkeypatch.setattr(cad, "clip_solid_with_axis_aligned_box", fake_clip)
+    monkeypatch.setattr(cad, "solid_to_oriented_boundary_triangles", fake_boundary)
+
+    result = solid.clip_boxes(
+        x0=0.0,
+        x1=0.4,
+        y0=0.0,
+        y1=1.0,
+        z0=0.0,
+        z1=1.0,
+        strict=True,
+    )
+
+    assert result.shape == ()
+    assert result.statuses == ("empty",)
+    assert result.solids == (None,)
 
 
 def test_integrate_over_boxes_3d_object_and_array_modes_match(

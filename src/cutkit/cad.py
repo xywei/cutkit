@@ -504,6 +504,20 @@ class CadSolid3D:
                 errors.append(None)
                 continue
 
+            try:
+                if not _has_extractable_boundary(clipped.solid):
+                    statuses.append("empty")
+                    clipped_solids.append(None)
+                    errors.append(None)
+                    continue
+            except Exception as exc:
+                if strict:
+                    raise
+                statuses.append("backend_error")
+                clipped_solids.append(None)
+                errors.append(str(exc))
+                continue
+
             statuses.append("ok")
             clipped_solids.append(clipped)
             errors.append(None)
@@ -1013,6 +1027,21 @@ def _is_null_shape(shape: Any) -> bool:
         return bool(is_null())
     except Exception:
         return False
+
+
+def _has_extractable_boundary(shape: Any) -> bool:
+    try:
+        boundary = solid_to_oriented_boundary_triangles(
+            shape,
+            linear_deflection=1.0e-3,
+            angular_deflection=0.5,
+            tol=1.0e-12,
+        )
+    except ValueError as exc:
+        if _is_empty_boundary_error(exc):
+            return False
+        raise
+    return bool(boundary)
 
 
 __all__ = [
