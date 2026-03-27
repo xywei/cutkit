@@ -711,13 +711,6 @@ def _coerce_finite(value: Any, *, name: str) -> float:
     return numeric
 
 
-def _coerce_numeric(value: Any, *, name: str) -> float:
-    try:
-        return float(value)
-    except Exception as exc:
-        raise TypeError(f"{name} must be numeric") from exc
-
-
 def _reshape_flat(values: Sequence[Any], shape: tuple[int, ...]) -> Any:
     if shape == ():
         if not values:
@@ -735,19 +728,19 @@ def _reshape_flat(values: Sequence[Any], shape: tuple[int, ...]) -> Any:
 
 
 def _is_scalar(value: Any) -> bool:
-    return isinstance(value, (int, float))
+    return isinstance(value, (str, bytes)) or not isinstance(value, Sequence)
 
 
-def _coerce_1d_numeric_sequence(name: str, value: Any) -> tuple[float, ...]:
+def _coerce_1d_sequence(name: str, value: Any) -> tuple[Any, ...]:
     if isinstance(value, (str, bytes)):
         raise TypeError(f"{name} must be numeric scalar or sequence")
     if not isinstance(value, Sequence):
         raise TypeError(f"{name} must be numeric scalar or sequence")
-    out: list[float] = []
+    out: list[Any] = []
     for item in value:
         if isinstance(item, Sequence) and not isinstance(item, (str, bytes)):
             raise TypeError(f"{name} without NumPy supports only 1D sequences")
-        out.append(_coerce_numeric(item, name=name))
+        out.append(item)
     if not out:
         raise ValueError(f"{name} sequence must not be empty")
     return tuple(out)
@@ -756,7 +749,7 @@ def _coerce_1d_numeric_sequence(name: str, value: Any) -> tuple[float, ...]:
 def _broadcast_coordinate_values(
     names: tuple[str, ...],
     values: tuple[Any, ...],
-) -> tuple[tuple[int, ...], tuple[tuple[float, ...], ...]]:
+) -> tuple[tuple[int, ...], tuple[tuple[Any, ...], ...]]:
     if _np is not None:
         arrays: list[Any] = []
         for name, value in zip(names, values, strict=True):
@@ -781,20 +774,20 @@ def _broadcast_coordinate_values(
         return shape, tuple(flat_values)
 
     scalar_flags: list[bool] = []
-    normalized: list[tuple[float, ...]] = []
+    normalized: list[tuple[Any, ...]] = []
     for name, value in zip(names, values, strict=True):
         if _is_scalar(value):
             scalar_flags.append(True)
-            normalized.append((_coerce_numeric(value, name=name),))
+            normalized.append((value,))
             continue
         scalar_flags.append(False)
-        normalized.append(_coerce_1d_numeric_sequence(name, value))
+        normalized.append(_coerce_1d_sequence(name, value))
 
     target_len = max(len(item) for item in normalized)
     if target_len < 1:
         raise ValueError("at least one box is required")
 
-    expanded: list[tuple[float, ...]] = []
+    expanded: list[tuple[Any, ...]] = []
     for name, item in zip(names, normalized, strict=True):
         if len(item) == target_len:
             expanded.append(item)
