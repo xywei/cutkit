@@ -27,3 +27,6 @@ venv/
 .vscode/
 .idea/
 .DS_Store
+
+# Local generated artifacts
+.artifacts/
