@@ -971,6 +971,41 @@ def test_assemble_local_nearfield_operators_and_solve() -> None:
         assembled.as_matrix_free_descriptor(use_numpy=False)
 
 
+def test_assemble_local_nearfield_operators_rejects_mismatched_trace_bounds() -> None:
+    trace = build_local_box_boundary_trace(
+        dim=2,
+        x0=0.0,
+        x1=1.0,
+        y0=0.0,
+        y1=1.0,
+        trace_order=3,
+        farfield_potential=lambda x, y: x - y,
+    )
+    sources = RestrictedSourceBatch(
+        dim=2,
+        shape=trace.shape,
+        source_ptr=(0, 1),
+        source_points=((0.5, 0.5),),
+        source_charges=(1.0,),
+    )
+
+    with pytest.raises(
+        ValueError, match="box bounds must match boundary_trace\\.box_bounds"
+    ):
+        assemble_local_nearfield_operators(
+            dim=2,
+            x0=1.0,
+            x1=2.0,
+            y0=0.0,
+            y1=1.0,
+            restricted_sources=sources,
+            boundary_trace=trace,
+            resolution=2,
+            spline_degree=2,
+            quadrature_order=4,
+        )
+
+
 def test_evaluate_local_nearfield_targets_matches_operator_modes() -> None:
     trace = build_local_box_boundary_trace(
         dim=2,
@@ -1042,6 +1077,57 @@ def test_evaluate_local_nearfield_targets_matches_operator_modes() -> None:
     assert isinstance(assembled_eval, NearfieldTargetEvaluation)
     assert assembled_eval.hit_count == (1, 1, 0)
     assert assembled_eval.values == pytest.approx(matrix_free_eval.values)
+
+
+def test_evaluate_local_nearfield_targets_rejects_mismatched_bounds() -> None:
+    trace = build_local_box_boundary_trace(
+        dim=2,
+        x0=0.0,
+        x1=1.0,
+        y0=0.0,
+        y1=1.0,
+        trace_order=3,
+        farfield_potential=lambda x, y: x + y,
+    )
+    sources = RestrictedSourceBatch(
+        dim=2,
+        shape=trace.shape,
+        source_ptr=(0, 1),
+        source_points=((0.5, 0.5),),
+        source_charges=(1.0,),
+    )
+    operators = assemble_local_nearfield_operators(
+        dim=2,
+        x0=0.0,
+        x1=1.0,
+        y0=0.0,
+        y1=1.0,
+        restricted_sources=sources,
+        boundary_trace=trace,
+        resolution=2,
+        spline_degree=2,
+        quadrature_order=4,
+        operator_mode="assembled",
+    )
+    solve = solve_local_operator_batch(operators)
+    targets = build_nearfield_target_batch(
+        dim=2,
+        x0=1.0,
+        x1=2.0,
+        y0=0.0,
+        y1=1.0,
+        points=((1.25, 0.25),),
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="targets\\.box_bounds must match operators\\.box_bounds",
+    ):
+        evaluate_local_nearfield_targets(
+            operators=operators,
+            solve=solve,
+            targets=targets,
+        )
 
 
 def test_compose_far_and_near_potentials_modes() -> None:

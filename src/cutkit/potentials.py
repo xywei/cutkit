@@ -41,6 +41,7 @@ _VALID_BACKENDS = {"jplus", "folded"}
 _VALID_OPERATOR_MODES = {"assembled", "matrix_free"}
 _VALID_STATUSES = {"ok", "empty", "invalid_box", "backend_error"}
 _VALID_INTERACTION_LISTS = {"self", "list1", "list3", "list4"}
+_MATRIX_FREE_PAYLOAD_CAPACITY = 256
 
 
 def _validate_dim(dim: SpatialDim) -> int:
@@ -84,6 +85,23 @@ def _validate_bounds(bounds: tuple[BoundsND, ...], *, dim: int) -> None:
             raise ValueError(
                 f"bounds arity mismatch: expected {expected}, got {len(item)}"
             )
+
+
+def _bounds_match(
+    lhs: tuple[BoundsND, ...],
+    rhs: tuple[BoundsND, ...],
+    *,
+    atol: float = 1.0e-12,
+) -> bool:
+    if len(lhs) != len(rhs):
+        return False
+    for left, right in zip(lhs, rhs, strict=True):
+        if len(left) != len(right):
+            return False
+        for left_value, right_value in zip(left, right, strict=True):
+            if abs(float(left_value) - float(right_value)) > atol:
+                return False
+    return True
 
 
 def _validate_statuses(statuses: tuple[BatchStatus, ...]) -> None:
@@ -1167,6 +1185,13 @@ _MATRIX_FREE_KERNEL_COUNTER = 0
 
 def _register_matrix_free_payload(payload: _MatrixFreePayload) -> str:
     global _MATRIX_FREE_KERNEL_COUNTER
+    while (
+        _MATRIX_FREE_PAYLOAD_CAPACITY > 0
+        and len(_MATRIX_FREE_PAYLOADS) >= _MATRIX_FREE_PAYLOAD_CAPACITY
+    ):
+        oldest_kernel_id = next(iter(_MATRIX_FREE_PAYLOADS))
+        _MATRIX_FREE_PAYLOADS.pop(oldest_kernel_id, None)
+
     _MATRIX_FREE_KERNEL_COUNTER += 1
     kernel_id = f"iga-mf-v1-{_MATRIX_FREE_KERNEL_COUNTER}"
     _MATRIX_FREE_PAYLOADS[kernel_id] = payload
@@ -2550,6 +2575,8 @@ def assemble_local_nearfield_operators(
         raise ValueError("box shape must match boundary_trace shape")
     if shape != restricted_sources.shape:
         raise ValueError("box shape must match restricted_sources shape")
+    if not _bounds_match(box_bounds, boundary_trace.box_bounds):
+        raise ValueError("box bounds must match boundary_trace.box_bounds")
 
     box_count = _validate_shape(shape)
     n_axis = resolution + spline_degree
@@ -2864,6 +2891,8 @@ def evaluate_local_nearfield_targets(
         raise ValueError("operators, solve, and targets dimensions must match")
     if operators.shape != solve.shape or operators.shape != targets.shape:
         raise ValueError("operators, solve, and targets shapes must match")
+    if not _bounds_match(operators.box_bounds, targets.box_bounds):
+        raise ValueError("targets.box_bounds must match operators.box_bounds")
     if operators.free_dof_ptr != solve.free_dof_ptr:
         raise ValueError("solve and operators free_dof_ptr must match")
     if aggregation not in {"sum", "average"}:
