@@ -413,6 +413,36 @@ class CadFace2D:
             errors=tuple(errors),
         )
 
+    def source_cloud_over_boxes(
+        self,
+        density: Callable[[Any, Any], Any],
+        *,
+        order: int,
+        boxes: Box2D | Sequence[Box2D] | Box2DArray | None = None,
+        x0: Any | None = None,
+        x1: Any | None = None,
+        y0: Any | None = None,
+        y1: Any | None = None,
+        backend_mode: Literal["jplus", "folded"] = "folded",
+        strict: bool = True,
+    ) -> Any:
+        """Build a scaffolded far-field source cloud over one or many boxes."""
+
+        from cutkit.potentials import source_cloud_over_boxes_2d
+
+        return source_cloud_over_boxes_2d(
+            self,
+            density,
+            boxes=boxes,
+            x0=x0,
+            x1=x1,
+            y0=y0,
+            y1=y1,
+            order=order,
+            backend_mode=backend_mode,
+            strict=strict,
+        )
+
 
 @dataclass(frozen=True)
 class CadSolid3D:
@@ -689,6 +719,48 @@ class CadSolid3D:
             statuses=tuple(statuses),
             values=tuple(values),
             errors=tuple(errors),
+        )
+
+    def source_cloud_over_boxes(
+        self,
+        density: Callable[[Any, Any, Any], Any],
+        *,
+        order: int,
+        boxes: Box3D | Sequence[Box3D] | Box3DArray | None = None,
+        x0: Any | None = None,
+        x1: Any | None = None,
+        y0: Any | None = None,
+        y1: Any | None = None,
+        z0: Any | None = None,
+        z1: Any | None = None,
+        seed: SeedInput3D = "grid-best",
+        backend_mode: Literal["jplus", "folded"] = "folded",
+        linear_deflection: float = 1.0e-3,
+        angular_deflection: float = 0.5,
+        tol: float = 1.0e-12,
+        strict: bool = True,
+    ) -> Any:
+        """Build a scaffolded far-field source cloud over one or many boxes."""
+
+        from cutkit.potentials import source_cloud_over_boxes_3d
+
+        return source_cloud_over_boxes_3d(
+            self,
+            density,
+            boxes=boxes,
+            x0=x0,
+            x1=x1,
+            y0=y0,
+            y1=y1,
+            z0=z0,
+            z1=z1,
+            order=order,
+            seed=seed,
+            backend_mode=backend_mode,
+            linear_deflection=linear_deflection,
+            angular_deflection=angular_deflection,
+            tol=tol,
+            strict=strict,
         )
 
 
