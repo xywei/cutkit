@@ -44,4 +44,4 @@ reference solve.
 
 - Status: completed; ready for review.
 - Validation: focused Poisson solver tests and full `make dev` passed.
-- OpenSpec change: `openspec/changes/2026-03-25-immersed-poisson-galerkin-solver/`.
+- OpenSpec change: `openspec/changes/archive/2026-03-28-2026-03-25-immersed-poisson-galerkin-solver/`.
