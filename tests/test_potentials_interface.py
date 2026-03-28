@@ -1006,6 +1006,48 @@ def test_assemble_local_nearfield_operators_rejects_mismatched_trace_bounds() ->
         )
 
 
+def test_matrix_free_operator_works_without_registry_entry() -> None:
+    trace = build_local_box_boundary_trace(
+        dim=2,
+        x0=0.0,
+        x1=1.0,
+        y0=0.0,
+        y1=1.0,
+        trace_order=3,
+        farfield_potential=lambda x, y: x - y,
+    )
+    sources = RestrictedSourceBatch(
+        dim=2,
+        shape=trace.shape,
+        source_ptr=(0, 2),
+        source_points=((0.25, 0.25), (0.75, 0.75)),
+        source_charges=(1.0, -0.5),
+    )
+    operators = assemble_local_nearfield_operators(
+        dim=2,
+        x0=0.0,
+        x1=1.0,
+        y0=0.0,
+        y1=1.0,
+        restricted_sources=sources,
+        boundary_trace=trace,
+        resolution=2,
+        spline_degree=2,
+        quadrature_order=4,
+        operator_mode="matrix_free",
+    )
+
+    assert operators.matvec_kernel_id is not None
+    potentials._MATRIX_FREE_PAYLOADS.pop(operators.matvec_kernel_id, None)
+
+    vector = tuple(1.0 for _ in operators.rhs)
+    applied = operators.matvec(vector)
+    solved = solve_local_operator_batch(operators)
+
+    assert len(applied) == len(vector)
+    assert solved.statuses == ("ok",)
+
+
 def test_evaluate_local_nearfield_targets_matches_operator_modes() -> None:
     trace = build_local_box_boundary_trace(
         dim=2,

@@ -8,6 +8,7 @@ including assembled and matrix-free local solve workflows.
 from __future__ import annotations
 
 import importlib.util
+import weakref
 from itertools import product as iter_product
 from dataclasses import dataclass
 from math import prod
@@ -41,7 +42,6 @@ _VALID_BACKENDS = {"jplus", "folded"}
 _VALID_OPERATOR_MODES = {"assembled", "matrix_free"}
 _VALID_STATUSES = {"ok", "empty", "invalid_box", "backend_error"}
 _VALID_INTERACTION_LISTS = {"self", "list1", "list3", "list4"}
-_MATRIX_FREE_PAYLOAD_CAPACITY = 256
 
 
 def _validate_dim(dim: SpatialDim) -> int:
@@ -1179,19 +1179,14 @@ class _MatrixFreePayload:
     data_by_box: tuple[tuple[float, ...], ...]
 
 
-_MATRIX_FREE_PAYLOADS: dict[str, _MatrixFreePayload] = {}
+_MATRIX_FREE_PAYLOADS: weakref.WeakValueDictionary[str, _MatrixFreePayload] = (
+    weakref.WeakValueDictionary()
+)
 _MATRIX_FREE_KERNEL_COUNTER = 0
 
 
 def _register_matrix_free_payload(payload: _MatrixFreePayload) -> str:
     global _MATRIX_FREE_KERNEL_COUNTER
-    while (
-        _MATRIX_FREE_PAYLOAD_CAPACITY > 0
-        and len(_MATRIX_FREE_PAYLOADS) >= _MATRIX_FREE_PAYLOAD_CAPACITY
-    ):
-        oldest_kernel_id = next(iter(_MATRIX_FREE_PAYLOADS))
-        _MATRIX_FREE_PAYLOADS.pop(oldest_kernel_id, None)
-
     _MATRIX_FREE_KERNEL_COUNTER += 1
     kernel_id = f"iga-mf-v1-{_MATRIX_FREE_KERNEL_COUNTER}"
     _MATRIX_FREE_PAYLOADS[kernel_id] = payload
@@ -1515,6 +1510,7 @@ class LocalOperatorBatch:
     csr_indices: tuple[int, ...] | None
     csr_data: tuple[float, ...] | None
     matvec_kernel_id: str | None
+    matvec_payload: _MatrixFreePayload | None = None
 
     def __post_init__(self) -> None:
         dim = _validate_dim(self.dim)
@@ -1576,6 +1572,8 @@ class LocalOperatorBatch:
         if self.operator_mode == "assembled":
             if self.matvec_kernel_id is not None:
                 raise ValueError("assembled mode must not provide matvec_kernel_id")
+            if self.matvec_payload is not None:
+                raise ValueError("assembled mode must not provide matvec_payload")
             if (
                 self.csr_indptr is None
                 or self.csr_indices is None
@@ -1623,7 +1621,9 @@ class LocalOperatorBatch:
                 out[row] = total
             return tuple(out)
 
-        payload = _get_matrix_free_payload(self.matvec_kernel_id)
+        payload = self.matvec_payload
+        if payload is None:
+            payload = _get_matrix_free_payload(self.matvec_kernel_id)
         if len(payload.indptr_by_box) != len(self.statuses):
             raise ValueError("matrix_free payload box count mismatch")
 
@@ -2736,6 +2736,7 @@ def assemble_local_nearfield_operators(
         csr_indices_value: tuple[int, ...] | None = tuple(global_indices)
         csr_data_value: tuple[float, ...] | None = tuple(global_data)
         kernel_id: str | None = None
+        payload_value: _MatrixFreePayload | None = None
     else:
         payload = _MatrixFreePayload(
             indptr_by_box=tuple(mf_indptr_by_box),
@@ -2746,6 +2747,7 @@ def assemble_local_nearfield_operators(
         csr_indices_value = None
         csr_data_value = None
         kernel_id = _register_matrix_free_payload(payload)
+        payload_value = payload
 
     return LocalOperatorBatch(
         dim=dim,
@@ -2767,6 +2769,7 @@ def assemble_local_nearfield_operators(
         csr_indices=csr_indices_value,
         csr_data=csr_data_value,
         matvec_kernel_id=kernel_id,
+        matvec_payload=payload_value,
     )
 
 
@@ -2825,7 +2828,9 @@ def solve_local_operator_batch(
                 return tuple(out)
 
         else:
-            payload = _get_matrix_free_payload(operators.matvec_kernel_id)
+            payload = operators.matvec_payload
+            if payload is None:
+                payload = _get_matrix_free_payload(operators.matvec_kernel_id)
             if len(payload.indptr_by_box) != len(operators.statuses):
                 raise ValueError("matrix_free payload box count mismatch")
 
