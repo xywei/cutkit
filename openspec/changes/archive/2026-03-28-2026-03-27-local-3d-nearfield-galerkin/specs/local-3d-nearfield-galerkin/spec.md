@@ -78,9 +78,9 @@ combination with far-field contributions without double-counting.
 - **THEN** the workflow metadata SHALL identify composition semantics needed to
   avoid duplicate near-source contributions
 
-### Requirement: Optional deterministic local solve diagnostics
-When CUTKIT local solve helpers are used on assembled local systems, diagnostics
-SHALL be deterministic for repeated runs under fixed inputs.
+### Requirement: Deterministic local solve diagnostics
+The system SHALL provide deterministic local solve diagnostics when CUTKIT local
+solve helpers are used on assembled local systems under fixed inputs.
 
 #### Scenario: Solve emitted local systems with CUTKIT helper
 - **WHEN** a batch of assembled local systems is solved through CUTKIT helper APIs

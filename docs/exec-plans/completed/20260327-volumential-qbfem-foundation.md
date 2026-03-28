@@ -76,8 +76,8 @@ operator workflow for near-field self/list1/list3/4 interactions.
 
 ## OpenSpec Archive Notes
 
-- Change: `openspec/changes/2026-03-27-volumential-signed-source-cloud/`
-- Change: `openspec/changes/2026-03-27-local-3d-nearfield-galerkin/`
+- Change: `openspec/changes/archive/2026-03-28-2026-03-27-volumential-signed-source-cloud/`
+- Change: `openspec/changes/archive/2026-03-28-2026-03-27-local-3d-nearfield-galerkin/`
 - Suggested archive commands:
   - `/opsx-archive 2026-03-27-volumential-signed-source-cloud`
   - `/opsx-archive 2026-03-27-local-3d-nearfield-galerkin`
