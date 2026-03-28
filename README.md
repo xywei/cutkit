@@ -98,6 +98,20 @@ batch = solid.integrate_over_boxes(
 
 See `docs/cad-box-batch-interface.md` for API details.
 
+## Volumential Handoff
+
+CUTKIT now exposes vectorized far/near primitives intended for volumential
+integration:
+
+- far-field signed source-cloud export (`points`, `weights`, `charges`, ptr/index metadata)
+- near-field local boxed operators (assembled CSR or matrix-free descriptor)
+- list plumbing helpers for `self/list1/list3/list4` restricted-source batches
+
+The intended boundary is that CUTKIT emits these primitives and volumential owns
+final list splitting and interaction composition.
+
+See `docs/volumential-handoff.md` for the exact field contract and usage flow.
+
 Source and credit for the reproduced Section 6 2D protocols:
 
 - Pablo Antolin, Xiaodong Wei, Annalisa Buffa
