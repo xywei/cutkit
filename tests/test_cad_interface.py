@@ -342,44 +342,20 @@ def test_integrate_over_boxes_3d_non_strict_marks_backend_errors(
             raise RuntimeError("simulated clipping failure")
         return {"bounds": (x0, x1, y0, y1, z0, z1)}
 
-    def fake_boundary(
+    def fake_integrate(
         clipped: Any,
         *,
-        linear_deflection: float,
-        angular_deflection: float,
-        tol: float,
-    ) -> tuple[
-        tuple[
-            tuple[float, float, float],
-            tuple[float, float, float],
-            tuple[float, float, float],
-        ],
-        ...,
-    ]:
-        _ = (linear_deflection, angular_deflection, tol)
-        x0, _x1, y0, _y1, z0, _z1 = clipped["bounds"]
-        return (((x0, y0, z0), (x0 + 0.1, y0, z0), (x0, y0 + 0.1, z0)),)
-
-    def fake_integrate(
-        boundary: tuple[
-            tuple[
-                tuple[float, float, float],
-                tuple[float, float, float],
-                tuple[float, float, float],
-            ],
-            ...,
-        ],
-        *,
-        seed: tuple[float, float, float],
+        seed: cad.SeedInput3D,
         order: int,
         integrand: Any,
+        surface_order: int | None = None,
+        tol: float = 1.0e-12,
     ) -> float:
-        _ = (seed, order, integrand)
-        return boundary[0][0][0]
+        _ = (seed, order, integrand, surface_order, tol)
+        return clipped["bounds"][0]
 
     monkeypatch.setattr(cad, "clip_solid_with_axis_aligned_box", fake_clip)
-    monkeypatch.setattr(cad, "solid_to_oriented_boundary_triangles", fake_boundary)
-    monkeypatch.setattr(cad, "integrate_general_over_boundary_3d", fake_integrate)
+    monkeypatch.setattr(cad, "integrate_general_over_solid_folded_3d", fake_integrate)
 
     result = solid.integrate_over_boxes(
         lambda x, y, z: x + y + z,
@@ -423,25 +399,10 @@ def test_clip_boxes_3d_marks_empty_when_shape_is_null(
             return {"non_null": True}
         return NullShape()
 
-    def fake_boundary(
-        _shape: Any,
-        *,
-        linear_deflection: float,
-        angular_deflection: float,
-        tol: float,
-    ) -> tuple[
-        tuple[
-            tuple[float, float, float],
-            tuple[float, float, float],
-            tuple[float, float, float],
-        ],
-        ...,
-    ]:
-        _ = (linear_deflection, angular_deflection, tol)
-        return (((0.0, 0.0, 0.0), (0.1, 0.0, 0.0), (0.0, 0.1, 0.0)),)
-
     monkeypatch.setattr(cad, "clip_solid_with_axis_aligned_box", fake_clip)
-    monkeypatch.setattr(cad, "solid_to_oriented_boundary_triangles", fake_boundary)
+    monkeypatch.setattr(
+        cad, "solid_has_boundary_faces_3d", lambda *args, **kwargs: True
+    )
 
     result = solid.clip_boxes(
         x0=(0.0, 0.5),
@@ -476,25 +437,12 @@ def test_clip_boxes_3d_marks_empty_when_boundary_not_extractable(
         _ = (x0, x1, y0, y1, z0, z1)
         return {"non_null": True}
 
-    def fake_boundary(
-        _shape: Any,
-        *,
-        linear_deflection: float,
-        angular_deflection: float,
-        tol: float,
-    ) -> tuple[
-        tuple[
-            tuple[float, float, float],
-            tuple[float, float, float],
-            tuple[float, float, float],
-        ],
-        ...,
-    ]:
-        _ = (linear_deflection, angular_deflection, tol)
-        raise ValueError("solid triangulation produced no boundary triangles")
+    def fake_has_boundary(_shape: Any, *, order: int = 2, tol: float = 1.0e-12) -> bool:
+        _ = (order, tol)
+        raise ValueError("solid boundary face quadrature produced no samples")
 
     monkeypatch.setattr(cad, "clip_solid_with_axis_aligned_box", fake_clip)
-    monkeypatch.setattr(cad, "solid_to_oriented_boundary_triangles", fake_boundary)
+    monkeypatch.setattr(cad, "solid_has_boundary_faces_3d", fake_has_boundary)
 
     result = solid.clip_boxes(
         x0=0.0,
@@ -528,44 +476,20 @@ def test_integrate_over_boxes_3d_object_and_array_modes_match(
     ) -> Any:
         return {"bounds": (x0, x1, y0, y1, z0, z1)}
 
-    def fake_boundary(
+    def fake_integrate(
         clipped: Any,
         *,
-        linear_deflection: float,
-        angular_deflection: float,
-        tol: float,
-    ) -> tuple[
-        tuple[
-            tuple[float, float, float],
-            tuple[float, float, float],
-            tuple[float, float, float],
-        ],
-        ...,
-    ]:
-        _ = (linear_deflection, angular_deflection, tol)
-        x0, _x1, y0, _y1, z0, _z1 = clipped["bounds"]
-        return (((x0, y0, z0), (x0 + 0.1, y0, z0), (x0, y0 + 0.1, z0)),)
-
-    def fake_integrate(
-        boundary: tuple[
-            tuple[
-                tuple[float, float, float],
-                tuple[float, float, float],
-                tuple[float, float, float],
-            ],
-            ...,
-        ],
-        *,
-        seed: tuple[float, float, float],
+        seed: cad.SeedInput3D,
         order: int,
         integrand: Any,
+        surface_order: int | None = None,
+        tol: float = 1.0e-12,
     ) -> float:
-        _ = (seed, order, integrand)
-        return boundary[0][0][0]
+        _ = (seed, order, integrand, surface_order, tol)
+        return clipped["bounds"][0]
 
     monkeypatch.setattr(cad, "clip_solid_with_axis_aligned_box", fake_clip)
-    monkeypatch.setattr(cad, "solid_to_oriented_boundary_triangles", fake_boundary)
-    monkeypatch.setattr(cad, "integrate_general_over_boundary_3d", fake_integrate)
+    monkeypatch.setattr(cad, "integrate_general_over_solid_folded_3d", fake_integrate)
 
     object_mode = solid.integrate_over_boxes(
         lambda x, y, z: x + y + z,
@@ -595,7 +519,7 @@ def test_integrate_over_boxes_3d_uses_caller_meshing_tolerances(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     solid = CadSolid3D.from_solid("solid")
-    seen_tolerances: list[tuple[float, float, float]] = []
+    seen_tolerances: list[tuple[float, int | None]] = []
 
     def fake_clip(
         _solid: object,
@@ -610,45 +534,21 @@ def test_integrate_over_boxes_3d_uses_caller_meshing_tolerances(
         _ = (x0, x1, y0, y1, z0, z1)
         return {"non_null": True}
 
-    def fake_boundary(
-        _shape: Any,
-        *,
-        linear_deflection: float,
-        angular_deflection: float,
-        tol: float,
-    ) -> tuple[
-        tuple[
-            tuple[float, float, float],
-            tuple[float, float, float],
-            tuple[float, float, float],
-        ],
-        ...,
-    ]:
-        seen_tolerances.append((linear_deflection, angular_deflection, tol))
-        if linear_deflection > 5.0e-4:
-            raise ValueError("solid triangulation produced no boundary triangles")
-        return (((0.0, 0.0, 0.0), (0.1, 0.0, 0.0), (0.0, 0.1, 0.0)),)
-
     def fake_integrate(
-        boundary: tuple[
-            tuple[
-                tuple[float, float, float],
-                tuple[float, float, float],
-                tuple[float, float, float],
-            ],
-            ...,
-        ],
+        clipped: Any,
         *,
-        seed: tuple[float, float, float],
+        seed: cad.SeedInput3D,
         order: int,
         integrand: Any,
+        surface_order: int | None = None,
+        tol: float = 1.0e-12,
     ) -> float:
-        _ = (boundary, seed, order, integrand)
+        _ = (clipped, seed, order, integrand)
+        seen_tolerances.append((tol, surface_order))
         return 1.0
 
     monkeypatch.setattr(cad, "clip_solid_with_axis_aligned_box", fake_clip)
-    monkeypatch.setattr(cad, "solid_to_oriented_boundary_triangles", fake_boundary)
-    monkeypatch.setattr(cad, "integrate_general_over_boundary_3d", fake_integrate)
+    monkeypatch.setattr(cad, "integrate_general_over_solid_folded_3d", fake_integrate)
 
     result = solid.integrate_over_boxes(
         lambda x, y, z: x + y + z,
@@ -669,13 +569,12 @@ def test_integrate_over_boxes_3d_uses_caller_meshing_tolerances(
     assert result.statuses == ("ok",)
     assert result.values == (1.0,)
     assert seen_tolerances
-    first_linear, first_angular, first_tol = seen_tolerances[0]
-    assert first_linear == pytest.approx(1.0e-4)
-    assert first_angular == pytest.approx(0.25)
+    first_tol, first_surface_order = seen_tolerances[0]
     assert first_tol == pytest.approx(1.0e-9)
+    assert first_surface_order == 5
 
 
-def test_integrate_over_boxes_3d_skips_clip_pretriangulation(
+def test_integrate_over_boxes_3d_skips_clip_boundary_validation(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     solid = CadSolid3D.from_solid("solid")
@@ -695,46 +594,23 @@ def test_integrate_over_boxes_3d_skips_clip_pretriangulation(
 
     def fail_if_called(*args: Any, **kwargs: Any) -> bool:
         _ = (args, kwargs)
-        raise AssertionError("clip pretriangulation should not run")
-
-    def fake_boundary(
-        _shape: Any,
-        *,
-        linear_deflection: float,
-        angular_deflection: float,
-        tol: float,
-    ) -> tuple[
-        tuple[
-            tuple[float, float, float],
-            tuple[float, float, float],
-            tuple[float, float, float],
-        ],
-        ...,
-    ]:
-        _ = (linear_deflection, angular_deflection, tol)
-        return (((0.0, 0.0, 0.0), (0.1, 0.0, 0.0), (0.0, 0.1, 0.0)),)
+        raise AssertionError("clip boundary validation should not run")
 
     def fake_integrate(
-        boundary: tuple[
-            tuple[
-                tuple[float, float, float],
-                tuple[float, float, float],
-                tuple[float, float, float],
-            ],
-            ...,
-        ],
+        clipped: Any,
         *,
-        seed: tuple[float, float, float],
+        seed: cad.SeedInput3D,
         order: int,
         integrand: Any,
+        surface_order: int | None = None,
+        tol: float = 1.0e-12,
     ) -> float:
-        _ = (boundary, seed, order, integrand)
+        _ = (clipped, seed, order, integrand, surface_order, tol)
         return 2.0
 
     monkeypatch.setattr(cad, "clip_solid_with_axis_aligned_box", fake_clip)
     monkeypatch.setattr(cad, "_has_extractable_boundary", fail_if_called)
-    monkeypatch.setattr(cad, "solid_to_oriented_boundary_triangles", fake_boundary)
-    monkeypatch.setattr(cad, "integrate_general_over_boundary_3d", fake_integrate)
+    monkeypatch.setattr(cad, "integrate_general_over_solid_folded_3d", fake_integrate)
 
     result = solid.integrate_over_boxes(
         lambda x, y, z: x + y + z,

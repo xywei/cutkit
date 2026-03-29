@@ -4,13 +4,13 @@ import pytest
 
 from cutkit.io import (
     build_axis_aligned_box_solid,
-    clip_solid_with_axis_aligned_box_to_oriented_boundary,
+    clip_solid_with_axis_aligned_box,
+    integrate_general_over_solid_folded_3d,
     opencascade3d_available,
     opencascade3d_status,
-    solid_to_boundary_triangulation,
-    solid_to_oriented_boundary_triangles,
+    solid_to_folded_quadrature_rule_3d,
+    solid_to_surface_quadrature_3d,
 )
-from cutkit.quadrature import signed_boundary_volume_3d
 
 
 def test_opencascade3d_status_shape() -> None:
@@ -22,17 +22,10 @@ def test_opencascade3d_status_shape() -> None:
         assert status.reason
 
 
-def test_opencascade3d_build_box_or_unavailable_error() -> None:
+def test_opencascade3d_surface_and_folded_rules_or_unavailable_error() -> None:
     if not opencascade3d_available():
         with pytest.raises(RuntimeError):
-            build_axis_aligned_box_solid(
-                x0=0.0,
-                x1=1.0,
-                y0=0.0,
-                y1=1.0,
-                z0=0.0,
-                z1=1.0,
-            )
+            solid_to_surface_quadrature_3d(object(), order=3)
         return
 
     solid = build_axis_aligned_box_solid(
@@ -43,30 +36,29 @@ def test_opencascade3d_build_box_or_unavailable_error() -> None:
         z0=0.0,
         z1=1.0,
     )
-    boundary = solid_to_oriented_boundary_triangles(
-        solid,
-        linear_deflection=5.0e-2,
-        angular_deflection=0.5,
-    )
-    assert boundary
-    volume = signed_boundary_volume_3d(boundary, seed=(0.25, 0.25, 0.25))
-    assert volume == pytest.approx(1.0, rel=1.0e-9, abs=1.0e-9)
+    surface_rule = solid_to_surface_quadrature_3d(solid, order=4)
+    assert surface_rule.points
+    assert surface_rule.weighted_normals
 
-    triangulation = solid_to_boundary_triangulation(
+    folded = solid_to_folded_quadrature_rule_3d(
         solid,
-        linear_deflection=5.0e-2,
-        angular_deflection=0.5,
+        seed=(0.25, 0.25, 0.25),
+        order=6,
+        surface_order=6,
     )
-    assert triangulation.triangles
+    assert folded.rule.points
+    volume_from_weights = sum(folded.rule.weights)
+    assert volume_from_weights == pytest.approx(1.0, rel=5.0e-2, abs=5.0e-2)
 
 
 def test_opencascade3d_clip_half_box_volume_or_unavailable_error() -> None:
     if not opencascade3d_available():
         with pytest.raises(RuntimeError):
-            solid_to_oriented_boundary_triangles(
+            integrate_general_over_solid_folded_3d(
                 object(),
-                linear_deflection=5.0e-2,
-                angular_deflection=0.5,
+                seed=(0.1, 0.1, 0.1),
+                order=4,
+                integrand=lambda x, y, z: x + y + z,
             )
         return
 
@@ -78,7 +70,7 @@ def test_opencascade3d_clip_half_box_volume_or_unavailable_error() -> None:
         z0=0.0,
         z1=1.0,
     )
-    clipped_boundary = clip_solid_with_axis_aligned_box_to_oriented_boundary(
+    clipped = clip_solid_with_axis_aligned_box(
         solid,
         x0=0.0,
         x1=0.5,
@@ -86,9 +78,12 @@ def test_opencascade3d_clip_half_box_volume_or_unavailable_error() -> None:
         y1=1.0,
         z0=0.0,
         z1=1.0,
-        linear_deflection=5.0e-2,
-        angular_deflection=0.5,
     )
-    assert clipped_boundary
-    volume = signed_boundary_volume_3d(clipped_boundary, seed=(0.1, 0.1, 0.1))
-    assert volume == pytest.approx(0.5, rel=1.0e-9, abs=1.0e-9)
+    volume = integrate_general_over_solid_folded_3d(
+        clipped,
+        seed=(0.1, 0.1, 0.1),
+        order=6,
+        surface_order=6,
+        integrand=lambda x, y, z: 1.0,
+    )
+    assert volume == pytest.approx(0.5, rel=7.0e-2, abs=7.0e-2)

@@ -8,7 +8,7 @@ and clipping paths that feed the folded 3D boundary workflow.
 ## Scope
 
 - Add optional OpenCascade 3D adapters to ingest solids and extract boundary
-  triangulations.
+  face quadrature descriptors.
 - Add CAD-native clipping helpers for axis-aligned box clipping and boundary
   extraction.
 - Add tests that validate unavailable-mode behavior and, when CAD is available,

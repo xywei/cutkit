@@ -16,13 +16,11 @@ from typing import Any, Callable, Literal, Sequence, cast
 
 import cutkit.cad as _cad
 from cutkit.cad import BatchStatus, Box2D, Box2DArray, Box3D, Box3DArray, SeedInput3D
-from cutkit.geometry import CurveTrimmedPanel2D, Point3D
-from cutkit.io import solid_to_oriented_boundary_triangles
+from cutkit.geometry import CurveTrimmedPanel2D
+from cutkit.io import solid_to_folded_quadrature_rule_3d
 from cutkit.quadrature import (
-    boundary_quadrature_rule_3d,
     folded_curve_quadrature_rule,
     gauss_legendre_01,
-    seed_grid_3d,
 )
 
 if importlib.util.find_spec("numpy") is not None:
@@ -289,7 +287,9 @@ def _unimplemented(name: str) -> NotImplementedError:
 def _is_empty_boundary_error(exc: ValueError) -> bool:
     message = str(exc).lower()
     return (
-        "no boundary triangles" in message
+        "no boundary faces" in message
+        or "no boundary samples" in message
+        or "no boundary triangles" in message
         or "no non-degenerate triangles" in message
         or "empty boundary" in message
     )
@@ -345,73 +345,6 @@ def _panel_anchor_for_backend(
     if backend_mode == "jplus":
         return None, True
     return None, False
-
-
-def _resolve_seed_3d(
-    boundary: tuple[tuple[Point3D, Point3D, Point3D], ...],
-    *,
-    seed: SeedInput3D,
-) -> Point3D:
-    if isinstance(seed, str):
-        if seed == "jplus":
-            return (1.0, 1.0, 1.0)
-        if seed == "centroid":
-            vertices = tuple(vertex for tri in boundary for vertex in tri)
-            if not vertices:
-                return (0.0, 0.0, 0.0)
-            scale = 1.0 / len(vertices)
-            return (
-                scale * sum(vertex[0] for vertex in vertices),
-                scale * sum(vertex[1] for vertex in vertices),
-                scale * sum(vertex[2] for vertex in vertices),
-            )
-        if seed == "grid-best":
-            return _grid_best_seed_3d(boundary)
-        raise ValueError(f"unsupported seed mode: {seed!r}")
-
-    return (float(seed[0]), float(seed[1]), float(seed[2]))
-
-
-def _grid_best_seed_3d(
-    boundary: tuple[tuple[Point3D, Point3D, Point3D], ...],
-) -> Point3D:
-    vertices = tuple(vertex for tri in boundary for vertex in tri)
-    if not vertices:
-        return (0.0, 0.0, 0.0)
-
-    xs = tuple(vertex[0] for vertex in vertices)
-    ys = tuple(vertex[1] for vertex in vertices)
-    zs = tuple(vertex[2] for vertex in vertices)
-
-    xmin, xmax = min(xs), max(xs)
-    ymin, ymax = min(ys), max(ys)
-    zmin, zmax = min(zs), max(zs)
-
-    if xmax <= xmin:
-        xmax = xmin + 1.0
-    if ymax <= ymin:
-        ymax = ymin + 1.0
-    if zmax <= zmin:
-        zmax = zmin + 1.0
-
-    candidates: tuple[Point3D, ...] = tuple(
-        (
-            xmin + (xmax - xmin) * sx,
-            ymin + (ymax - ymin) * sy,
-            zmin + (zmax - zmin) * sz,
-        )
-        for sx, sy, sz in seed_grid_3d(3)
-    )
-
-    def _closest_vertex_distance_sq(candidate: Point3D) -> float:
-        return min(
-            (candidate[0] - vx) ** 2
-            + (candidate[1] - vy) ** 2
-            + (candidate[2] - vz) ** 2
-            for vx, vy, vz in vertices
-        )
-
-    return max(candidates, key=_closest_vertex_distance_sq)
 
 
 def _box_measure(bounds: BoundsND, *, dim: int) -> float:
@@ -1914,32 +1847,29 @@ def build_signed_source_cloud_2d(
 
 
 def build_signed_source_cloud_3d(
-    boundary: tuple[tuple[Point3D, Point3D, Point3D], ...],
+    solid: Any,
     *,
     density: Callable[[Any, Any, Any], Any],
     seed: SeedInput3D = "grid-best",
     order: int,
     backend_mode: FarfieldBackendMode = "folded",
+    tol: float = 1.0e-12,
 ) -> SignedSourceCloud:
     _validate_order(order, name="order")
     _validate_backend(backend_mode)
-
-    if not boundary:
-        return SignedSourceCloud(
-            dim=3,
-            points=(),
-            weights=(),
-            charges=(),
-            backend_mode=backend_mode,
-            order=order,
-        )
 
     seed_input = seed
     if backend_mode == "jplus" and seed == "grid-best":
         seed_input = "jplus"
 
-    selected_seed = _resolve_seed_3d(boundary, seed=seed_input)
-    rule = boundary_quadrature_rule_3d(boundary, seed=selected_seed, order=order)
+    folded = solid_to_folded_quadrature_rule_3d(
+        solid,
+        seed=seed_input,
+        order=order,
+        surface_order=order,
+        tol=tol,
+    )
+    rule = folded.rule
     points = tuple((float(x), float(y), float(z)) for x, y, z in rule.points)
     weights = tuple(float(weight) for weight in rule.weights)
     densities = _evaluate_density_3d(density, points)
@@ -2108,18 +2038,13 @@ def source_cloud_over_boxes_3d(
             continue
 
         try:
-            boundary = solid_to_oriented_boundary_triangles(
-                clipped.solid,
-                linear_deflection=linear_deflection,
-                angular_deflection=angular_deflection,
-                tol=tol,
-            )
             cloud = build_signed_source_cloud_3d(
-                boundary,
+                clipped.solid,
                 density=density,
                 seed=seed,
                 order=order,
                 backend_mode=backend_mode,
+                tol=tol,
             )
         except ValueError as exc:
             if _is_empty_boundary_error(exc):

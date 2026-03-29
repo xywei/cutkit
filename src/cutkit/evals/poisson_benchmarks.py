@@ -9,11 +9,11 @@ from typing import Any, Literal
 
 from cutkit.evals.antolin_wei_buffa_2022_3d import (
     build_section_6_1_3_boundary_triangles,
+    integrate_general_over_section_6_1_3_boundary,
 )
 from cutkit.evals.antolin_wei_buffa_2022_2d import build_section_6_1_1_bspline_panel
 from cutkit.quadrature import (
     folded_quadrature_rule,
-    integrate_general_over_boundary_3d,
 )
 
 if importlib.util.find_spec("numpy") is not None:
@@ -240,7 +240,7 @@ def run_volume_poisson_benchmark(
         surface_resolution=profile.volume_surface_resolution
     )
     reference_seed = _volume_seed("jplus")
-    reference = integrate_general_over_boundary_3d(
+    reference = integrate_general_over_section_6_1_3_boundary(
         boundary,
         seed=reference_seed,
         order=profile.reference_order,
@@ -251,7 +251,7 @@ def run_volume_poisson_benchmark(
     rows: list[PoissonOrderResult] = []
     seed = _volume_seed(backend_mode)
     for order in profile.volume_orders:
-        value = integrate_general_over_boundary_3d(
+        value = integrate_general_over_section_6_1_3_boundary(
             boundary,
             seed=seed,
             order=order,

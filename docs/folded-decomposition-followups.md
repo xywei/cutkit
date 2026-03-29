@@ -27,8 +27,8 @@ Recent 3D broadening now in-tree:
   between lower/upper trim surfaces;
 - Section 6.1.3 boundary builder supports side-face refinement beyond
   `side_resolution=1`;
-- CAD-native 3D solid ingestion supports triangulated oriented boundary export
-  and axis-aligned box clipping hooks.
+- CAD-native 3D solid ingestion supports direct oriented boundary-face quadrature
+  export (no triangulation) and axis-aligned box clipping hooks.
 
 ## Rationale
 

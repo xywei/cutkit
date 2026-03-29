@@ -34,7 +34,7 @@ Current 2D scope is CAD-native first, with a polygonized MVP fallback:
 - axis-general Cartesian 3D graph-surface integration, including bounded slabs
   between paired trim surfaces
 - CAD-native 3D solid ingestion and axis-aligned clipping adapters for folded
-  boundary-triangulation workflows
+  boundary-face quadrature workflows (no triangulation)
 
 Current limitations:
 

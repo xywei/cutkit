@@ -473,27 +473,37 @@ def test_build_signed_source_cloud_3d_honors_jplus_mode_default_seed(
 ) -> None:
     seen: dict[str, object] = {}
 
-    def fake_boundary_rule(
-        _boundary: tuple[tuple[tuple[float, float, float], ...], ...],
+    def fake_folded_rule(
+        _solid: object,
         *,
-        seed: tuple[float, float, float],
+        seed: cad.SeedInput3D,
         order: int,
+        surface_order: int | None = None,
+        tol: float = 1.0e-12,
     ) -> SimpleNamespace:
         seen["seed"] = seed
         seen["order"] = order
-        return SimpleNamespace(points=((0.5, 0.5, 0.5),), weights=(0.25,))
+        seen["surface_order"] = surface_order
+        seen["tol"] = tol
+        return SimpleNamespace(
+            rule=SimpleNamespace(points=((0.5, 0.5, 0.5),), weights=(0.25,))
+        )
 
-    monkeypatch.setattr(potentials, "boundary_quadrature_rule_3d", fake_boundary_rule)
+    monkeypatch.setattr(
+        potentials,
+        "solid_to_folded_quadrature_rule_3d",
+        fake_folded_rule,
+    )
 
     cloud = build_signed_source_cloud_3d(
-        boundary=(((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)),),
+        solid=SimpleNamespace(),
         density=lambda x, y, z: x + y + z,
         order=4,
         backend_mode="jplus",
         seed="grid-best",
     )
 
-    assert seen["seed"] == (1.0, 1.0, 1.0)
+    assert seen["seed"] == "jplus"
     assert seen["order"] == 4
     assert cloud.dim == 3
     assert cloud.weights == (0.25,)
@@ -534,22 +544,30 @@ def test_build_signed_source_cloud_2d_constant_density_conserves_weights(
 def test_build_signed_source_cloud_3d_smooth_density_matches_manual_charges(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    def fake_boundary_rule(
-        _boundary: tuple[tuple[tuple[float, float, float], ...], ...],
+    def fake_folded_rule(
+        _solid: object,
         *,
-        seed: tuple[float, float, float],
+        seed: cad.SeedInput3D,
         order: int,
+        surface_order: int | None = None,
+        tol: float = 1.0e-12,
     ) -> SimpleNamespace:
-        _ = (seed, order)
+        _ = (seed, order, surface_order, tol)
         return SimpleNamespace(
-            points=((0.25, 0.25, 0.25), (0.75, 0.25, 0.5)),
-            weights=(0.2, -0.15),
+            rule=SimpleNamespace(
+                points=((0.25, 0.25, 0.25), (0.75, 0.25, 0.5)),
+                weights=(0.2, -0.15),
+            )
         )
 
-    monkeypatch.setattr(potentials, "boundary_quadrature_rule_3d", fake_boundary_rule)
+    monkeypatch.setattr(
+        potentials,
+        "solid_to_folded_quadrature_rule_3d",
+        fake_folded_rule,
+    )
 
     cloud = build_signed_source_cloud_3d(
-        boundary=(((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)),),
+        solid=SimpleNamespace(),
         density=lambda x, y, z: 2.0 * x - y + 0.5 * z,
         order=5,
     )
@@ -642,30 +660,20 @@ def test_source_cloud_over_boxes_3d_object_vs_array_equivalence(
     ) -> Any:
         return {"bounds": (x0, x1, y0, y1, z0, z1)}
 
-    def fake_boundary(
-        shape: Any,
-        *,
-        linear_deflection: float,
-        angular_deflection: float,
-        tol: float,
-    ) -> tuple[tuple[tuple[float, float, float], ...], ...]:
-        _ = (linear_deflection, angular_deflection, tol)
-        x0, x1, y0, y1, z0, z1 = shape["bounds"]
-        return (((x0, y0, z0), (x1, y0, z0), (x0, y1, z1)),)
-
     def fake_build(
-        boundary: tuple[tuple[tuple[float, float, float], ...], ...],
+        clipped: Any,
         *,
         density: Any,
         seed: cad.SeedInput3D,
         order: int,
         backend_mode: potentials.FarfieldBackendMode,
+        tol: float = 1.0e-12,
     ) -> SignedSourceCloud:
-        _ = (seed,)
-        p0, p1, p2 = boundary[0]
-        cx = 0.5 * (p0[0] + p1[0])
-        cy = 0.5 * (p0[1] + p2[1])
-        cz = 0.5 * (p0[2] + p2[2])
+        _ = (seed, tol)
+        x0, x1, y0, y1, z0, z1 = clipped["bounds"]
+        cx = 0.5 * (x0 + x1)
+        cy = 0.5 * (y0 + y1)
+        cz = 0.5 * (z0 + z1)
         charge = float(density(cx, cy, cz))
         return SignedSourceCloud(
             dim=3,
@@ -677,9 +685,6 @@ def test_source_cloud_over_boxes_3d_object_vs_array_equivalence(
         )
 
     monkeypatch.setattr(cad, "clip_solid_with_axis_aligned_box", fake_clip)
-    monkeypatch.setattr(
-        potentials, "solid_to_oriented_boundary_triangles", fake_boundary
-    )
     monkeypatch.setattr(potentials, "build_signed_source_cloud_3d", fake_build)
 
     boxes = (Box3D(0.0, 1.0, 0.0, 1.0, 0.0, 1.0), Box3D(1.0, 2.0, 0.0, 1.0, 0.0, 1.0))
@@ -821,25 +826,16 @@ def test_source_cloud_over_boxes_3d_batches_points(
             errors=(None, "bad box"),
         )
 
-    def fake_boundary(
-        _shape: object,
-        *,
-        linear_deflection: float,
-        angular_deflection: float,
-        tol: float,
-    ) -> tuple[tuple[tuple[float, float, float], ...], ...]:
-        _ = (linear_deflection, angular_deflection, tol)
-        return (((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)),)
-
     def fake_build(
-        boundary: tuple[tuple[tuple[float, float, float], ...], ...],
+        clipped: object,
         *,
         density: object,
         seed: cad.SeedInput3D,
         order: int,
         backend_mode: potentials.FarfieldBackendMode,
+        tol: float = 1.0e-12,
     ) -> SignedSourceCloud:
-        _ = (boundary, density, seed)
+        _ = (clipped, density, seed, tol)
         return SignedSourceCloud(
             dim=3,
             points=((0.2, 0.3, 0.4),),
@@ -850,9 +846,6 @@ def test_source_cloud_over_boxes_3d_batches_points(
         )
 
     monkeypatch.setattr(CadSolid3D, "clip_boxes", fake_clip_boxes)
-    monkeypatch.setattr(
-        potentials, "solid_to_oriented_boundary_triangles", fake_boundary
-    )
     monkeypatch.setattr(potentials, "build_signed_source_cloud_3d", fake_build)
 
     batch = source_cloud_over_boxes_3d(

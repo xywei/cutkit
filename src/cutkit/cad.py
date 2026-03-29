@@ -13,7 +13,6 @@ from pathlib import Path
 from typing import Any, Callable, Literal, Sequence, cast
 
 from cutkit.geometry import (
-    BoundaryTriangulation3D,
     CurveTrimmedPanel2D,
     Point2D,
     Point3D,
@@ -21,18 +20,16 @@ from cutkit.geometry import (
 from cutkit.io import (
     clip_solid_with_axis_aligned_box,
     face_to_curve_panel,
+    integrate_general_over_solid_folded_3d,
     intersect_face_with_rectangle,
     load_brep_face,
     load_brep_solid,
     opencascade3d_status,
     opencascade_status,
-    solid_to_boundary_triangulation,
-    solid_to_oriented_boundary_triangles,
+    solid_has_boundary_faces_3d,
 )
 from cutkit.quadrature import (
     folded_curve_quadrature_rule,
-    integrate_general_over_boundary_3d,
-    seed_grid_3d,
 )
 
 if importlib.util.find_spec("numpy") is not None:
@@ -570,21 +567,14 @@ class CadSolid3D:
             errors=tuple(errors),
         )
 
-    def to_boundary_triangulation(
+    def has_boundary_faces(
         self,
         *,
-        linear_deflection: float = 1.0e-3,
-        angular_deflection: float = 0.5,
         tol: float = 1.0e-12,
-    ) -> BoundaryTriangulation3D:
-        """Extract one oriented boundary triangulation for this solid."""
+    ) -> bool:
+        """Return whether this solid has non-empty boundary face quadrature."""
 
-        return solid_to_boundary_triangulation(
-            self._solid,
-            linear_deflection=linear_deflection,
-            angular_deflection=angular_deflection,
-            tol=tol,
-        )
+        return solid_has_boundary_faces_3d(self._solid, tol=tol)
 
     def integrate_folded_boundary(
         self,
@@ -598,19 +588,15 @@ class CadSolid3D:
     ) -> float:
         """Integrate over this solid via folded boundary decomposition."""
 
-        boundary = solid_to_oriented_boundary_triangles(
-            self._solid,
-            linear_deflection=linear_deflection,
-            angular_deflection=angular_deflection,
-            tol=tol,
-        )
-        selected_seed = _resolve_seed(boundary, seed=seed)
+        _ = (linear_deflection, angular_deflection)
         return float(
-            integrate_general_over_boundary_3d(
-                boundary,
-                seed=selected_seed,
+            integrate_general_over_solid_folded_3d(
+                self._solid,
+                seed=seed,
                 order=order,
                 integrand=integrand,
+                surface_order=order,
+                tol=tol,
             )
         )
 
@@ -674,19 +660,14 @@ class CadSolid3D:
                 continue
 
             try:
-                boundary = solid_to_oriented_boundary_triangles(
-                    clipped.solid,
-                    linear_deflection=linear_deflection,
-                    angular_deflection=angular_deflection,
-                    tol=tol,
-                )
-                selected_seed = _resolve_seed(boundary, seed=seed)
                 value = float(
-                    integrate_general_over_boundary_3d(
-                        boundary,
-                        seed=selected_seed,
+                    integrate_general_over_solid_folded_3d(
+                        clipped.solid,
+                        seed=seed,
                         order=order,
                         integrand=integrand,
+                        surface_order=order,
+                        tol=tol,
                     )
                 )
             except ValueError as exc:
@@ -1032,72 +1013,14 @@ def _integrate_curve_panel(
     return float(total)
 
 
-def _resolve_seed(
-    boundary: tuple[tuple[Point3D, Point3D, Point3D], ...], *, seed: SeedInput3D
-) -> Point3D:
-    if isinstance(seed, str):
-        if seed == "jplus":
-            return (1.0, 1.0, 1.0)
-        if seed == "centroid":
-            vertices = tuple(vertex for tri in boundary for vertex in tri)
-            scale = 1.0 / len(vertices)
-            return (
-                scale * sum(vertex[0] for vertex in vertices),
-                scale * sum(vertex[1] for vertex in vertices),
-                scale * sum(vertex[2] for vertex in vertices),
-            )
-        if seed == "grid-best":
-            return _grid_best_seed(boundary)
-        raise ValueError(f"unsupported seed mode: {seed!r}")
-
-    return (
-        _coerce_finite(seed[0], name="seed.x"),
-        _coerce_finite(seed[1], name="seed.y"),
-        _coerce_finite(seed[2], name="seed.z"),
-    )
-
-
-def _grid_best_seed(boundary: tuple[tuple[Point3D, Point3D, Point3D], ...]) -> Point3D:
-    vertices = tuple(vertex for tri in boundary for vertex in tri)
-    xs = tuple(vertex[0] for vertex in vertices)
-    ys = tuple(vertex[1] for vertex in vertices)
-    zs = tuple(vertex[2] for vertex in vertices)
-
-    xmin, xmax = min(xs), max(xs)
-    ymin, ymax = min(ys), max(ys)
-    zmin, zmax = min(zs), max(zs)
-    if xmax <= xmin:
-        xmax = xmin + 1.0
-    if ymax <= ymin:
-        ymax = ymin + 1.0
-    if zmax <= zmin:
-        zmax = zmin + 1.0
-
-    unit_grid = seed_grid_3d(3)
-    candidates: tuple[Point3D, ...] = tuple(
-        (
-            xmin + (xmax - xmin) * seed[0],
-            ymin + (ymax - ymin) * seed[1],
-            zmin + (zmax - zmin) * seed[2],
-        )
-        for seed in unit_grid
-    )
-
-    def closest_vertex_distance_squared(candidate: Point3D) -> float:
-        return min(
-            (candidate[0] - vertex[0]) ** 2
-            + (candidate[1] - vertex[1]) ** 2
-            + (candidate[2] - vertex[2]) ** 2
-            for vertex in vertices
-        )
-
-    return max(candidates, key=closest_vertex_distance_squared)
-
-
 def _is_empty_boundary_error(exc: ValueError) -> bool:
     message = str(exc).lower()
     return (
-        "no boundary triangles" in message or "no non-degenerate triangles" in message
+        "no boundary faces" in message
+        or "no boundary samples" in message
+        or "no samples" in message
+        or "no boundary triangles" in message
+        or "no non-degenerate triangles" in message
     )
 
 
@@ -1118,18 +1041,13 @@ def _has_extractable_boundary(
     angular_deflection: float,
     tol: float,
 ) -> bool:
+    _ = (linear_deflection, angular_deflection)
     try:
-        boundary = solid_to_oriented_boundary_triangles(
-            shape,
-            linear_deflection=linear_deflection,
-            angular_deflection=angular_deflection,
-            tol=tol,
-        )
+        return solid_has_boundary_faces_3d(shape, tol=tol)
     except ValueError as exc:
         if _is_empty_boundary_error(exc):
             return False
         raise
-    return bool(boundary)
 
 
 __all__ = [
