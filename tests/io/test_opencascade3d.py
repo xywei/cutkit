@@ -104,6 +104,7 @@ def test_solid_has_boundary_faces_uses_topology_not_surface_quadrature(
         ),
     )
     monkeypatch.setattr(oc3d, "_ocp_modules_3d", lambda: {"dummy": object()})
+    monkeypatch.setattr(oc3d, "_shape_has_volume_topology", lambda solid, *, mods: True)
     monkeypatch.setattr(
         oc3d,
         "_solid_has_non_null_faces",
@@ -111,6 +112,18 @@ def test_solid_has_boundary_faces_uses_topology_not_surface_quadrature(
     )
 
     assert solid_has_boundary_faces_3d("solid")
+
+
+def test_solid_has_boundary_faces_rejects_non_volumetric_topology(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(oc3d, "_ocp_modules_3d", lambda: {"dummy": object()})
+    monkeypatch.setattr(
+        oc3d, "_shape_has_volume_topology", lambda solid, *, mods: False
+    )
+    monkeypatch.setattr(oc3d, "_solid_has_non_null_faces", lambda solid, *, mods: True)
+
+    assert not solid_has_boundary_faces_3d("surface-only")
 
 
 def test_face_classifier_fails_fast_when_classifier_unavailable() -> None:

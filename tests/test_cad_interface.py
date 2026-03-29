@@ -419,7 +419,44 @@ def test_clip_boxes_3d_marks_empty_when_shape_is_null(
     assert result.solids[1] is None
 
 
-def test_clip_boxes_3d_marks_empty_when_boundary_not_extractable(
+def test_clip_boxes_3d_raises_when_boundary_probe_has_no_samples(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    solid = CadSolid3D.from_solid("solid")
+
+    def fake_clip(
+        _solid: object,
+        *,
+        x0: float,
+        x1: float,
+        y0: float,
+        y1: float,
+        z0: float,
+        z1: float,
+    ) -> Any:
+        _ = (x0, x1, y0, y1, z0, z1)
+        return {"non_null": True}
+
+    def fake_has_boundary(_shape: Any, *, order: int = 2, tol: float = 1.0e-12) -> bool:
+        _ = (order, tol)
+        raise ValueError("solid boundary face quadrature produced no samples")
+
+    monkeypatch.setattr(cad, "clip_solid_with_axis_aligned_box", fake_clip)
+    monkeypatch.setattr(cad, "solid_has_boundary_faces_3d", fake_has_boundary)
+
+    with pytest.raises(ValueError, match="no samples"):
+        solid.clip_boxes(
+            x0=0.0,
+            x1=0.4,
+            y0=0.0,
+            y1=1.0,
+            z0=0.0,
+            z1=1.0,
+            strict=True,
+        )
+
+
+def test_clip_boxes_3d_marks_backend_error_when_boundary_probe_has_no_samples_non_strict(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     solid = CadSolid3D.from_solid("solid")
@@ -451,12 +488,12 @@ def test_clip_boxes_3d_marks_empty_when_boundary_not_extractable(
         y1=1.0,
         z0=0.0,
         z1=1.0,
-        strict=True,
+        strict=False,
     )
 
     assert result.shape == ()
-    assert result.statuses == ("empty",)
-    assert result.solids == (None,)
+    assert result.statuses == ("backend_error",)
+    assert result.errors[0] is not None
 
 
 def test_integrate_over_boxes_3d_object_and_array_modes_match(
@@ -626,6 +663,103 @@ def test_integrate_over_boxes_3d_skips_clip_boundary_validation(
 
     assert result.statuses == ("ok",)
     assert result.values == (2.0,)
+
+
+def test_integrate_over_boxes_3d_raises_on_no_boundary_samples_in_strict_mode(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    solid = CadSolid3D.from_solid("solid")
+
+    def fake_clip(
+        _solid: object,
+        *,
+        x0: float,
+        x1: float,
+        y0: float,
+        y1: float,
+        z0: float,
+        z1: float,
+    ) -> Any:
+        _ = (x0, x1, y0, y1, z0, z1)
+        return {"non_null": True}
+
+    def fake_integrate(
+        clipped: Any,
+        *,
+        seed: cad.SeedInput3D,
+        order: int,
+        integrand: Any,
+        surface_order: int | None = None,
+        tol: float = 1.0e-12,
+    ) -> float:
+        _ = (clipped, seed, order, integrand, surface_order, tol)
+        raise ValueError("solid boundary face quadrature produced no samples")
+
+    monkeypatch.setattr(cad, "clip_solid_with_axis_aligned_box", fake_clip)
+    monkeypatch.setattr(cad, "integrate_general_over_solid_folded_3d", fake_integrate)
+
+    with pytest.raises(ValueError, match="no samples"):
+        solid.integrate_over_boxes(
+            lambda x, y, z: x + y + z,
+            order=5,
+            x0=0.0,
+            x1=0.5,
+            y0=0.0,
+            y1=1.0,
+            z0=0.0,
+            z1=1.0,
+            strict=True,
+        )
+
+
+def test_integrate_over_boxes_3d_marks_backend_error_on_no_boundary_samples_non_strict(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    solid = CadSolid3D.from_solid("solid")
+
+    def fake_clip(
+        _solid: object,
+        *,
+        x0: float,
+        x1: float,
+        y0: float,
+        y1: float,
+        z0: float,
+        z1: float,
+    ) -> Any:
+        _ = (x0, x1, y0, y1, z0, z1)
+        return {"non_null": True}
+
+    def fake_integrate(
+        clipped: Any,
+        *,
+        seed: cad.SeedInput3D,
+        order: int,
+        integrand: Any,
+        surface_order: int | None = None,
+        tol: float = 1.0e-12,
+    ) -> float:
+        _ = (clipped, seed, order, integrand, surface_order, tol)
+        raise ValueError("solid boundary face quadrature produced no samples")
+
+    monkeypatch.setattr(cad, "clip_solid_with_axis_aligned_box", fake_clip)
+    monkeypatch.setattr(cad, "integrate_general_over_solid_folded_3d", fake_integrate)
+
+    result = solid.integrate_over_boxes(
+        lambda x, y, z: x + y + z,
+        order=5,
+        x0=0.0,
+        x1=0.5,
+        y0=0.0,
+        y1=1.0,
+        z0=0.0,
+        z1=1.0,
+        strict=False,
+    )
+
+    assert result.statuses == ("backend_error",)
+    assert result.values == (None,)
+    assert result.errors[0] is not None
 
 
 def test_cad_session_load_requires_available_backend(

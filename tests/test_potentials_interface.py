@@ -869,6 +869,83 @@ def test_source_cloud_over_boxes_3d_batches_points(
     assert batch.source_box_index == (0,)
 
 
+def test_source_cloud_over_boxes_3d_no_sample_error_is_backend_error_non_strict(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    solid = CadSolid3D.from_solid("solid")
+
+    def fake_clip_boxes(
+        self: CadSolid3D,
+        boxes: object = None,
+        *,
+        x0: object = None,
+        x1: object = None,
+        y0: object = None,
+        y1: object = None,
+        z0: object = None,
+        z1: object = None,
+        linear_deflection: float = 1.0e-3,
+        angular_deflection: float = 0.5,
+        tol: float = 1.0e-12,
+        strict: bool = True,
+        validate_boundary: bool = False,
+    ) -> cad.CadBatchClip3D:
+        _ = (
+            self,
+            boxes,
+            x0,
+            x1,
+            y0,
+            y1,
+            z0,
+            z1,
+            linear_deflection,
+            angular_deflection,
+            tol,
+            strict,
+            validate_boundary,
+        )
+        return cad.CadBatchClip3D(
+            shape=(),
+            box_bounds=((0.0, 1.0, 0.0, 1.0, 0.0, 1.0),),
+            statuses=("ok",),
+            solids=(CadSolid3D.from_solid("clipped"),),
+            errors=(None,),
+        )
+
+    def fake_build(
+        clipped: object,
+        *,
+        density: object,
+        seed: cad.SeedInput3D,
+        order: int,
+        backend_mode: potentials.FarfieldBackendMode,
+        tol: float = 1.0e-12,
+    ) -> SignedSourceCloud:
+        _ = (clipped, density, seed, order, backend_mode, tol)
+        raise ValueError("solid boundary face quadrature produced no samples")
+
+    monkeypatch.setattr(CadSolid3D, "clip_boxes", fake_clip_boxes)
+    monkeypatch.setattr(potentials, "build_signed_source_cloud_3d", fake_build)
+
+    batch = source_cloud_over_boxes_3d(
+        solid,
+        density=lambda x, y, z: x + y + z,
+        order=3,
+        x0=0.0,
+        x1=1.0,
+        y0=0.0,
+        y1=1.0,
+        z0=0.0,
+        z1=1.0,
+        strict=False,
+    )
+
+    assert batch.statuses == ("backend_error",)
+    assert batch.point_ptr == (0, 0)
+    assert batch.errors[0] is not None
+
+
 def test_build_local_box_boundary_trace_builds_values() -> None:
     trace = build_local_box_boundary_trace(
         dim=2,

@@ -137,6 +137,18 @@ def _shape_solids(shape: Any, mods: dict[str, Any]) -> tuple[Any, ...]:
     return tuple(solids)
 
 
+def _shape_shells(shape: Any, mods: dict[str, Any]) -> tuple[Any, ...]:
+    shells: list[Any] = []
+    shell_kind = getattr(mods["TopAbs"], "TopAbs_SHELL", None)
+    if shell_kind is None:
+        return ()
+    explorer = mods["TopExp"].TopExp_Explorer(shape, shell_kind)
+    while explorer.More():
+        shells.append(_topods_cast(mods, explorer.Current(), "Shell"))
+        explorer.Next()
+    return tuple(shells)
+
+
 def _brep_tools_api(mods: dict[str, Any]) -> Any:
     btools = mods["BRepTools"]
     btools_class = getattr(btools, "BRepTools", None)
@@ -360,6 +372,30 @@ def _solid_has_non_null_faces(solid: Any, *, mods: dict[str, Any]) -> bool:
             except Exception:
                 pass
         return True
+    return False
+
+
+def _shape_has_volume_topology(shape: Any, *, mods: dict[str, Any]) -> bool:
+    if _shape_solids(shape, mods):
+        return True
+
+    for shell in _shape_shells(shape, mods):
+        is_null = getattr(shell, "IsNull", None)
+        if callable(is_null):
+            try:
+                if bool(is_null()):
+                    continue
+            except Exception:
+                pass
+
+        closed = getattr(shell, "Closed", None)
+        if callable(closed):
+            try:
+                if bool(closed()):
+                    return True
+            except Exception:
+                continue
+
     return False
 
 
@@ -591,6 +627,8 @@ def solid_has_boundary_faces_3d(
 
     _ = (order, tol)
     mods = _ocp_modules_3d()
+    if not _shape_has_volume_topology(solid, mods=mods):
+        return False
     return _solid_has_non_null_faces(solid, mods=mods)
 
 

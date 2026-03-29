@@ -288,7 +288,6 @@ def _is_empty_boundary_error(exc: ValueError) -> bool:
     message = str(exc).lower()
     return (
         "no boundary faces" in message
-        or "no boundary samples" in message
         or "no boundary triangles" in message
         or "no non-degenerate triangles" in message
         or "empty boundary" in message
