@@ -311,35 +311,36 @@ def _finite_tangent(
     return _scale3(inv, _sub3(p1, p0))
 
 
-def _face_classifier(face: Any, *, tol: float, mods: dict[str, Any]) -> Any | None:
+def _face_classifier(face: Any, *, tol: float, mods: dict[str, Any]) -> Any:
     classifier_cls = getattr(mods["BRepTopAdaptor"], "BRepTopAdaptor_FClass2d", None)
     if classifier_cls is None:
-        return None
+        raise RuntimeError("OpenCascade trimmed-face classifier API unavailable")
     try:
         return classifier_cls(face, float(tol))
-    except Exception:
-        return None
+    except Exception as exc:
+        raise RuntimeError(
+            "failed to construct OpenCascade trimmed-face classifier"
+        ) from exc
 
 
 def _classify_uv_inside(
-    classifier: Any | None, *, u: float, v: float, mods: dict[str, Any]
+    classifier: Any, *, u: float, v: float, mods: dict[str, Any]
 ) -> bool:
-    if classifier is None:
-        return True
-
     perform = getattr(classifier, "Perform", None)
     if not callable(perform):
-        return True
+        raise RuntimeError(
+            "OpenCascade trimmed-face classifier Perform API unavailable"
+        )
 
     gp_mod = mods.get("gp")
     point2d_cls = getattr(gp_mod, "gp_Pnt2d", None) if gp_mod is not None else None
     if point2d_cls is None:
-        return True
+        raise RuntimeError("OpenCascade gp_Pnt2d API unavailable")
 
     try:
         state = perform(point2d_cls(float(u), float(v)))
-    except Exception:
-        return True
+    except Exception as exc:
+        raise RuntimeError("OpenCascade trimmed-face classification failed") from exc
 
     topabs = mods["TopAbs"]
     in_state = getattr(topabs, "TopAbs_IN", None)
@@ -586,13 +587,11 @@ def solid_has_boundary_faces_3d(
     order: int = 2,
     tol: float = 1.0e-12,
 ) -> bool:
-    """Return whether a solid yields non-empty oriented face quadrature."""
+    """Return whether a solid has boundary faces by topology inspection."""
 
-    try:
-        rule = solid_to_surface_quadrature_3d(solid, order=order, tol=tol)
-    except ValueError:
-        return False
-    return bool(rule.points)
+    _ = (order, tol)
+    mods = _ocp_modules_3d()
+    return _solid_has_non_null_faces(solid, mods=mods)
 
 
 def build_axis_aligned_box_solid(
