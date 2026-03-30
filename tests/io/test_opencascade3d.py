@@ -126,6 +126,33 @@ def test_solid_has_boundary_faces_rejects_non_volumetric_topology(
     assert not solid_has_boundary_faces_3d("surface-only")
 
 
+def test_solid_to_surface_quadrature_rejects_non_volumetric_topology(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(oc3d, "_ocp_modules_3d", lambda: {"dummy": object()})
+    monkeypatch.setattr(
+        oc3d, "_shape_has_volume_topology", lambda solid, *, mods: False
+    )
+    monkeypatch.setattr(
+        oc3d,
+        "_solid_has_non_null_faces",
+        lambda solid, *, mods: (_ for _ in ()).throw(
+            AssertionError("face check should not run without volumetric topology")
+        ),
+    )
+
+    with pytest.raises(ValueError, match="volumetric topology"):
+        solid_to_surface_quadrature_3d("surface-only", order=2)
+
+
+def test_resolve_seed_rejects_non_finite_explicit_tuple() -> None:
+    with pytest.raises(ValueError, match="seed coordinates must be finite"):
+        oc3d._resolve_seed_from_points(
+            ((0.0, 0.0, 0.0),),
+            seed=(float("nan"), 0.0, 0.0),
+        )
+
+
 def test_face_classifier_fails_fast_when_classifier_unavailable() -> None:
     with pytest.raises(RuntimeError, match="trimmed-face classifier API unavailable"):
         oc3d._face_classifier(

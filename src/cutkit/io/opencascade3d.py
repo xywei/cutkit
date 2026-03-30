@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib
+import math
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
@@ -402,8 +403,13 @@ def _shape_has_volume_topology(shape: Any, *, mods: dict[str, Any]) -> bool:
 def _resolve_seed_from_points(
     points: tuple[Point3D, ...], *, seed: SeedInput3D
 ) -> Point3D:
+    def _finite_seed(seed_point: Point3D) -> Point3D:
+        if not all(math.isfinite(coord) for coord in seed_point):
+            raise ValueError("seed coordinates must be finite")
+        return seed_point
+
     if isinstance(seed, tuple):
-        return (float(seed[0]), float(seed[1]), float(seed[2]))
+        return _finite_seed((float(seed[0]), float(seed[1]), float(seed[2])))
 
     if seed == "jplus":
         return (1.0, 1.0, 1.0)
@@ -413,10 +419,12 @@ def _resolve_seed_from_points(
 
     if seed == "centroid":
         scale = 1.0 / len(points)
-        return (
-            scale * sum(point[0] for point in points),
-            scale * sum(point[1] for point in points),
-            scale * sum(point[2] for point in points),
+        return _finite_seed(
+            (
+                scale * sum(point[0] for point in points),
+                scale * sum(point[1] for point in points),
+                scale * sum(point[2] for point in points),
+            )
         )
 
     if seed != "grid-best":
@@ -452,7 +460,7 @@ def _resolve_seed_from_points(
             for px, py, pz in points
         )
 
-    return max(candidates, key=_closest_distance_sq)
+    return _finite_seed(max(candidates, key=_closest_distance_sq))
 
 
 def solid_to_surface_quadrature_3d(
@@ -467,6 +475,8 @@ def solid_to_surface_quadrature_3d(
         raise ValueError("order must be positive")
 
     mods = _ocp_modules_3d()
+    if not _shape_has_volume_topology(solid, mods=mods):
+        raise ValueError("solid has no volumetric topology")
     if not _solid_has_non_null_faces(solid, mods=mods):
         raise ValueError("solid has no boundary faces")
 
