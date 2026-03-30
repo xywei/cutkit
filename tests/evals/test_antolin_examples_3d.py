@@ -405,3 +405,24 @@ def test_section_6_1_3_boundary_builder_supports_side_refinement(
     vol_b = _tetra_volume_sum(boundary, (0.5, 0.5, 0.5))
     assert vol_a > 0.0
     assert vol_a == pytest.approx(vol_b, rel=1.0e-10, abs=1.0e-10)
+
+
+def test_section_6_1_3_surface_rule_honors_boundary_resolution_knobs() -> None:
+    base = build_section_6_1_3_boundary_triangles(
+        surface_resolution=4, side_resolution=1
+    )
+    refined_surface = build_section_6_1_3_boundary_triangles(
+        surface_resolution=7,
+        side_resolution=1,
+    )
+    refined_side = build_section_6_1_3_boundary_triangles(
+        surface_resolution=4,
+        side_resolution=3,
+    )
+
+    base_rule = awb3d._surface_rule(base, order=2)
+    refined_surface_rule = awb3d._surface_rule(refined_surface, order=2)
+    refined_side_rule = awb3d._surface_rule(refined_side, order=2)
+
+    assert len(refined_surface_rule.points) > len(base_rule.points)
+    assert len(refined_side_rule.points) > len(base_rule.points)

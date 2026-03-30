@@ -335,18 +335,29 @@ class _SurfaceRule:
 
 
 def _surface_rule(boundary: Section613Boundary, *, order: int) -> _SurfaceRule:
-    _ = boundary
     if order < 1:
         raise ValueError("order must be positive")
 
-    nodes, weights = gauss_legendre_01(order)
+    surface_order = max(int(order), int(boundary.surface_resolution))
+    side_order = max(int(order), int(boundary.side_resolution))
+
+    surface_nodes, surface_weights = gauss_legendre_01(surface_order)
+    side_nodes, side_weights = gauss_legendre_01(side_order)
+
     points: list[Point3D] = []
     weighted_normals: list[Point3D] = []
 
     for patch in _BOUNDARY_PATCHES:
+        if patch in {"curved", "x1"}:
+            s_nodes, s_weights = surface_nodes, surface_weights
+            t_nodes, t_weights = surface_nodes, surface_weights
+        else:
+            s_nodes, s_weights = surface_nodes, surface_weights
+            t_nodes, t_weights = side_nodes, side_weights
+
         sign = _patch_orientation_sign(patch)
-        for s, ws in zip(nodes, weights, strict=True):
-            for t, wt in zip(nodes, weights, strict=True):
+        for s, ws in zip(s_nodes, s_weights, strict=True):
+            for t, wt in zip(t_nodes, t_weights, strict=True):
                 point = _patch_point(patch, float(s), float(t))
                 ds = _finite_patch_derivative(patch, s=float(s), t=float(t), axis="s")
                 dt = _finite_patch_derivative(patch, s=float(s), t=float(t), axis="t")
