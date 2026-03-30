@@ -685,6 +685,9 @@ def test_source_cloud_over_boxes_3d_object_vs_array_equivalence(
         )
 
     monkeypatch.setattr(cad, "clip_solid_with_axis_aligned_box", fake_clip)
+    monkeypatch.setattr(
+        cad, "solid_has_boundary_faces_3d", lambda *args, **kwargs: True
+    )
     monkeypatch.setattr(potentials, "build_signed_source_cloud_3d", fake_build)
 
     boxes = (Box3D(0.0, 1.0, 0.0, 1.0, 0.0, 1.0), Box3D(1.0, 2.0, 0.0, 1.0, 0.0, 1.0))
@@ -815,6 +818,7 @@ def test_source_cloud_over_boxes_3d_batches_points(
             strict,
             validate_boundary,
         )
+        assert validate_boundary is True
         return cad.CadBatchClip3D(
             shape=(2,),
             box_bounds=(
@@ -905,6 +909,7 @@ def test_source_cloud_over_boxes_3d_no_sample_error_is_backend_error_non_strict(
             strict,
             validate_boundary,
         )
+        assert validate_boundary is True
         return cad.CadBatchClip3D(
             shape=(),
             box_bounds=((0.0, 1.0, 0.0, 1.0, 0.0, 1.0),),

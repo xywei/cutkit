@@ -632,7 +632,7 @@ class CadSolid3D:
             angular_deflection=angular_deflection,
             tol=tol,
             strict=strict,
-            validate_boundary=False,
+            validate_boundary=True,
         )
 
         statuses: list[BatchStatus] = []

@@ -2007,7 +2007,7 @@ def source_cloud_over_boxes_3d(
         angular_deflection=angular_deflection,
         tol=tol,
         strict=strict,
-        validate_boundary=False,
+        validate_boundary=True,
     )
 
     statuses: list[BatchStatus] = []

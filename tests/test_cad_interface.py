@@ -355,6 +355,9 @@ def test_integrate_over_boxes_3d_non_strict_marks_backend_errors(
         return clipped["bounds"][0]
 
     monkeypatch.setattr(cad, "clip_solid_with_axis_aligned_box", fake_clip)
+    monkeypatch.setattr(
+        cad, "solid_has_boundary_faces_3d", lambda *args, **kwargs: True
+    )
     monkeypatch.setattr(cad, "integrate_general_over_solid_folded_3d", fake_integrate)
 
     result = solid.integrate_over_boxes(
@@ -526,6 +529,9 @@ def test_integrate_over_boxes_3d_object_and_array_modes_match(
         return clipped["bounds"][0]
 
     monkeypatch.setattr(cad, "clip_solid_with_axis_aligned_box", fake_clip)
+    monkeypatch.setattr(
+        cad, "solid_has_boundary_faces_3d", lambda *args, **kwargs: True
+    )
     monkeypatch.setattr(cad, "integrate_general_over_solid_folded_3d", fake_integrate)
 
     object_mode = solid.integrate_over_boxes(
@@ -585,6 +591,9 @@ def test_integrate_over_boxes_3d_uses_caller_meshing_tolerances(
         return 1.0
 
     monkeypatch.setattr(cad, "clip_solid_with_axis_aligned_box", fake_clip)
+    monkeypatch.setattr(
+        cad, "solid_has_boundary_faces_3d", lambda *args, **kwargs: True
+    )
     monkeypatch.setattr(cad, "integrate_general_over_solid_folded_3d", fake_integrate)
 
     result = solid.integrate_over_boxes(
@@ -611,10 +620,11 @@ def test_integrate_over_boxes_3d_uses_caller_meshing_tolerances(
     assert first_surface_order == 5
 
 
-def test_integrate_over_boxes_3d_skips_clip_boundary_validation(
+def test_integrate_over_boxes_3d_runs_clip_boundary_validation(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     solid = CadSolid3D.from_solid("solid")
+    calls = {"boundary_checks": 0}
 
     def fake_clip(
         _solid: object,
@@ -629,9 +639,10 @@ def test_integrate_over_boxes_3d_skips_clip_boundary_validation(
         _ = (x0, x1, y0, y1, z0, z1)
         return {"non_null": True}
 
-    def fail_if_called(*args: Any, **kwargs: Any) -> bool:
+    def fake_has_extractable_boundary(*args: Any, **kwargs: Any) -> bool:
         _ = (args, kwargs)
-        raise AssertionError("clip boundary validation should not run")
+        calls["boundary_checks"] += 1
+        return True
 
     def fake_integrate(
         clipped: Any,
@@ -646,7 +657,7 @@ def test_integrate_over_boxes_3d_skips_clip_boundary_validation(
         return 2.0
 
     monkeypatch.setattr(cad, "clip_solid_with_axis_aligned_box", fake_clip)
-    monkeypatch.setattr(cad, "_has_extractable_boundary", fail_if_called)
+    monkeypatch.setattr(cad, "_has_extractable_boundary", fake_has_extractable_boundary)
     monkeypatch.setattr(cad, "integrate_general_over_solid_folded_3d", fake_integrate)
 
     result = solid.integrate_over_boxes(
@@ -663,6 +674,7 @@ def test_integrate_over_boxes_3d_skips_clip_boundary_validation(
 
     assert result.statuses == ("ok",)
     assert result.values == (2.0,)
+    assert calls["boundary_checks"] == 1
 
 
 def test_integrate_over_boxes_3d_raises_on_no_boundary_samples_in_strict_mode(
@@ -696,6 +708,9 @@ def test_integrate_over_boxes_3d_raises_on_no_boundary_samples_in_strict_mode(
         raise ValueError("solid boundary face quadrature produced no samples")
 
     monkeypatch.setattr(cad, "clip_solid_with_axis_aligned_box", fake_clip)
+    monkeypatch.setattr(
+        cad, "solid_has_boundary_faces_3d", lambda *args, **kwargs: True
+    )
     monkeypatch.setattr(cad, "integrate_general_over_solid_folded_3d", fake_integrate)
 
     with pytest.raises(ValueError, match="no samples"):
@@ -743,6 +758,9 @@ def test_integrate_over_boxes_3d_marks_backend_error_on_no_boundary_samples_non_
         raise ValueError("solid boundary face quadrature produced no samples")
 
     monkeypatch.setattr(cad, "clip_solid_with_axis_aligned_box", fake_clip)
+    monkeypatch.setattr(
+        cad, "solid_has_boundary_faces_3d", lambda *args, **kwargs: True
+    )
     monkeypatch.setattr(cad, "integrate_general_over_solid_folded_3d", fake_integrate)
 
     result = solid.integrate_over_boxes(
