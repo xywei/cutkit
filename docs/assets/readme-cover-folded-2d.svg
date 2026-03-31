@@ -1,0 +1,149 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720">
+<defs>
+<linearGradient id="bg2d" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#071126"/><stop offset="52%" stop-color="#102b49"/><stop offset="100%" stop-color="#1f2f3d"/></linearGradient>
+<radialGradient id="halo2d_a" cx="16%" cy="16%" r="72%"><stop offset="0%" stop-color="#34d399" stop-opacity="0.34"/><stop offset="100%" stop-color="#34d399" stop-opacity="0"/></radialGradient>
+<radialGradient id="halo2d_b" cx="82%" cy="24%" r="64%"><stop offset="0%" stop-color="#f59e0b" stop-opacity="0.22"/><stop offset="100%" stop-color="#f59e0b" stop-opacity="0"/></radialGradient>
+<linearGradient id="fillTrimmed2d" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#fb923c"/><stop offset="100%" stop-color="#f97316"/></linearGradient>
+<radialGradient id="anchor2d" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#fb7185" stop-opacity="0.96"/><stop offset="100%" stop-color="#fb7185" stop-opacity="0.18"/></radialGradient>
+<radialGradient id="vignette2d" cx="50%" cy="50%" r="74%"><stop offset="70%" stop-color="#000000" stop-opacity="0"/><stop offset="100%" stop-color="#000000" stop-opacity="0.28"/></radialGradient>
+</defs>
+<rect x="0" y="0" width="1280" height="720" fill="url(#bg2d)"/>
+<rect x="0" y="0" width="1280" height="720" fill="url(#halo2d_a)"/>
+<rect x="0" y="0" width="1280" height="720" fill="url(#halo2d_b)"/>
+<polygon points="334.643,665.357 945.357,665.357 945.357,54.643 334.643,54.643" fill="#0b1220" fill-opacity="0.22" stroke="#f8fafc" stroke-opacity="0.85" stroke-width="2.0" stroke-dasharray="7 6"/>
+<polygon points="815.976,54.643 825.229,70.414 834.665,88.041 843.041,105.403 850.357,122.500 856.613,139.332 861.808,155.898 865.943,172.200 869.018,188.237 871.032,204.008 871.987,219.515 871.881,234.756 870.714,249.732 868.488,264.443 865.201,278.890 860.854,293.071 855.446,306.987 848.979,320.638 841.451,334.023 832.863,347.144 823.214,360.000 813.036,372.856 802.857,385.977 792.679,399.362 782.500,413.013 772.321,426.929 762.143,441.110 751.964,455.557 741.786,470.268 731.607,485.244 721.429,500.485 711.250,515.992 701.071,531.763 690.893,547.800 680.714,564.102 670.536,580.668 660.357,597.500 650.179,614.597 640.000,631.959 629.821,649.586 620.849,665.357 945.357,665.357 945.357,54.643" fill="url(#fillTrimmed2d)" fill-opacity="0.74" stroke="#f8fafc" stroke-opacity="0.92" stroke-width="2.6"/>
+<line x1="640.000" y1="665.357" x2="820.602" y2="62.529" stroke="#f472b6" stroke-opacity="0.20" stroke-width="0.95"/>
+<line x1="640.000" y1="665.357" x2="838.853" y2="96.722" stroke="#f472b6" stroke-opacity="0.20" stroke-width="0.95"/>
+<line x1="640.000" y1="665.357" x2="853.485" y2="130.916" stroke="#f472b6" stroke-opacity="0.20" stroke-width="0.95"/>
+<line x1="640.000" y1="665.357" x2="863.876" y2="164.049" stroke="#f472b6" stroke-opacity="0.20" stroke-width="0.95"/>
+<line x1="640.000" y1="665.357" x2="870.025" y2="196.122" stroke="#f472b6" stroke-opacity="0.20" stroke-width="0.95"/>
+<line x1="640.000" y1="665.357" x2="871.934" y2="227.135" stroke="#f472b6" stroke-opacity="0.20" stroke-width="0.95"/>
+<line x1="640.000" y1="665.357" x2="869.601" y2="257.088" stroke="#f472b6" stroke-opacity="0.20" stroke-width="0.95"/>
+<line x1="640.000" y1="665.357" x2="863.027" y2="285.980" stroke="#f472b6" stroke-opacity="0.20" stroke-width="0.95"/>
+<line x1="640.000" y1="665.357" x2="852.213" y2="313.812" stroke="#f472b6" stroke-opacity="0.20" stroke-width="0.95"/>
+<line x1="640.000" y1="665.357" x2="837.157" y2="340.584" stroke="#67e8f9" stroke-opacity="0.12" stroke-width="0.95"/>
+<line x1="640.000" y1="665.357" x2="818.125" y2="366.428" stroke="#67e8f9" stroke-opacity="0.12" stroke-width="0.95"/>
+<line x1="640.000" y1="665.357" x2="797.768" y2="392.670" stroke="#67e8f9" stroke-opacity="0.12" stroke-width="0.95"/>
+<line x1="640.000" y1="665.357" x2="777.411" y2="419.971" stroke="#67e8f9" stroke-opacity="0.12" stroke-width="0.95"/>
+<line x1="640.000" y1="665.357" x2="757.054" y2="448.334" stroke="#67e8f9" stroke-opacity="0.12" stroke-width="0.95"/>
+<line x1="640.000" y1="665.357" x2="736.696" y2="477.756" stroke="#67e8f9" stroke-opacity="0.12" stroke-width="0.95"/>
+<line x1="640.000" y1="665.357" x2="716.339" y2="508.239" stroke="#67e8f9" stroke-opacity="0.12" stroke-width="0.95"/>
+<line x1="640.000" y1="665.357" x2="695.982" y2="539.782" stroke="#67e8f9" stroke-opacity="0.12" stroke-width="0.95"/>
+<line x1="640.000" y1="665.357" x2="675.625" y2="572.385" stroke="#67e8f9" stroke-opacity="0.12" stroke-width="0.95"/>
+<line x1="640.000" y1="665.357" x2="655.268" y2="606.048" stroke="#67e8f9" stroke-opacity="0.12" stroke-width="0.95"/>
+<line x1="640.000" y1="665.357" x2="634.911" y2="640.772" stroke="#67e8f9" stroke-opacity="0.12" stroke-width="0.95"/>
+<line x1="640.000" y1="665.357" x2="783.103" y2="665.357" stroke="#67e8f9" stroke-opacity="0.12" stroke-width="0.95"/>
+<line x1="640.000" y1="665.357" x2="880.667" y2="54.643" stroke="#67e8f9" stroke-opacity="0.12" stroke-width="0.95"/>
+<circle cx="644.681" cy="649.729" r="1.05" fill="#f8fafc" fill-opacity="0.42"/>
+<circle cx="745.033" cy="308.639" r="1.05" fill="#f8fafc" fill-opacity="0.42"/>
+<circle cx="813.060" cy="67.079" r="1.05" fill="#f8fafc" fill-opacity="0.42"/>
+<circle cx="831.020" cy="91.541" r="1.05" fill="#f8fafc" fill-opacity="0.42"/>
+<circle cx="800.539" cy="150.947" r="1.05" fill="#f8fafc" fill-opacity="0.42"/>
+<circle cx="761.899" cy="326.450" r="1.05" fill="#f8fafc" fill-opacity="0.42"/>
+<circle cx="832.400" cy="111.507" r="1.05" fill="#f8fafc" fill-opacity="0.42"/>
+<circle cx="656.656" cy="621.904" r="1.05" fill="#f8fafc" fill-opacity="0.42"/>
+<circle cx="777.831" cy="294.355" r="1.05" fill="#f8fafc" fill-opacity="0.42"/>
+<circle cx="841.260" cy="112.428" r="1.05" fill="#f8fafc" fill-opacity="0.42"/>
+<circle cx="701.620" cy="506.646" r="1.05" fill="#f8fafc" fill-opacity="0.42"/>
+<circle cx="826.475" cy="185.630" r="1.05" fill="#f8fafc" fill-opacity="0.42"/>
+<circle cx="802.858" cy="289.374" r="1.05" fill="#f8fafc" fill-opacity="0.42"/>
+<circle cx="857.592" cy="149.211" r="1.05" fill="#f8fafc" fill-opacity="0.42"/>
+<circle cx="678.639" cy="580.691" r="1.05" fill="#f8fafc" fill-opacity="0.42"/>
+<circle cx="808.950" cy="285.819" r="1.05" fill="#f8fafc" fill-opacity="0.42"/>
+<circle cx="861.059" cy="159.243" r="1.05" fill="#f8fafc" fill-opacity="0.42"/>
+<circle cx="715.084" cy="502.574" r="1.05" fill="#f8fafc" fill-opacity="0.42"/>
+<circle cx="845.348" cy="218.704" r="1.05" fill="#f8fafc" fill-opacity="0.42"/>
+<circle cx="836.362" cy="271.907" r="1.05" fill="#f8fafc" fill-opacity="0.42"/>
+<circle cx="804.991" cy="321.701" r="1.05" fill="#f8fafc" fill-opacity="0.42"/>
+<circle cx="707.879" cy="534.678" r="1.05" fill="#f8fafc" fill-opacity="0.42"/>
+<circle cx="833.827" cy="285.472" r="1.05" fill="#f8fafc" fill-opacity="0.42"/>
+<circle cx="870.893" cy="205.447" r="1.05" fill="#f8fafc" fill-opacity="0.42"/>
+<circle cx="732.362" cy="489.580" r="1.05" fill="#f8fafc" fill-opacity="0.42"/>
+<circle cx="856.152" cy="251.331" r="1.05" fill="#f8fafc" fill-opacity="0.42"/>
+<circle cx="856.277" cy="274.871" r="1.05" fill="#f8fafc" fill-opacity="0.42"/>
+<circle cx="810.598" cy="348.802" r="1.05" fill="#f8fafc" fill-opacity="0.42"/>
+<circle cx="738.977" cy="491.547" r="1.05" fill="#f8fafc" fill-opacity="0.42"/>
+<circle cx="848.396" cy="295.099" r="1.05" fill="#f8fafc" fill-opacity="0.42"/>
+<circle cx="867.743" cy="255.086" r="1.05" fill="#f8fafc" fill-opacity="0.42"/>
+<circle cx="750.456" cy="473.308" r="1.05" fill="#f8fafc" fill-opacity="0.42"/>
+<circle cx="857.734" cy="284.309" r="1.05" fill="#f8fafc" fill-opacity="0.42"/>
+<circle cx="858.460" cy="296.643" r="1.05" fill="#f8fafc" fill-opacity="0.42"/>
+<circle cx="811.430" cy="371.470" r="1.05" fill="#f8fafc" fill-opacity="0.42"/>
+<circle cx="765.027" cy="457.324" r="1.05" fill="#f8fafc" fill-opacity="0.42"/>
+<circle cx="849.398" cy="314.954" r="1.05" fill="#f8fafc" fill-opacity="0.42"/>
+<circle cx="858.162" cy="297.612" r="1.05" fill="#f8fafc" fill-opacity="0.42"/>
+<circle cx="764.775" cy="458.691" r="1.05" fill="#f8fafc" fill-opacity="0.42"/>
+<circle cx="849.040" cy="318.032" r="1.05" fill="#f8fafc" fill-opacity="0.42"/>
+<circle cx="675.705" cy="606.470" r="1.05" fill="#f8fafc" fill-opacity="0.42"/>
+<circle cx="805.943" cy="391.705" r="1.05" fill="#f8fafc" fill-opacity="0.42"/>
+<circle cx="779.049" cy="435.947" r="1.05" fill="#f8fafc" fill-opacity="0.42"/>
+<circle cx="835.072" cy="343.945" r="1.05" fill="#f8fafc" fill-opacity="0.42"/>
+<circle cx="839.226" cy="337.681" r="1.05" fill="#f8fafc" fill-opacity="0.42"/>
+<circle cx="770.067" cy="449.492" r="1.05" fill="#f8fafc" fill-opacity="0.42"/>
+<circle cx="829.335" cy="352.507" r="1.05" fill="#f8fafc" fill-opacity="0.42"/>
+<circle cx="679.171" cy="599.839" r="1.05" fill="#f8fafc" fill-opacity="0.42"/>
+<circle cx="792.171" cy="411.244" r="1.05" fill="#f8fafc" fill-opacity="0.42"/>
+<circle cx="777.225" cy="430.004" r="1.05" fill="#f8fafc" fill-opacity="0.42"/>
+<circle cx="740.302" cy="495.782" r="1.05" fill="#f8fafc" fill-opacity="0.42"/>
+<circle cx="811.380" cy="375.639" r="1.05" fill="#f8fafc" fill-opacity="0.42"/>
+<circle cx="764.562" cy="449.578" r="1.05" fill="#f8fafc" fill-opacity="0.42"/>
+<circle cx="800.906" cy="388.679" r="1.05" fill="#f8fafc" fill-opacity="0.42"/>
+<circle cx="683.654" cy="588.754" r="1.05" fill="#f8fafc" fill-opacity="0.42"/>
+<circle cx="772.615" cy="433.653" r="1.05" fill="#f8fafc" fill-opacity="0.42"/>
+<circle cx="763.643" cy="442.624" r="1.05" fill="#f8fafc" fill-opacity="0.42"/>
+<circle cx="725.657" cy="513.556" r="1.05" fill="#f8fafc" fill-opacity="0.42"/>
+<circle cx="781.376" cy="414.982" r="1.05" fill="#f8fafc" fill-opacity="0.42"/>
+<circle cx="750.994" cy="462.855" r="1.05" fill="#f8fafc" fill-opacity="0.42"/>
+<circle cx="763.501" cy="442.818" r="1.05" fill="#f8fafc" fill-opacity="0.42"/>
+<circle cx="686.214" cy="579.502" r="1.05" fill="#f8fafc" fill-opacity="0.42"/>
+<circle cx="750.273" cy="462.042" r="1.05" fill="#f8fafc" fill-opacity="0.42"/>
+<circle cx="740.608" cy="472.588" r="1.05" fill="#f8fafc" fill-opacity="0.42"/>
+<circle cx="711.260" cy="531.532" r="1.05" fill="#f8fafc" fill-opacity="0.42"/>
+<circle cx="751.266" cy="456.832" r="1.05" fill="#f8fafc" fill-opacity="0.42"/>
+<circle cx="730.061" cy="489.711" r="1.05" fill="#f8fafc" fill-opacity="0.42"/>
+<circle cx="735.335" cy="482.610" r="1.05" fill="#f8fafc" fill-opacity="0.42"/>
+<circle cx="683.782" cy="577.569" r="1.05" fill="#f8fafc" fill-opacity="0.42"/>
+<circle cx="725.026" cy="497.049" r="1.05" fill="#f8fafc" fill-opacity="0.42"/>
+<circle cx="646.361" cy="652.416" r="1.05" fill="#f8fafc" fill-opacity="0.42"/>
+<circle cx="695.366" cy="552.641" r="1.05" fill="#f8fafc" fill-opacity="0.42"/>
+<circle cx="721.032" cy="501.240" r="1.05" fill="#f8fafc" fill-opacity="0.42"/>
+<circle cx="703.384" cy="528.544" r="1.05" fill="#f8fafc" fill-opacity="0.42"/>
+<circle cx="707.103" cy="524.625" r="1.05" fill="#f8fafc" fill-opacity="0.42"/>
+<circle cx="674.338" cy="587.238" r="1.05" fill="#f8fafc" fill-opacity="0.42"/>
+<circle cx="697.215" cy="538.554" r="1.05" fill="#f8fafc" fill-opacity="0.42"/>
+<circle cx="645.995" cy="651.055" r="1.05" fill="#f8fafc" fill-opacity="0.42"/>
+<circle cx="676.608" cy="579.490" r="1.05" fill="#f8fafc" fill-opacity="0.42"/>
+<circle cx="690.675" cy="548.224" r="1.05" fill="#f8fafc" fill-opacity="0.42"/>
+<circle cx="657.555" cy="621.632" r="1.05" fill="#f8fafc" fill-opacity="0.42"/>
+<circle cx="678.551" cy="569.314" r="1.05" fill="#f8fafc" fill-opacity="0.42"/>
+<circle cx="657.146" cy="610.945" r="1.05" fill="#f8fafc" fill-opacity="0.42"/>
+<circle cx="667.577" cy="585.688" r="1.05" fill="#f8fafc" fill-opacity="0.42"/>
+<circle cx="642.895" cy="653.191" r="1.05" fill="#f8fafc" fill-opacity="0.42"/>
+<circle cx="654.182" cy="613.969" r="1.05" fill="#f8fafc" fill-opacity="0.42"/>
+<circle cx="660.215" cy="597.768" r="1.05" fill="#f8fafc" fill-opacity="0.42"/>
+<circle cx="644.332" cy="642.461" r="1.05" fill="#f8fafc" fill-opacity="0.42"/>
+<circle cx="649.492" cy="617.063" r="1.05" fill="#f8fafc" fill-opacity="0.42"/>
+<circle cx="632.823" cy="648.883" r="1.05" fill="#f8fafc" fill-opacity="0.42"/>
+<circle cx="639.979" cy="637.279" r="1.05" fill="#f8fafc" fill-opacity="0.42"/>
+<circle cx="634.254" cy="664.293" r="1.05" fill="#f8fafc" fill-opacity="0.42"/>
+<circle cx="628.312" cy="656.297" r="1.05" fill="#f8fafc" fill-opacity="0.42"/>
+<circle cx="629.708" cy="649.791" r="1.05" fill="#f8fafc" fill-opacity="0.42"/>
+<circle cx="659.967" cy="665.357" r="1.05" fill="#f8fafc" fill-opacity="0.42"/>
+<circle cx="633.976" cy="665.357" r="1.05" fill="#f8fafc" fill-opacity="0.42"/>
+<circle cx="928.058" cy="187.137" r="1.05" fill="#f8fafc" fill-opacity="0.42"/>
+<circle cx="899.712" cy="658.752" r="1.05" fill="#f8fafc" fill-opacity="0.42"/>
+<circle cx="730.438" cy="381.791" r="1.05" fill="#f8fafc" fill-opacity="0.42"/>
+<circle cx="878.293" cy="96.303" r="1.05" fill="#f8fafc" fill-opacity="0.42"/>
+<circle cx="640.000" cy="665.357" r="15.0" fill="url(#anchor2d)"/>
+<circle cx="640.000" cy="665.357" r="4.8" fill="#fb7185"/>
+<rect x="1032" y="20" width="214" height="68" rx="11" fill="#0b1224" fill-opacity="0.50" stroke="#e2e8f0" stroke-opacity="0.18"/>
+<circle cx="1052" cy="42" r="5.5" fill="#f97316"/>
+<text x="1065" y="46" fill="#f8fafc" font-size="12" font-family="Avenir Next, Futura, Trebuchet MS, sans-serif">trim edge</text>
+<circle cx="1128" cy="42" r="5.5" fill="#67e8f9"/>
+<text x="1141" y="46" fill="#f8fafc" font-size="12" font-family="Avenir Next, Futura, Trebuchet MS, sans-serif">+ray</text>
+<circle cx="1183" cy="42" r="5.5" fill="#f472b6"/>
+<text x="1196" y="46" fill="#f8fafc" font-size="12" font-family="Avenir Next, Futura, Trebuchet MS, sans-serif">-ray</text>
+<text x="1048" y="69" fill="#bfdbfe" font-size="11" font-family="Avenir Next, Futura, Trebuchet MS, sans-serif">tri=43   +=25   -=18   q=10</text>
+<text x="1048" y="83" fill="#94a3b8" font-size="10" font-family="Avenir Next, Futura, Trebuchet MS, sans-serif">single square cut-cell</text>
+<rect x="0" y="0" width="1280" height="720" fill="url(#vignette2d)"/>
+</svg>
