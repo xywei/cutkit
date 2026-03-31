@@ -247,7 +247,7 @@ def _choose_contrast_anchor_2d(
 
 
 def _build_single_cell_2d_data() -> dict[str, Any]:
-    panel = build_section_6_1_1_bspline_panel(sample_count=512)
+    panel = build_section_6_1_1_bspline_panel(sample_count=192)
     snapshot = build_poisson_galerkin_geometry_snapshot(panel, resolution=8)
 
     trimmed = [clip for clip in snapshot.clipped_cells if str(clip.kind) == "trimmed"]
@@ -267,7 +267,7 @@ def _build_single_cell_2d_data() -> dict[str, Any]:
     local_anchor, _anchor_stats = _choose_contrast_anchor_2d(local_panel, cell)
     folded = folded_quadrature_rule(
         local_panel,
-        order=6,
+        order=10,
         anchor=local_anchor,
         require_interior_anchor=False,
     )
@@ -547,7 +547,7 @@ def _render_cover_2d(*, width: int = 1280, height: int = 720) -> str:
         f'<text x="{legend_x + 20}" y="{legend_y + 55}" fill="#bfdbfe" '
         'font-size="12" font-family="Avenir Next, Futura, Trebuchet MS, sans-serif">'
         f"cell [{cell[0]:.3f},{cell[2]:.3f}] x [{cell[1]:.3f},{cell[3]:.3f}], "
-        f"triangles={triangle_count}, +={non_folded_count}, -={folded_count}</text>"
+        f"triangles={triangle_count}, +={non_folded_count}, -={folded_count}, q=10</text>"
     )
 
     lines.append(
@@ -947,7 +947,7 @@ def _box_edges(cell: CartesianCell3D) -> tuple[tuple[Point3D, Point3D], ...]:
 def _build_single_cell_3d_data() -> dict[str, Any]:
     cell = _select_scary_cell_3d(resolution=8)
 
-    grid_size = 31
+    grid_size = 21
     grid, active_points = _sample_lower_surface_grid(cell, size=grid_size)
     if not active_points:
         raise ValueError("selected 3D cell has no active cut points")
@@ -962,7 +962,7 @@ def _build_single_cell_3d_data() -> dict[str, Any]:
     anchor, _anchor_stats = _choose_contrast_anchor_3d(cell, anchor_samples)
 
     struts: list[tuple[Point3D, Point3D]] = []
-    stride = 3
+    stride = 4
     for iy in range(0, grid_size, stride):
         for iz in range(0, grid_size, stride):
             point = grid[iy][iz]
@@ -971,7 +971,7 @@ def _build_single_cell_3d_data() -> dict[str, Any]:
             top = (cell.x1, point[1], point[2])
             struts.append((point, top))
 
-    boundary_samples = _boundary_samples_with_normals(grid, cell, stride=3)
+    boundary_samples = _boundary_samples_with_normals(grid, cell, stride=4)
     signed_points: dict[tuple[int, int, int], tuple[Point3D, float]] = {}
     for point, normal in boundary_samples:
         if (
@@ -1015,14 +1015,14 @@ def _build_single_cell_3d_data() -> dict[str, Any]:
     folded_count = sum(1 for _, sign in boundary_points_signed if sign < 0)
     non_folded_count = sum(1 for _, sign in boundary_points_signed if sign > 0)
 
-    ray_step = max(1, len(boundary_points_signed) // 150)
+    ray_step = max(1, len(boundary_points_signed) // 90)
     rays = tuple(
         (anchor, point, sign) for point, sign in boundary_points_signed[::ray_step]
     )
 
-    radial_nodes, _ = gauss_legendre_01(4)
+    radial_nodes, _ = gauss_legendre_01(8)
     cloud_sources = boundary_points_signed[
-        :: max(1, len(boundary_points_signed) // 210)
+        :: max(1, len(boundary_points_signed) // 120)
     ]
     cloud_points: list[Point3D] = []
     for boundary_point, _sign in cloud_sources:
@@ -1156,11 +1156,11 @@ def _render_cover_3d(*, width: int = 1280, height: int = 720) -> str:
             margin=margin,
         )
         depth = _normalize(p1[2], lower=zmin, upper=zmax)
-        opacity = 0.10 + (0.26 if sign < 0 else 0.18) * (1.0 - depth)
+        opacity = 0.05 + (0.16 if sign < 0 else 0.11) * (1.0 - depth)
         color = "#f9a8d4" if sign < 0 else "#67e8f9"
         lines.append(
             f'<line x1="{x0:.3f}" y1="{y0:.3f}" x2="{x1:.3f}" y2="{y1:.3f}" '
-            f'stroke="{color}" stroke-opacity="{opacity:.3f}" stroke-width="1.0"/>'
+            f'stroke="{color}" stroke-opacity="{opacity:.3f}" stroke-width="0.85"/>'
         )
 
     lower_with_depth = []
@@ -1184,10 +1184,10 @@ def _render_cover_3d(*, width: int = 1280, height: int = 720) -> str:
                 for point in projected
             )
         )
-        alpha = 0.22 + 0.50 * (1.0 - _normalize(depth, lower=zmin, upper=zmax))
+        alpha = 0.32 + 0.50 * (1.0 - _normalize(depth, lower=zmin, upper=zmax))
         lines.append(
             f'<polyline points="{points_attr}" fill="none" stroke="#7dd3fc" '
-            f'stroke-opacity="{alpha:.3f}" stroke-width="1.20"/>'
+            f'stroke-opacity="{alpha:.3f}" stroke-width="1.75"/>'
         )
 
     upper_with_depth = []
@@ -1197,7 +1197,7 @@ def _render_cover_3d(*, width: int = 1280, height: int = 720) -> str:
         upper_with_depth.append((depth, projected))
     upper_with_depth.sort(key=lambda item: item[0])
 
-    for depth, projected in upper_with_depth[::2]:
+    for depth, projected in upper_with_depth[::4]:
         points_attr = " ".join(
             f"{x:.3f},{y:.3f}"
             for x, y in (
@@ -1211,10 +1211,10 @@ def _render_cover_3d(*, width: int = 1280, height: int = 720) -> str:
                 for point in projected
             )
         )
-        alpha = 0.10 + 0.22 * (1.0 - _normalize(depth, lower=zmin, upper=zmax))
+        alpha = 0.05 + 0.12 * (1.0 - _normalize(depth, lower=zmin, upper=zmax))
         lines.append(
             f'<polyline points="{points_attr}" fill="none" stroke="#c4b5fd" '
-            f'stroke-opacity="{alpha:.3f}" stroke-width="1.0"/>'
+            f'stroke-opacity="{alpha:.3f}" stroke-width="0.9"/>'
         )
 
     for start, end in struts:
@@ -1236,7 +1236,7 @@ def _render_cover_3d(*, width: int = 1280, height: int = 720) -> str:
         )
         lines.append(
             f'<line x1="{x0:.3f}" y1="{y0:.3f}" x2="{x1:.3f}" y2="{y1:.3f}" '
-            'stroke="#93c5fd" stroke-opacity="0.12" stroke-width="0.9"/>'
+            'stroke="#93c5fd" stroke-opacity="0.06" stroke-width="0.8"/>'
         )
 
     cloud_with_depth = []
@@ -1352,7 +1352,7 @@ def _render_cover_3d(*, width: int = 1280, height: int = 720) -> str:
         f'<text x="{legend_x + 20}" y="{legend_y + 55}" fill="#c7d2fe" '
         'font-size="12" font-family="Avenir Next, Futura, Trebuchet MS, sans-serif">'
         f"cell [{cell.x0:.3f},{cell.x1:.3f}] x [{cell.y0:.3f},{cell.y1:.3f}] x "
-        f"[{cell.z0:.3f},{cell.z1:.3f}], +={non_folded_count}, -={folded_count}</text>"
+        f"[{cell.z0:.3f},{cell.z1:.3f}], +={non_folded_count}, -={folded_count}, q_r=8</text>"
     )
 
     lines.append(
