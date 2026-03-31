@@ -1,88 +1,126 @@
 # CUTKIT
 
-**Cut-cell Utilities for Trimming, Kernel Integration, and Topology**
+**CAD-native cut-cell integration for trimmed domains.**
 
-Topology-aware cut-cell utilities for trimmed-domain kernel integration.
+CUTKIT helps you move from trimmed geometry to solver-ready integration data
+without giving up topology correctness, reproducibility, or practical workflow
+speed.
 
-## Scope
+It is built for computational scientists and solver engineers who need:
 
-CUTKIT focuses on a geometry/cut layer that complements `meshmode` and `modepy`:
+- exact-enough geometry handling with clear failure semantics,
+- folded decomposition workflows for trimmed cells,
+- and clean handoff to downstream potential/solver stacks.
 
-- trimmed patch loop handling (outer loops, holes, orientation)
-- cut-cell classification and clipping in parametric space
-- robust integration helpers for regular cut panels
-- diagnostics for cut topology and quadrature quality
+| 2D folded decomposition | 3D folded decomposition |
+| --- | --- |
+| ![CUTKIT 2D folded decomposition cover](docs/assets/readme-cover-folded-2d.svg) | ![CUTKIT 3D folded decomposition cover](docs/assets/readme-cover-folded-3d.svg) |
 
-## Non-goals (for now)
+## Why teams choose CUTKIT
 
-- replacing singular/near-singular QBX evaluation in `pytential`
-- being a full CAD kernel
+- **CAD first, not CAD last.** Use OpenCascade-backed clipping and folded
+  integration when available.
+- **No triangulation required for folded 3D.** Run folded boundary-face
+  quadrature on clipped solids directly.
+- **Production-friendly status model.** Batch operations return explicit
+  per-box states (`ok`, `empty`, `invalid_box`, `backend_error`).
+- **Solver handoff ready.** Export far/near primitives aligned with
+  volumential-style workflows.
+- **Reproducible research loop.** Scripted Antolin-Wei-Buffa Section 6
+  reproductions with parity fixtures and CI checks.
 
-## Development Status
+## What you can do right now
 
-Early bootstrap. APIs may change.
+### 2D trimmed workflows
 
-## Folded Decomposition (2D)
+- CAD-native clipping and integration (OpenCascade), plus polygonized fallback.
+- Loop orientation normalization, cut-panel classification, and topology
+  diagnostics.
 
-Current 2D scope is CAD-native first, with a polygonized MVP fallback:
+### 3D folded workflows (no triangulation)
 
-- loop orientation normalization (outer ccw, holes cw)
-- interior anchor selection
-- folded decomposition on line and curved CAD edges
-- OpenCascade-backed exact cell clipping for Section 6 reproductions
-- area and low-order moment diagnostics
-- axis-general Cartesian 3D graph-surface integration, including bounded slabs
-  between paired trim surfaces
-- CAD-native 3D solid ingestion and axis-aligned clipping adapters for folded
-  boundary-face quadrature workflows (no triangulation)
+- CAD solid ingestion and axis-aligned clipping adapters.
+- Folded boundary-face quadrature on clipped solids.
+- Topology-first boundary validation for volumetric semantics.
 
-Current limitations:
+### Solver-oriented exports
 
-- singular/near-singular kernel quadrature (including QBFEM-style workflows)
-  is intentionally deferred; current Antolin Section 6 reproductions target
-  regular integration behavior
+- Signed far-field source clouds (`coords`, `weights`, `charges`, ptr/index
+  metadata).
+- Near-field local operators (`assembled` CSR or `matrix_free` descriptor).
+- List plumbing helpers for restricted-source
+  `self/list1/list3/list4` workflows.
 
-Reproduction script for Antolin-Wei-Buffa (2022) Section 6 examples:
+## Latest updates on `main`
+
+- 3D clip/integration and source-cloud batch paths enforce boundary validation
+  by default.
+- Folded 3D quadrature rejects non-volumetric topology and non-finite explicit
+  seeds early.
+- Section 6.1.3 boundary knobs (`surface_resolution`, `side_resolution`) now
+  actively drive folded surface sampling.
+- Quick polygonized parity fixture refreshed to match validated metrics.
+
+## Get started (2 minutes)
+
+CUTKIT uses `uv` for dependency and environment management.
+
+```bash
+uv sync --extra dev
+```
+
+Optional extras:
+
+```bash
+uv sync --extra perf   # NumPy acceleration for faster eval/repro runs
+uv sync --extra cad    # OpenCascade CAD-native workflows
+```
+
+Run the full local quality gate:
+
+```bash
+make dev
+```
+
+This runs format, lint, type-check, architecture checks, docs freshness,
+tests, and cut-panel evaluation.
+
+## Reproduce Antolin-Wei-Buffa Section 6
+
+Run 2D + 3D quick protocols:
 
 ```bash
 uv run python scripts/reproduce_antolin_2022_examples.py
 ```
 
-This runs 2D and 3D reproductions by default (including 3D Cartesian
-cut-cell refinement for Section 6.2).
-
-2D runs use `--geometry-mode auto` by default, which selects CAD-native
-OpenCascade when available and otherwise falls back to polygonized mode.
-
-The 3D Section 6.2 path reports per-row monotonicity diagnostics in the
-reproduction table output.
-
-For faster runs, enable NumPy acceleration in your environment:
+Useful variants:
 
 ```bash
-uv sync --extra perf
+uv run python scripts/reproduce_antolin_2022_examples.py --skip-3d
+uv run python scripts/reproduce_antolin_2022_examples.py --geometry-mode cad-native
+uv run python scripts/reproduce_antolin_2022_examples.py --geometry-mode polygonized
+uv run python scripts/reproduce_antolin_2022_examples.py --antolin-paper
 ```
 
-For CAD-native OpenCascade 2D reproduction support:
+Refresh a parity fixture:
 
 ```bash
-uv sync --extra cad
+uv run python scripts/reproduce_antolin_2022_examples.py \
+  --geometry-mode polygonized \
+  --parity-fixture tests/fixtures/antolin-section6/quick-polygonized-full.json \
+  --write-parity-fixture
 ```
 
-Note: OpenCascade wheels may require system OpenGL libraries (for example
-`libGL.so.1`) to be present.
+More fixture workflow details: `docs/antolin-parity-fixtures.md`.
 
-## Consumer CAD Interface
-
-CUTKIT includes a consumer-facing CAD facade (`cutkit.cad`) for loading BREP
-geometry, clipping by one or many axis-aligned boxes, and running folded
-integration with object-or-arrays batch inputs.
+## Consumer CAD interface example
 
 ```python
 from cutkit.cad import CadSession
 
 cad = CadSession.opencascade()
 solid = cad.load_solid("example-solid.brep")
+
 batch = solid.integrate_over_boxes(
     integrand=lambda x, y, z: 1.0,
     order=5,
@@ -94,137 +132,74 @@ batch = solid.integrate_over_boxes(
     z1=1.0,
     strict=False,
 )
+
+print(batch.statuses)
+print(batch.values)
 ```
 
-See `docs/cad-box-batch-interface.md` for API details.
+API details and object-vs-array patterns:
+`docs/cad-box-batch-interface.md`.
 
-## Volumential Handoff
+## Volumential handoff boundary
 
-CUTKIT now exposes vectorized far/near primitives intended for volumential
-integration:
+CUTKIT emits primitives; downstream systems compose interactions.
 
-- far-field signed source-cloud export (`points`, `weights`, `charges`, ptr/index metadata)
-- near-field local boxed operators (assembled CSR or matrix-free descriptor)
-- list plumbing helpers for `self/list1/list3/list4` restricted-source batches
+- Far-field signed source-cloud export.
+- Near-field local operator export + restricted-source plumbing.
 
-The intended boundary is that CUTKIT emits these primitives and volumential owns
-final list splitting and interaction composition.
+Contract and integration skeleton: `docs/volumential-handoff.md`.
 
-See `docs/volumential-handoff.md` for the exact field contract and usage flow.
+## Benchmarks and figure generation
 
-Source and credit for the reproduced Section 6 2D protocols:
+```bash
+uv run python scripts/run_poisson_galerkin_benchmark.py --profile quick --backend-mode folded
+uv run python scripts/plot_poisson_galerkin_benchmark.py --profile quick
+uv run python scripts/plot_poisson_galerkin_figure_pack.py --profile quick
+```
+
+See `docs/poisson-galerkin-solver.md` and `docs/poisson-benchmarks.md`.
+
+## Development workflow notes
+
+- Python requirement: `>=3.12`.
+- `make dev` installs local `prek` hooks.
+- Local pre-push guard blocks direct pushes to `main`.
+
+Cut-panel tooling:
+
+```bash
+uv run python scripts/run_cutpanel_eval.py
+uv run python scripts/run_cutpanel_eval.py --artifact-dir .artifacts/cutpanel
+uv run python scripts/minimize_cutpanel_fuzz_cases.py
+uv run python scripts/generate_readme_cover_images.py
+```
+
+Corpus details: `docs/cutpanel-corpus.md`.
+
+## OpenSpec workflow
+
+- `/opsx-propose <idea>` or `/opsx:propose <idea>`
+- `/opsx-apply <change>` or `/opsx:apply <change>`
+- `/opsx-archive <change>` or `/opsx:archive <change>`
+
+Setup details: `docs/openspec-setup.md`.
+
+## Source and credit
+
+Section 6 reproductions are based on:
 
 - Pablo Antolin, Xiaodong Wei, Annalisa Buffa
-- "Robust Numerical Integration on Curved Polyhedra Based on Folded Decompositions"
+- *Robust Numerical Integration on Curved Polyhedra Based on Folded
+  Decompositions*
 - Computer Methods in Applied Mechanics and Engineering (2022)
 - DOI: `10.1016/j.cma.2022.114948`
 - arXiv: `2109.03734` (`https://arxiv.org/abs/2109.03734`)
 
-The default mode is a quick protocol check (fast enough for local iteration).
+## Repository map
 
-To run only the 2D parts:
-
-```bash
-uv run python scripts/reproduce_antolin_2022_examples.py --skip-3d
-```
-
-To force CAD-native OpenCascade mode for 2D:
-
-```bash
-uv run python scripts/reproduce_antolin_2022_examples.py --geometry-mode cad-native
-```
-
-To force polygonized fallback mode for 2D:
-
-```bash
-uv run python scripts/reproduce_antolin_2022_examples.py --geometry-mode polygonized
-```
-
-For denser settings closer to the Antolin-Wei-Buffa (2022) sweep:
-
-```bash
-uv run python scripts/reproduce_antolin_2022_examples.py --antolin-paper
-```
-
-For solver-level immersed Poisson Galerkin validation over trimmed domains:
-
-```bash
-uv run python scripts/run_poisson_galerkin_benchmark.py --profile quick --backend-mode folded
-```
-
-See `docs/poisson-galerkin-solver.md` for solver setup and result interpretation.
-
-For paper-style convergence plots from solver benchmarks:
-
-```bash
-uv run python scripts/plot_poisson_galerkin_benchmark.py --profile quick
-```
-
-For a full paper-style figure pack (geometry, cell classification, solution
-fields, and convergence plots):
-
-```bash
-uv run python scripts/plot_poisson_galerkin_figure_pack.py --profile quick
-```
-
-## Development Workflow
-
-CUTKIT uses `uv` for dependency and environment management.
-
-```bash
-make dev
-```
-
-`make dev` will:
-
-- sync the development environment with `uv`
-- install local `prek` git hooks
-- block direct pushes to `main` via a local pre-push hook
-- run formatting, lint, typing, architecture, docs freshness, tests, and
-  cut-panel eval checks
-
-See `docs/entire-transcript-policy.md` for the policy on using Entire session transcripts.
-
-For cut-panel harness checks:
-
-```bash
-uv run python scripts/run_cutpanel_eval.py
-```
-
-The default cut-panel corpus includes baseline, seam-adjacent,
-near-degenerate, imported-production, and fuzz-derived panel cases.
-See `docs/cutpanel-corpus.md` for details.
-
-To regenerate minimized fuzz-derived fixtures from the candidate pack:
-
-```bash
-uv run python scripts/minimize_cutpanel_fuzz_cases.py
-```
-
-For per-case JSON failure artifacts with topology diagnostics:
-
-```bash
-uv run python scripts/run_cutpanel_eval.py --artifact-dir .artifacts/cutpanel
-```
-
-Artifacts include compact visual diff snapshots that highlight parity-vs-signed
-occupancy disagreements for failing geometry.
-
-## OpenSpec Workflow
-
-This repository is bootstrapped for OpenSpec-driven changes.
-
-- Run `/opsx-propose <idea>` (OpenCode) or `/opsx:propose <idea>` to define a change.
-- Run `/opsx-apply <change>` (OpenCode) or `/opsx:apply <change>` to implement tasks.
-- Run `/opsx-archive <change>` (OpenCode) or `/opsx:archive <change>` after merge.
-
-See `docs/openspec-setup.md` for setup and command details.
-
-## Repository Knowledge
-
-- Agent map: `AGENTS.md`
-- Documentation index: `docs/index.md`
-- Architecture map: `ARCHITECTURE.md`
+- `AGENTS.md`
+- `docs/index.md`
+- `ARCHITECTURE.md`
 
 ## License
 
