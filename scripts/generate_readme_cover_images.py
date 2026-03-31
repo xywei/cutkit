@@ -792,11 +792,15 @@ def _choose_contrast_anchor_3d(
     cell: CartesianCell3D,
     samples: tuple[tuple[Point3D, Point3D], ...],
 ) -> tuple[Point3D, tuple[int, int]]:
+    dx = cell.x1 - cell.x0
+    dy = cell.y1 - cell.y0
+    dz = cell.z1 - cell.z0
+
     cx = 0.5 * (cell.x0 + cell.x1)
     cy = 0.5 * (cell.y0 + cell.y1)
     cz = 0.5 * (cell.z0 + cell.z1)
 
-    candidates: tuple[Point3D, ...] = (
+    seed_candidates: tuple[Point3D, ...] = (
         (cell.x0, cell.y0, cell.z0),
         (cell.x0, cell.y0, cell.z1),
         (cell.x0, cell.y1, cell.z0),
@@ -815,13 +819,44 @@ def _choose_contrast_anchor_3d(
         (cell.x0 + 0.50 * (cell.x1 - cell.x0), cy, cz),
     )
 
+    t_values = (
+        -1.0,
+        -0.75,
+        -0.50,
+        -0.25,
+        0.0,
+        0.25,
+        0.50,
+        0.75,
+        1.0,
+        1.25,
+        1.50,
+        1.75,
+        2.0,
+    )
+
+    candidates: list[Point3D] = list(seed_candidates)
+    for tx in t_values:
+        x = cell.x0 + tx * dx
+        for ty in t_values:
+            y = cell.y0 + ty * dy
+            for tz in t_values:
+                z = cell.z0 + tz * dz
+                candidates.append((x, y, z))
+
     best_mixed_anchor = candidates[0]
     best_mixed_stats = (0, 0)
     best_mixed_score = -1.0
+    best_mixed_balance = -1.0
 
     best_any_anchor = candidates[0]
     best_any_stats = (0, 0)
     best_any_score = -1.0
+    best_any_balance = -1.0
+
+    cell_diag = math.sqrt(dx * dx + dy * dy + dz * dz)
+    if cell_diag <= 1.0e-20:
+        cell_diag = 1.0
 
     for candidate in candidates:
         pos = 0
@@ -838,15 +873,39 @@ def _choose_contrast_anchor_3d(
             continue
 
         balance = min(pos, neg) / total
-        if balance > best_any_score:
-            best_any_score = balance
+        dist_to_center = (
+            math.sqrt(
+                (candidate[0] - cx) * (candidate[0] - cx)
+                + (candidate[1] - cy) * (candidate[1] - cy)
+                + (candidate[2] - cz) * (candidate[2] - cz)
+            )
+            / cell_diag
+        )
+        score = balance - 0.04 * dist_to_center
+
+        if score > best_any_score or (
+            abs(score - best_any_score) <= 1.0e-15 and balance > best_any_balance
+        ):
+            best_any_score = score
             best_any_anchor = candidate
             best_any_stats = (pos, neg)
+            best_any_balance = balance
 
-        if pos > 0 and neg > 0 and balance > best_mixed_score:
-            best_mixed_score = balance
+        if (
+            pos > 0
+            and neg > 0
+            and (
+                score > best_mixed_score
+                or (
+                    abs(score - best_mixed_score) <= 1.0e-15
+                    and balance > best_mixed_balance
+                )
+            )
+        ):
+            best_mixed_score = score
             best_mixed_anchor = candidate
             best_mixed_stats = (pos, neg)
+            best_mixed_balance = balance
 
     if best_mixed_score >= 0.0:
         return best_mixed_anchor, best_mixed_stats
