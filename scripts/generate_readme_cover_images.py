@@ -324,8 +324,8 @@ def _render_cover_2d(*, width: int = 1280, height: int = 720) -> str:
         (cell[2], cell[3]),
         (cell[0], cell[3]),
     )
-    bounds = _bounds_2d(tuple((*polygon, *cell_corners, anchor)), pad_fraction=0.14)
-    margin = 34.0
+    bounds = _bounds_2d(tuple((*polygon, *cell_corners, anchor)), pad_fraction=0.06)
+    margin = 18.0
 
     lines: list[str] = []
     lines.append(
@@ -382,50 +382,6 @@ def _render_cover_2d(*, width: int = 1280, height: int = 720) -> str:
         f'<rect x="0" y="0" width="{width}" height="{height}" fill="url(#halo2d_b)"/>'
     )
 
-    grid_count = 10
-    xmin, ymin, xmax, ymax = bounds
-    for index in range(grid_count + 1):
-        gx = xmin + (xmax - xmin) * index / grid_count
-        gy = ymin + (ymax - ymin) * index / grid_count
-
-        x0, y0 = _map_point_2d(
-            (gx, ymin),
-            bounds=bounds,
-            width=width,
-            height=height,
-            margin=margin,
-        )
-        x1, y1 = _map_point_2d(
-            (gx, ymax),
-            bounds=bounds,
-            width=width,
-            height=height,
-            margin=margin,
-        )
-        lines.append(
-            f'<line x1="{x0:.3f}" y1="{y0:.3f}" x2="{x1:.3f}" y2="{y1:.3f}" '
-            'stroke="#a5b4fc" stroke-opacity="0.10" stroke-width="0.9"/>'
-        )
-
-        q0x, q0y = _map_point_2d(
-            (xmin, gy),
-            bounds=bounds,
-            width=width,
-            height=height,
-            margin=margin,
-        )
-        q1x, q1y = _map_point_2d(
-            (xmax, gy),
-            bounds=bounds,
-            width=width,
-            height=height,
-            margin=margin,
-        )
-        lines.append(
-            f'<line x1="{q0x:.3f}" y1="{q0y:.3f}" x2="{q1x:.3f}" y2="{q1y:.3f}" '
-            'stroke="#a5b4fc" stroke-opacity="0.10" stroke-width="0.9"/>'
-        )
-
     cell_attr = _polygon_points_attr(
         cell_corners,
         bounds=bounds,
@@ -452,7 +408,7 @@ def _render_cover_2d(*, width: int = 1280, height: int = 720) -> str:
         'stroke-width="2.6"/>'
     )
 
-    ray_step = max(1, len(rays) // 170)
+    ray_step = max(1, math.ceil(len(rays) / 28))
     for ray_start, ray_end, sign in rays[::ray_step]:
         sx, sy = _map_point_2d(
             ray_start,
@@ -469,13 +425,13 @@ def _render_cover_2d(*, width: int = 1280, height: int = 720) -> str:
             margin=margin,
         )
         color = "#67e8f9" if sign > 0 else "#f472b6"
-        opacity = "0.20" if sign > 0 else "0.30"
+        opacity = "0.12" if sign > 0 else "0.20"
         lines.append(
             f'<line x1="{sx:.3f}" y1="{sy:.3f}" x2="{ex:.3f}" y2="{ey:.3f}" '
-            f'stroke="{color}" stroke-opacity="{opacity}" stroke-width="1.15"/>'
+            f'stroke="{color}" stroke-opacity="{opacity}" stroke-width="0.95"/>'
         )
 
-    point_step = max(1, len(points) // 760)
+    point_step = max(1, math.ceil(len(points) / 140))
     for point in points[::point_step]:
         px, py = _map_point_2d(
             point,
@@ -485,8 +441,8 @@ def _render_cover_2d(*, width: int = 1280, height: int = 720) -> str:
             margin=margin,
         )
         lines.append(
-            f'<circle cx="{px:.3f}" cy="{py:.3f}" r="1.2" fill="#f8fafc" '
-            'fill-opacity="0.52"/>'
+            f'<circle cx="{px:.3f}" cy="{py:.3f}" r="1.05" fill="#f8fafc" '
+            'fill-opacity="0.42"/>'
         )
 
     ax, ay = _map_point_2d(
@@ -500,17 +456,6 @@ def _render_cover_2d(*, width: int = 1280, height: int = 720) -> str:
         f'<circle cx="{ax:.3f}" cy="{ay:.3f}" r="15.0" fill="url(#anchor2d)"/>'
     )
     lines.append(f'<circle cx="{ax:.3f}" cy="{ay:.3f}" r="4.8" fill="#fb7185"/>')
-
-    lines.append(
-        '<text x="46" y="56" fill="#f8fafc" font-size="34" font-weight="700" '
-        'font-family="Avenir Next, Futura, Trebuchet MS, sans-serif">'
-        "2D Single-Cell Folded Cut</text>"
-    )
-    lines.append(
-        '<text x="46" y="80" fill="#bae6fd" font-size="13" '
-        'font-family="Avenir Next, Futura, Trebuchet MS, sans-serif">'
-        "local anchor + curved trim</text>"
-    )
 
     legend_x = width - 306
     legend_y = 24
@@ -1015,14 +960,14 @@ def _build_single_cell_3d_data() -> dict[str, Any]:
     folded_count = sum(1 for _, sign in boundary_points_signed if sign < 0)
     non_folded_count = sum(1 for _, sign in boundary_points_signed if sign > 0)
 
-    ray_step = max(1, len(boundary_points_signed) // 90)
+    ray_step = max(1, math.ceil(len(boundary_points_signed) / 30))
     rays = tuple(
         (anchor, point, sign) for point, sign in boundary_points_signed[::ray_step]
     )
 
     radial_nodes, _ = gauss_legendre_01(8)
     cloud_sources = boundary_points_signed[
-        :: max(1, len(boundary_points_signed) // 120)
+        :: max(1, math.ceil(len(boundary_points_signed) / 60))
     ]
     cloud_points: list[Point3D] = []
     for boundary_point, _sign in cloud_sources:
@@ -1085,8 +1030,8 @@ def _render_cover_3d(*, width: int = 1280, height: int = 720) -> str:
         projected_points.append(_project_3d(end, center=center))
     projected_points.extend(_project_3d(point, center=center) for point in cloud_points)
 
-    bounds = _bounds_projected(tuple(projected_points), pad_fraction=0.14)
-    margin = 34.0
+    bounds = _bounds_projected(tuple(projected_points), pad_fraction=0.06)
+    margin = 18.0
     _, _, _, _, zmin, zmax = bounds
 
     lines: list[str] = []
@@ -1170,7 +1115,9 @@ def _render_cover_3d(*, width: int = 1280, height: int = 720) -> str:
         lower_with_depth.append((depth, projected))
     lower_with_depth.sort(key=lambda item: item[0])
 
-    for depth, projected in lower_with_depth:
+    for idx, (depth, projected) in enumerate(lower_with_depth):
+        if idx % 2 != 0:
+            continue
         points_attr = " ".join(
             f"{x:.3f},{y:.3f}"
             for x, y in (
@@ -1217,7 +1164,9 @@ def _render_cover_3d(*, width: int = 1280, height: int = 720) -> str:
             f'stroke-opacity="{alpha:.3f}" stroke-width="0.9"/>'
         )
 
-    for start, end in struts:
+    for idx, (start, end) in enumerate(struts):
+        if idx % 2 != 0:
+            continue
         p0 = _project_3d(start, center=center)
         p1 = _project_3d(end, center=center)
         x0, y0 = _map_projected(
@@ -1240,7 +1189,7 @@ def _render_cover_3d(*, width: int = 1280, height: int = 720) -> str:
         )
 
     cloud_with_depth = []
-    cloud_step = max(1, len(cloud_points) // 950)
+    cloud_step = max(1, math.ceil(len(cloud_points) / 160))
     for point in cloud_points[::cloud_step]:
         projected = _project_3d(point, center=center)
         cloud_with_depth.append((projected[2], projected))
@@ -1297,17 +1246,6 @@ def _render_cover_3d(*, width: int = 1280, height: int = 720) -> str:
         f'<circle cx="{ax:.3f}" cy="{ay:.3f}" r="15.2" fill="url(#anchor3d)"/>'
     )
     lines.append(f'<circle cx="{ax:.3f}" cy="{ay:.3f}" r="5.0" fill="#fb7185"/>')
-
-    lines.append(
-        '<text x="46" y="56" fill="#f8fafc" font-size="34" font-weight="700" '
-        'font-family="Avenir Next, Futura, Trebuchet MS, sans-serif">'
-        "3D Single-Cell Folded Cut</text>"
-    )
-    lines.append(
-        '<text x="46" y="80" fill="#c7d2fe" font-size="13" '
-        'font-family="Avenir Next, Futura, Trebuchet MS, sans-serif">'
-        "local anchor + curved volume cut</text>"
-    )
 
     legend_x = width - 392
     legend_y = 24
