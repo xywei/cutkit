@@ -31,6 +31,7 @@ from cutkit.evals.antolin_wei_buffa_2022_2d import (
     section_6_2_integrand,
 )
 from cutkit.evals.antolin_wei_buffa_2022_3d import (
+    Section613Boundary,
     General3DGridExperimentResult,
     General3DGridOrderResult,
     General3DExperimentResult,
@@ -39,6 +40,7 @@ from cutkit.evals.antolin_wei_buffa_2022_3d import (
     Polynomial3DExperimentResult,
     build_section_6_1_3_boundary_triangles,
     eval_section_6_1_3_bezier_surface,
+    integrate_general_over_section_6_1_3_boundary,
     run_general_function_experiment_3d_grid,
     run_general_function_experiment_3d,
     run_polynomial_experiment_3d,
@@ -106,8 +108,10 @@ __all__ = [
     "General3DOrderResult",
     "Polynomial3DDegreeResult",
     "Polynomial3DExperimentResult",
+    "Section613Boundary",
     "build_section_6_1_3_boundary_triangles",
     "eval_section_6_1_3_bezier_surface",
+    "integrate_general_over_section_6_1_3_boundary",
     "run_general_function_experiment_3d_grid",
     "run_general_function_experiment_3d",
     "run_polynomial_experiment_3d",

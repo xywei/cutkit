@@ -21,13 +21,10 @@ from typing import Any
 
 from cutkit.quadrature import (
     folded_seeds_without_jplus_3d as _core_folded_seeds_without_jplus,
-    integrate_bernstein_over_boundary_3d as _core_integrate_bernstein_over_boundary,
-    integrate_general_over_boundary_3d as _core_integrate_general_over_boundary,
+    gauss_legendre_01,
     integrate_general_over_cartesian_grid_xsurface_3d as _core_integrate_cartesian,
     seed_grid_3d as _core_seed_grid_3d,
-    signed_boundary_volume_3d as _core_signed_boundary_volume,
 )
-from cutkit.topology import orient_boundary_triangles_outward as _core_orient_outward
 
 if importlib.util.find_spec("numpy") is not None:
     import numpy as _np  # type: ignore[import-not-found]
@@ -35,7 +32,6 @@ else:
     _np = None
 
 Point3D = tuple[float, float, float]
-Triangle3D = tuple[Point3D, Point3D, Point3D]
 
 
 def _sub(a: Point3D, b: Point3D) -> Point3D:
@@ -260,95 +256,193 @@ def _x1_face_point(u: float, v: float) -> Point3D:
     return (1.0, sy, sz)
 
 
-def _grid_points(
-    evaluator: Any,
+@dataclass(frozen=True)
+class Section613Boundary:
+    """Section 6.1.3 boundary descriptor using direct parametric patches."""
+
+    surface_resolution: int
+    side_resolution: int
+
+
+_BOUNDARY_PATCHES: tuple[str, ...] = ("curved", "x1", "z0", "z1", "y1")
+
+
+def _patch_point(patch: str, s: float, t: float) -> Point3D:
+    if patch == "curved":
+        return eval_section_6_1_3_bezier_surface(s, t)
+    if patch == "x1":
+        return _x1_face_point(s, t)
+    if patch == "z0":
+        c0 = eval_section_6_1_3_bezier_surface(s, 0.0)
+        return _lerp(c0, (1.0, c0[1], c0[2]), t)
+    if patch == "z1":
+        c1 = eval_section_6_1_3_bezier_surface(s, 1.0)
+        return _lerp(c1, (1.0, c1[1], c1[2]), t)
+    if patch == "y1":
+        c = eval_section_6_1_3_bezier_surface(1.0, s)
+        return _lerp(c, (1.0, c[1], c[2]), t)
+    raise ValueError(f"unsupported boundary patch: {patch!r}")
+
+
+def _finite_patch_derivative(
+    patch: str,
     *,
-    nu: int,
-    nv: int,
-) -> list[list[Point3D]]:
-    grid: list[list[Point3D]] = []
-    for i in range(nu + 1):
-        u = i / nu
-        row: list[Point3D] = []
-        for j in range(nv + 1):
-            v = j / nv
-            row.append(evaluator(u, v))
-        grid.append(row)
-    return grid
+    s: float,
+    t: float,
+    axis: str,
+) -> Point3D:
+    step = 1.0e-6
+    if axis == "s":
+        low = max(0.0, s - step)
+        high = min(1.0, s + step)
+        if high <= low:
+            return (0.0, 0.0, 0.0)
+        p0 = _patch_point(patch, low, t)
+        p1 = _patch_point(patch, high, t)
+        inv = 1.0 / (high - low)
+        return (inv * (p1[0] - p0[0]), inv * (p1[1] - p0[1]), inv * (p1[2] - p0[2]))
+
+    low = max(0.0, t - step)
+    high = min(1.0, t + step)
+    if high <= low:
+        return (0.0, 0.0, 0.0)
+    p0 = _patch_point(patch, s, low)
+    p1 = _patch_point(patch, s, high)
+    inv = 1.0 / (high - low)
+    return (inv * (p1[0] - p0[0]), inv * (p1[1] - p0[1]), inv * (p1[2] - p0[2]))
 
 
-def _triangulate_grid(points: list[list[Point3D]]) -> list[Triangle3D]:
-    nu = len(points) - 1
-    nv = len(points[0]) - 1
-    tris: list[Triangle3D] = []
-    for i in range(nu):
-        for j in range(nv):
-            p00 = points[i][j]
-            p10 = points[i + 1][j]
-            p01 = points[i][j + 1]
-            p11 = points[i + 1][j + 1]
-            tris.append((p00, p10, p11))
-            tris.append((p00, p11, p01))
-    return tris
+def _interior_reference_point() -> Point3D:
+    cx, cy, cz = eval_section_6_1_3_bezier_surface(0.5, 0.5)
+    return ((1.0 + cx) * 0.5, cy, cz)
 
 
-def _orient_outward(
-    tris: list[Triangle3D], *, tol: float = 1.0e-12
-) -> tuple[Triangle3D, ...]:
-    return _core_orient_outward(tuple(tris), tol=tol, validate_closed=False)
+@lru_cache(maxsize=8)
+def _patch_orientation_sign(patch: str) -> float:
+    point = _patch_point(patch, 0.5, 0.5)
+    ds = _finite_patch_derivative(patch, s=0.5, t=0.5, axis="s")
+    dt = _finite_patch_derivative(patch, s=0.5, t=0.5, axis="t")
+    normal = _cross(ds, dt)
+    ref = _interior_reference_point()
+    outward_test = _dot(normal, _sub(point, ref))
+    return 1.0 if outward_test >= 0.0 else -1.0
+
+
+@dataclass(frozen=True)
+class _SurfaceRule:
+    points: tuple[Point3D, ...]
+    weighted_normals: tuple[Point3D, ...]
+
+
+def _surface_rule(boundary: Section613Boundary, *, order: int) -> _SurfaceRule:
+    if order < 1:
+        raise ValueError("order must be positive")
+
+    surface_order = max(int(order), int(boundary.surface_resolution))
+    side_order = max(int(order), int(boundary.side_resolution))
+
+    surface_nodes, surface_weights = gauss_legendre_01(surface_order)
+    side_nodes, side_weights = gauss_legendre_01(side_order)
+
+    points: list[Point3D] = []
+    weighted_normals: list[Point3D] = []
+
+    for patch in _BOUNDARY_PATCHES:
+        if patch in {"curved", "x1"}:
+            s_nodes, s_weights = surface_nodes, surface_weights
+            t_nodes, t_weights = surface_nodes, surface_weights
+        else:
+            s_nodes, s_weights = surface_nodes, surface_weights
+            t_nodes, t_weights = side_nodes, side_weights
+
+        sign = _patch_orientation_sign(patch)
+        for s, ws in zip(s_nodes, s_weights, strict=True):
+            for t, wt in zip(t_nodes, t_weights, strict=True):
+                point = _patch_point(patch, float(s), float(t))
+                ds = _finite_patch_derivative(patch, s=float(s), t=float(t), axis="s")
+                dt = _finite_patch_derivative(patch, s=float(s), t=float(t), axis="t")
+                normal = _cross(ds, dt)
+                scale = sign * float(ws) * float(wt)
+                weighted = (scale * normal[0], scale * normal[1], scale * normal[2])
+                if abs(weighted[0]) + abs(weighted[1]) + abs(weighted[2]) <= 1.0e-20:
+                    continue
+                points.append(point)
+                weighted_normals.append(weighted)
+
+    if not points:
+        raise ValueError("section 6.1.3 boundary produced no face quadrature samples")
+    return _SurfaceRule(points=tuple(points), weighted_normals=tuple(weighted_normals))
+
+
+def _folded_volume_rule(
+    boundary: Section613Boundary,
+    *,
+    seed: Point3D,
+    order: int,
+) -> tuple[tuple[Point3D, ...], tuple[float, ...]]:
+    if order < 1:
+        raise ValueError("order must be positive")
+
+    surface = _surface_rule(boundary, order=order)
+    radial_nodes, radial_weights = gauss_legendre_01(order)
+
+    points: list[Point3D] = []
+    weights: list[float] = []
+    for point, weighted_normal in zip(
+        surface.points,
+        surface.weighted_normals,
+        strict=True,
+    ):
+        delta = _sub(point, seed)
+        signed_measure = _dot(delta, weighted_normal)
+        for r, wr in zip(radial_nodes, radial_weights, strict=True):
+            radial = float(r)
+            mapped = (
+                seed[0] + radial * delta[0],
+                seed[1] + radial * delta[1],
+                seed[2] + radial * delta[2],
+            )
+            points.append(mapped)
+            weights.append(signed_measure * radial * radial * float(wr))
+    return tuple(points), tuple(weights)
+
+
+def _bernstein_all(degree: int, t: float) -> tuple[float, ...]:
+    if t <= 0.0:
+        out = [0.0] * (degree + 1)
+        out[0] = 1.0
+        return tuple(out)
+    if t >= 1.0:
+        out = [0.0] * (degree + 1)
+        out[degree] = 1.0
+        return tuple(out)
+
+    omt = 1.0 - t
+    ratio = t / omt
+    out = [0.0] * (degree + 1)
+    value = omt**degree
+    out[0] = value
+    for idx in range(degree):
+        value = value * ratio * (degree - idx) / (idx + 1)
+        out[idx + 1] = value
+    return tuple(out)
 
 
 def build_section_6_1_3_boundary_triangles(
     *,
     surface_resolution: int = 12,
     side_resolution: int = 1,
-) -> tuple[Triangle3D, ...]:
-    """Build an oriented boundary triangulation for the Section 6.1.3 volume."""
+) -> Section613Boundary:
+    """Build Section 6.1.3 boundary patches (legacy function name kept)."""
 
     if surface_resolution < 2:
         raise ValueError("surface_resolution must be >= 2")
     if side_resolution < 1:
         raise ValueError("side_resolution must be >= 1")
-
-    # Curved face (r=0) and opposite planar face (x=1)
-    curved = _triangulate_grid(
-        _grid_points(
-            eval_section_6_1_3_bezier_surface,
-            nu=surface_resolution,
-            nv=surface_resolution,
-        )
+    return Section613Boundary(
+        surface_resolution=surface_resolution,
+        side_resolution=side_resolution,
     )
-    x1 = _triangulate_grid(
-        _grid_points(_x1_face_point, nu=surface_resolution, nv=surface_resolution)
-    )
-
-    # z=0 face (v=0 boundary extruded to x=1)
-    def z0_face(u: float, r: float) -> Point3D:
-        c0 = eval_section_6_1_3_bezier_surface(u, 0.0)
-        return _lerp(c0, (1.0, c0[1], c0[2]), r)
-
-    # z=1 face (v=1 boundary extruded to x=1)
-    def z1_face(u: float, r: float) -> Point3D:
-        c1 = eval_section_6_1_3_bezier_surface(u, 1.0)
-        return _lerp(c1, (1.0, c1[1], c1[2]), r)
-
-    # y=1 face (u=1 boundary extruded to x=1)
-    def y1_face(v: float, r: float) -> Point3D:
-        c = eval_section_6_1_3_bezier_surface(1.0, v)
-        return _lerp(c, (1.0, c[1], c[2]), r)
-
-    z0 = _triangulate_grid(
-        _grid_points(z0_face, nu=surface_resolution, nv=side_resolution)
-    )
-    z1 = _triangulate_grid(
-        _grid_points(z1_face, nu=surface_resolution, nv=side_resolution)
-    )
-    y1 = _triangulate_grid(
-        _grid_points(y1_face, nu=surface_resolution, nv=side_resolution)
-    )
-
-    all_tris = [*curved, *x1, *z0, *z1, *y1]
-    return _orient_outward(all_tris)
 
 
 def _seed_grid_3d(size: int) -> tuple[Point3D, ...]:
@@ -369,23 +463,42 @@ def _folded_seeds_without_jplus(
     return _core_folded_seeds_without_jplus(seeds, jplus_seed=jplus_seed)
 
 
-def _tetra_volume_sum(boundary: tuple[Triangle3D, ...], seed: Point3D) -> float:
-    return _core_signed_boundary_volume(boundary, seed=seed)
+def _tetra_volume_sum(boundary: Section613Boundary, seed: Point3D) -> float:
+    _ = seed
+    surface_order = max(8, boundary.surface_resolution)
+    surface = _surface_rule(boundary, order=surface_order)
+    total = 0.0
+    for point, weighted_normal in zip(
+        surface.points,
+        surface.weighted_normals,
+        strict=True,
+    ):
+        total += _dot(point, weighted_normal) / 3.0
+    return total
 
 
 def _integrate_bernstein_over_boundary(
-    boundary: tuple[Triangle3D, ...],
+    boundary: Section613Boundary,
     *,
     seed: Point3D,
     degree: int,
     order: int,
 ) -> tuple[float, ...]:
-    return _core_integrate_bernstein_over_boundary(
-        boundary,
-        seed=seed,
-        degree=degree,
-        order=order,
-    )
+    points, weights = _folded_volume_rule(boundary, seed=seed, order=order)
+    count = degree + 1
+    out_size = count * count * count
+    totals = [0.0] * out_size
+    for point, weight in zip(points, weights, strict=True):
+        bx = _bernstein_all(degree, point[0])
+        by = _bernstein_all(degree, point[1])
+        bz = _bernstein_all(degree, point[2])
+        for i in range(count):
+            for j in range(count):
+                base = (i * count + j) * count
+                wij = weight * bx[i] * by[j]
+                for k in range(count):
+                    totals[base + k] += wij * bz[k]
+    return tuple(totals)
 
 
 def section_6_2_integrand_3d(x: Any, y: Any, z: Any) -> Any:
@@ -395,17 +508,31 @@ def section_6_2_integrand_3d(x: Any, y: Any, z: Any) -> Any:
 
 
 def _integrate_general_over_boundary(
-    boundary: tuple[Triangle3D, ...],
+    boundary: Section613Boundary,
     *,
     seed: Point3D,
     order: int,
 ) -> float:
-    return _core_integrate_general_over_boundary(
+    return integrate_general_over_section_6_1_3_boundary(
         boundary,
         seed=seed,
         order=order,
         integrand=section_6_2_integrand_3d,
     )
+
+
+def integrate_general_over_section_6_1_3_boundary(
+    boundary: Section613Boundary,
+    *,
+    seed: Point3D,
+    order: int,
+    integrand: Any,
+) -> float:
+    points, weights = _folded_volume_rule(boundary, seed=seed, order=order)
+    total = 0.0
+    for point, weight in zip(points, weights, strict=True):
+        total += float(integrand(point[0], point[1], point[2])) * weight
+    return total
 
 
 def _max_abs(values: tuple[float, ...]) -> float:

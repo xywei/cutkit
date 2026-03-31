@@ -10,7 +10,7 @@ solids that expose consistent axis-aligned clipping workflows.
 #### Scenario: Clip one loaded CAD solid with one box
 - **WHEN** a CAD solid is loaded from BREP and clipped with one axis-aligned box
 - **THEN** the API SHALL return a deterministic clipped solid result usable by
-  downstream boundary triangulation and folded integration helpers
+  downstream boundary-face quadrature and folded integration helpers
 
 ### Requirement: Object-or-arrays batch box input pattern
 The system SHALL support both object-style and array-style box inputs for batch
@@ -49,4 +49,3 @@ over one or many clipped boxes in both 2D and 3D workflows.
 - **WHEN** users invoke folded integration over a box batch
 - **THEN** each box result SHALL be computed deterministically using the same
   core folded quadrature kernels as single-box workflows
-

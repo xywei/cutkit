@@ -10,10 +10,6 @@ from cutkit.evals import (
 )
 from cutkit.evals import antolin_wei_buffa_2022_3d as awb3d
 from cutkit.evals.antolin_wei_buffa_2022_3d import _tetra_volume_sum
-from cutkit.quadrature import (
-    integrate_bernstein_over_boundary_3d,
-    integrate_general_over_boundary_3d,
-)
 
 
 def test_section_6_1_3_domain_volume_is_positive() -> None:
@@ -348,18 +344,18 @@ def test_section_6_2_3d_grid_default_reference_configuration_is_valid(
     assert len(result.order_results) == 1
 
 
-def test_eval_and_core_boundary_integrators_match() -> None:
+def test_eval_and_public_boundary_integrators_match() -> None:
     boundary = build_section_6_1_3_boundary_triangles(surface_resolution=4)
     seed = (0.5, 0.5, 0.5)
 
     eval_general = awb3d._integrate_general_over_boundary(boundary, seed=seed, order=5)
-    core_general = integrate_general_over_boundary_3d(
+    public_general = awb3d.integrate_general_over_section_6_1_3_boundary(
         boundary,
         seed=seed,
         order=5,
         integrand=awb3d.section_6_2_integrand_3d,
     )
-    assert eval_general == pytest.approx(core_general, rel=1.0e-12, abs=1.0e-12)
+    assert eval_general == pytest.approx(public_general, rel=1.0e-12, abs=1.0e-12)
 
     eval_bernstein = awb3d._integrate_bernstein_over_boundary(
         boundary,
@@ -367,13 +363,21 @@ def test_eval_and_core_boundary_integrators_match() -> None:
         degree=2,
         order=5,
     )
-    core_bernstein = integrate_bernstein_over_boundary_3d(
-        boundary,
-        seed=seed,
-        degree=2,
-        order=5,
-    )
-    assert eval_bernstein == pytest.approx(core_bernstein, rel=1.0e-12, abs=1.0e-12)
+    points, weights = awb3d._folded_volume_rule(boundary, seed=seed, order=5)
+    count = 3
+    totals = [0.0] * (count * count * count)
+    for point, weight in zip(points, weights, strict=True):
+        bx = awb3d._bernstein_all(2, point[0])
+        by = awb3d._bernstein_all(2, point[1])
+        bz = awb3d._bernstein_all(2, point[2])
+        for i in range(count):
+            for j in range(count):
+                base = (i * count + j) * count
+                wij = weight * bx[i] * by[j]
+                for k in range(count):
+                    totals[base + k] += wij * bz[k]
+    manual_bernstein = tuple(totals)
+    assert eval_bernstein == pytest.approx(manual_bernstein, rel=1.0e-12, abs=1.0e-12)
 
 
 @pytest.mark.parametrize("surface_resolution", [6, 9, 10, 12, 15, 18, 20, 21, 24])
@@ -401,3 +405,24 @@ def test_section_6_1_3_boundary_builder_supports_side_refinement(
     vol_b = _tetra_volume_sum(boundary, (0.5, 0.5, 0.5))
     assert vol_a > 0.0
     assert vol_a == pytest.approx(vol_b, rel=1.0e-10, abs=1.0e-10)
+
+
+def test_section_6_1_3_surface_rule_honors_boundary_resolution_knobs() -> None:
+    base = build_section_6_1_3_boundary_triangles(
+        surface_resolution=4, side_resolution=1
+    )
+    refined_surface = build_section_6_1_3_boundary_triangles(
+        surface_resolution=7,
+        side_resolution=1,
+    )
+    refined_side = build_section_6_1_3_boundary_triangles(
+        surface_resolution=4,
+        side_resolution=3,
+    )
+
+    base_rule = awb3d._surface_rule(base, order=2)
+    refined_surface_rule = awb3d._surface_rule(refined_surface, order=2)
+    refined_side_rule = awb3d._surface_rule(refined_side, order=2)
+
+    assert len(refined_surface_rule.points) > len(base_rule.points)
+    assert len(refined_side_rule.points) > len(base_rule.points)

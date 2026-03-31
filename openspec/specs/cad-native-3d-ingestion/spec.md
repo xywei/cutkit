@@ -5,21 +5,21 @@ TBD - created by archiving change 2026-03-24-3d-bounded-surface-refinement. Upda
 ## Requirements
 ### Requirement: CAD-native 3D solid ingestion exports folded-ready boundaries
 The IO layer SHALL ingest optional OpenCascade 3D solids and export boundary
-triangulations that can be normalized for folded 3D signed-volume workflows.
+face quadrature descriptors that can be normalized for folded 3D signed-volume
+workflows.
 
-#### Scenario: Build oriented boundary triangles from a CAD solid
-- **WHEN** a valid CAD solid is provided and meshed with configured deflection
-  settings
-- **THEN** the system SHALL return a deterministic boundary triangle set suitable
-  for orientation normalization and folded-volume reconstruction
+#### Scenario: Build oriented boundary face quadrature from a CAD solid
+- **WHEN** a valid CAD solid is provided and sampled in face parameter space
+- **THEN** the system SHALL return a deterministic boundary-face quadrature set
+  suitable for orientation normalization and folded-volume reconstruction
 
 ### Requirement: CAD-native 3D axis-aligned clipping
 The IO layer SHALL clip CAD solids against axis-aligned boxes and expose clipped
-boundary triangles for downstream folded integration.
+boundary face quadrature for downstream folded integration.
 
 #### Scenario: Reconstruct clipped box volume from folded signed boundary sum
 - **WHEN** a unit CAD box is clipped by an axis-aligned half-box region and
-  boundary triangles are extracted
+  boundary face quadrature is extracted
 - **THEN** signed-volume reconstruction over the oriented clipped boundary SHALL
   match the expected clipped volume within tolerance
 
@@ -31,4 +31,3 @@ runtime error when CAD-native 3D APIs are called without OpenCascade bindings.
 - **WHEN** OpenCascade bindings are unavailable in the runtime environment
 - **THEN** CAD-native 3D ingest/clip API calls SHALL fail with a clear,
   actionable unavailable-backend error
-

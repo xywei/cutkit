@@ -5,17 +5,19 @@ TBD - created by archiving change 2026-03-24-3d-bounded-surface-refinement. Upda
 ## Requirements
 ### Requirement: 3D Boundary Orientation Normalization
 The system SHALL build a closed, consistently outward-oriented boundary
-triangulation for a curved trimmed volume before folded quadrature is assembled.
+face quadrature representation for a curved trimmed volume before folded
+quadrature is assembled.
 
 #### Scenario: Section 6.1.3 boundary builder supports side-face refinement
-- **WHEN** Section 6.1.3 boundary triangles are generated with
+- **WHEN** Section 6.1.3 boundary faces are sampled with
   `side_resolution > 1`
-- **THEN** the resulting triangulation remains orientation-consistent for signed
+- **THEN** the resulting boundary representation remains
+  orientation-consistent for signed
   volume reconstruction
 
 #### Scenario: Refined side meshes preserve seed-invariant signed volume
 - **WHEN** signed domain volume is reconstructed from two valid seeds on a
-  side-refined Section 6.1.3 boundary triangulation
+  side-refined Section 6.1.3 boundary-face representation
 - **THEN** both reconstructions match within tolerance and remain positive
 
 ### Requirement: 3D Section 6.2 grid rows are monotone under paper-profile settings
@@ -35,4 +37,3 @@ The curved-surface projection inversion SHALL deterministically select the lower
 - **WHEN** inversion yields more than one valid `x` candidate for the same
   `(y,z)` sample
 - **THEN** the selected `x_s(y,z)` SHALL be the minimum converged candidate
-
