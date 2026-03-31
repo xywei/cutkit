@@ -1113,14 +1113,17 @@ def _render_cover_3d(*, width: int = 1280, height: int = 720) -> str:
         )
 
     lower_with_depth = []
-    for polyline in lower_lines:
+    for source_index, polyline in enumerate(lower_lines):
         projected = tuple(_project_3d(point, center=center) for point in polyline)
         depth = sum(point[2] for point in projected) / len(projected)
-        lower_with_depth.append((depth, projected))
-    lower_with_depth.sort(key=lambda item: item[0])
+        depth_key = round(depth, 10)
+        lower_with_depth.append((depth_key, source_index, depth, projected))
+    lower_with_depth.sort(key=lambda item: (item[0], item[1]))
 
-    for idx, (depth, projected) in enumerate(lower_with_depth):
-        if idx % 2 != 0:
+    for draw_index, (_depth_key, _source_index, depth, projected) in enumerate(
+        lower_with_depth
+    ):
+        if draw_index % 2 != 0:
             continue
         points_attr = " ".join(
             f"{x:.3f},{y:.3f}"
@@ -1142,13 +1145,18 @@ def _render_cover_3d(*, width: int = 1280, height: int = 720) -> str:
         )
 
     upper_with_depth = []
-    for polyline in upper_lines:
+    for source_index, polyline in enumerate(upper_lines):
         projected = tuple(_project_3d(point, center=center) for point in polyline)
         depth = sum(point[2] for point in projected) / len(projected)
-        upper_with_depth.append((depth, projected))
-    upper_with_depth.sort(key=lambda item: item[0])
+        depth_key = round(depth, 10)
+        upper_with_depth.append((depth_key, source_index, depth, projected))
+    upper_with_depth.sort(key=lambda item: (item[0], item[1]))
 
-    for depth, projected in upper_with_depth[::4]:
+    for draw_index, (_depth_key, _source_index, depth, projected) in enumerate(
+        upper_with_depth
+    ):
+        if draw_index % 4 != 0:
+            continue
         points_attr = " ".join(
             f"{x:.3f},{y:.3f}"
             for x, y in (
@@ -1194,12 +1202,14 @@ def _render_cover_3d(*, width: int = 1280, height: int = 720) -> str:
 
     cloud_with_depth = []
     cloud_step = max(1, math.ceil(len(cloud_points) / 80))
-    for point in cloud_points[::cloud_step]:
+    for source_index, point in enumerate(cloud_points[::cloud_step]):
         projected = _project_3d(point, center=center)
-        cloud_with_depth.append((projected[2], projected))
-    cloud_with_depth.sort(key=lambda item: item[0])
+        depth = projected[2]
+        depth_key = round(depth, 10)
+        cloud_with_depth.append((depth_key, source_index, depth, projected))
+    cloud_with_depth.sort(key=lambda item: (item[0], item[1]))
 
-    for depth, projected in cloud_with_depth:
+    for _depth_key, _source_index, depth, projected in cloud_with_depth:
         x, y = _map_projected(
             projected,
             bounds=bounds,
