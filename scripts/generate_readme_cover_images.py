@@ -223,8 +223,8 @@ def _render_cover_2d(*, width: int = 1280, height: int = 720) -> str:
         (cell[2], cell[3]),
         (cell[0], cell[3]),
     )
-    bounds = _bounds_2d(tuple((*polygon, *cell_corners, anchor)), pad_fraction=0.25)
-    margin = 62.0
+    bounds = _bounds_2d(tuple((*polygon, *cell_corners, anchor)), pad_fraction=0.14)
+    margin = 34.0
 
     lines: list[str] = []
     lines.append(
@@ -399,38 +399,52 @@ def _render_cover_2d(*, width: int = 1280, height: int = 720) -> str:
     lines.append(f'<circle cx="{ax:.3f}" cy="{ay:.3f}" r="4.8" fill="#fb7185"/>')
 
     lines.append(
-        '<text x="70" y="76" fill="#f8fafc" font-size="40" font-weight="700" '
+        '<text x="46" y="56" fill="#f8fafc" font-size="34" font-weight="700" '
         'font-family="Avenir Next, Futura, Trebuchet MS, sans-serif">'
         "2D Single-Cell Folded Cut</text>"
     )
     lines.append(
-        '<text x="70" y="108" fill="#bae6fd" font-size="18" '
+        '<text x="46" y="80" fill="#bae6fd" font-size="13" '
         'font-family="Avenir Next, Futura, Trebuchet MS, sans-serif">'
-        "one Cartesian cut-cell, one local anchor, one scary curved clip</text>"
+        "local anchor + curved trim</text>"
     )
 
+    legend_x = width - 306
+    legend_y = 24
     lines.append(
-        '<rect x="58" y="554" width="626" height="116" rx="16" '
-        'fill="#0b1224" fill-opacity="0.56" stroke="#e2e8f0" '
-        'stroke-opacity="0.22"/>'
-    )
-    lines.append('<circle cx="92" cy="588" r="7" fill="#f97316"/>')
-    lines.append(
-        '<text x="108" y="594" fill="#f8fafc" font-size="15" '
-        'font-family="Avenir Next, Futura, Trebuchet MS, sans-serif">'
-        "trimmed polygon from one box/panel intersection</text>"
-    )
-    lines.append('<circle cx="430" cy="588" r="7" fill="#67e8f9"/>')
-    lines.append(
-        '<text x="446" y="594" fill="#f8fafc" font-size="15" '
-        'font-family="Avenir Next, Futura, Trebuchet MS, sans-serif">'
-        "folded rays</text>"
+        f'<rect x="{legend_x}" y="{legend_y}" width="260" height="74" rx="12" '
+        'fill="#0b1224" fill-opacity="0.52" stroke="#e2e8f0" '
+        'stroke-opacity="0.20"/>'
     )
     lines.append(
-        f'<text x="92" y="628" fill="#bfdbfe" font-size="14" '
-        'font-family="Avenir Next, Futura, Trebuchet MS, sans-serif">'
-        f"cell=[{cell[0]:.3f},{cell[2]:.3f}] x [{cell[1]:.3f},{cell[3]:.3f}], "
-        f"folded triangles={triangle_count}</text>"
+        f'<circle cx="{legend_x + 24}" cy="{legend_y + 24}" r="6" fill="#f97316"/>'
+    )
+    lines.append(
+        f'<text x="{legend_x + 38}" y="{legend_y + 29}" fill="#f8fafc" '
+        'font-size="13" font-family="Avenir Next, Futura, Trebuchet MS, sans-serif">'
+        "trimmed curve</text>"
+    )
+    lines.append(
+        f'<circle cx="{legend_x + 132}" cy="{legend_y + 24}" r="6" fill="#67e8f9"/>'
+    )
+    lines.append(
+        f'<text x="{legend_x + 146}" y="{legend_y + 29}" fill="#f8fafc" '
+        'font-size="13" font-family="Avenir Next, Futura, Trebuchet MS, sans-serif">'
+        "fold rays</text>"
+    )
+    lines.append(
+        f'<circle cx="{legend_x + 216}" cy="{legend_y + 24}" r="6" fill="#fb7185"/>'
+    )
+    lines.append(
+        f'<text x="{legend_x + 230}" y="{legend_y + 29}" fill="#f8fafc" '
+        'font-size="13" font-family="Avenir Next, Futura, Trebuchet MS, sans-serif">'
+        "anchor</text>"
+    )
+    lines.append(
+        f'<text x="{legend_x + 20}" y="{legend_y + 55}" fill="#bfdbfe" '
+        'font-size="12" font-family="Avenir Next, Futura, Trebuchet MS, sans-serif">'
+        f"cell [{cell[0]:.3f},{cell[2]:.3f}] x [{cell[1]:.3f},{cell[3]:.3f}], "
+        f"triangles={triangle_count}</text>"
     )
 
     lines.append(
@@ -716,8 +730,8 @@ def _render_cover_3d(*, width: int = 1280, height: int = 720) -> str:
         projected_points.append(_project_3d(end, center=center))
     projected_points.extend(_project_3d(point, center=center) for point in cloud_points)
 
-    bounds = _bounds_projected(tuple(projected_points), pad_fraction=0.20)
-    margin = 60.0
+    bounds = _bounds_projected(tuple(projected_points), pad_fraction=0.14)
+    margin = 34.0
     _, _, _, _, zmin, zmax = bounds
 
     lines: list[str] = []
@@ -929,43 +943,59 @@ def _render_cover_3d(*, width: int = 1280, height: int = 720) -> str:
     lines.append(f'<circle cx="{ax:.3f}" cy="{ay:.3f}" r="5.0" fill="#fb7185"/>')
 
     lines.append(
-        '<text x="70" y="76" fill="#f8fafc" font-size="40" font-weight="700" '
+        '<text x="46" y="56" fill="#f8fafc" font-size="34" font-weight="700" '
         'font-family="Avenir Next, Futura, Trebuchet MS, sans-serif">'
         "3D Single-Cell Folded Cut</text>"
     )
     lines.append(
-        '<text x="70" y="108" fill="#c7d2fe" font-size="18" '
+        '<text x="46" y="80" fill="#c7d2fe" font-size="13" '
         'font-family="Avenir Next, Futura, Trebuchet MS, sans-serif">'
-        "one clipped box, one local anchor, one intimidating curved volume cut</text>"
+        "local anchor + curved volume cut</text>"
     )
 
+    legend_x = width - 392
+    legend_y = 24
     lines.append(
-        '<rect x="58" y="554" width="752" height="116" rx="16" '
-        'fill="#0a1327" fill-opacity="0.56" stroke="#dbeafe" '
+        f'<rect x="{legend_x}" y="{legend_y}" width="346" height="74" rx="12" '
+        'fill="#0a1327" fill-opacity="0.52" stroke="#dbeafe" '
         'stroke-opacity="0.20"/>'
     )
-    lines.append('<circle cx="92" cy="588" r="7" fill="#7dd3fc"/>')
     lines.append(
-        '<text x="108" y="594" fill="#f8fafc" font-size="15" '
-        'font-family="Avenir Next, Futura, Trebuchet MS, sans-serif">'
-        "curved lower cut-surface mesh</text>"
-    )
-    lines.append('<circle cx="318" cy="588" r="7" fill="#f9a8d4"/>')
-    lines.append(
-        '<text x="334" y="594" fill="#f8fafc" font-size="15" '
-        'font-family="Avenir Next, Futura, Trebuchet MS, sans-serif">'
-        "folded rays from local box vertex</text>"
-    )
-    lines.append('<circle cx="616" cy="588" r="7" fill="#f8fafc"/>')
-    lines.append(
-        '<text x="632" y="594" fill="#f8fafc" font-size="15" '
-        'font-family="Avenir Next, Futura, Trebuchet MS, sans-serif">'
-        "volume quadrature cloud</text>"
+        f'<circle cx="{legend_x + 24}" cy="{legend_y + 24}" r="6" fill="#7dd3fc"/>'
     )
     lines.append(
-        f'<text x="92" y="628" fill="#c7d2fe" font-size="14" '
-        'font-family="Avenir Next, Futura, Trebuchet MS, sans-serif">'
-        f"cell=[{cell.x0:.3f},{cell.x1:.3f}] x [{cell.y0:.3f},{cell.y1:.3f}] x "
+        f'<text x="{legend_x + 38}" y="{legend_y + 29}" fill="#f8fafc" '
+        'font-size="13" font-family="Avenir Next, Futura, Trebuchet MS, sans-serif">'
+        "cut surface</text>"
+    )
+    lines.append(
+        f'<circle cx="{legend_x + 138}" cy="{legend_y + 24}" r="6" fill="#f9a8d4"/>'
+    )
+    lines.append(
+        f'<text x="{legend_x + 152}" y="{legend_y + 29}" fill="#f8fafc" '
+        'font-size="13" font-family="Avenir Next, Futura, Trebuchet MS, sans-serif">'
+        "fold rays</text>"
+    )
+    lines.append(
+        f'<circle cx="{legend_x + 222}" cy="{legend_y + 24}" r="6" fill="#f8fafc"/>'
+    )
+    lines.append(
+        f'<text x="{legend_x + 236}" y="{legend_y + 29}" fill="#f8fafc" '
+        'font-size="13" font-family="Avenir Next, Futura, Trebuchet MS, sans-serif">'
+        "quad cloud</text>"
+    )
+    lines.append(
+        f'<circle cx="{legend_x + 312}" cy="{legend_y + 24}" r="6" fill="#fb7185"/>'
+    )
+    lines.append(
+        f'<text x="{legend_x + 326}" y="{legend_y + 29}" fill="#f8fafc" '
+        'font-size="13" font-family="Avenir Next, Futura, Trebuchet MS, sans-serif">'
+        "anchor</text>"
+    )
+    lines.append(
+        f'<text x="{legend_x + 20}" y="{legend_y + 55}" fill="#c7d2fe" '
+        'font-size="12" font-family="Avenir Next, Futura, Trebuchet MS, sans-serif">'
+        f"cell [{cell.x0:.3f},{cell.x1:.3f}] x [{cell.y0:.3f},{cell.y1:.3f}] x "
         f"[{cell.z0:.3f},{cell.z1:.3f}]</text>"
     )
 
