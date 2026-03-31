@@ -59,8 +59,16 @@ def _map_point_2d(
     margin: float,
 ) -> Point2D:
     xmin, ymin, xmax, ymax = bounds
-    x = margin + (point[0] - xmin) * (width - 2.0 * margin) / (xmax - xmin)
-    y = margin + (ymax - point[1]) * (height - 2.0 * margin) / (ymax - ymin)
+    span_x = max(xmax - xmin, 1.0e-12)
+    span_y = max(ymax - ymin, 1.0e-12)
+    avail_w = max(width - 2.0 * margin, 1.0e-12)
+    avail_h = max(height - 2.0 * margin, 1.0e-12)
+    scale = min(avail_w / span_x, avail_h / span_y)
+    pad_x = 0.5 * (avail_w - scale * span_x)
+    pad_y = 0.5 * (avail_h - scale * span_y)
+
+    x = margin + pad_x + (point[0] - xmin) * scale
+    y = margin + pad_y + (ymax - point[1]) * scale
     return (x, y)
 
 
@@ -136,8 +144,16 @@ def _map_projected(
     margin: float,
 ) -> Point2D:
     xmin, ymin, xmax, ymax, _, _ = bounds
-    x = margin + (point[0] - xmin) * (width - 2.0 * margin) / (xmax - xmin)
-    y = margin + (ymax - point[1]) * (height - 2.0 * margin) / (ymax - ymin)
+    span_x = max(xmax - xmin, 1.0e-12)
+    span_y = max(ymax - ymin, 1.0e-12)
+    avail_w = max(width - 2.0 * margin, 1.0e-12)
+    avail_h = max(height - 2.0 * margin, 1.0e-12)
+    scale = min(avail_w / span_x, avail_h / span_y)
+    pad_x = 0.5 * (avail_w - scale * span_x)
+    pad_y = 0.5 * (avail_h - scale * span_y)
+
+    x = margin + pad_x + (point[0] - xmin) * scale
+    y = margin + pad_y + (ymax - point[1]) * scale
     return (x, y)
 
 
@@ -161,6 +177,75 @@ def _rect_polygon(cell: Any) -> tuple[Point2D, ...]:
     )
 
 
+def _choose_contrast_anchor_2d(
+    local_panel: TrimmedPanel2D,
+    cell: tuple[float, float, float, float],
+) -> tuple[Point2D, tuple[int, int]]:
+    x0, y0, x1, y1 = cell
+    dx = x1 - x0
+    dy = y1 - y0
+    cx = 0.5 * (x0 + x1)
+    cy = 0.5 * (y0 + y1)
+
+    candidates: tuple[Point2D, ...] = (
+        (x0, y0),
+        (x1, y0),
+        (x1, y1),
+        (x0, y1),
+        (cx, y0),
+        (x1, cy),
+        (cx, y1),
+        (x0, cy),
+        (cx, cy),
+        (x0 - 0.18 * dx, y0),
+        (x0, y0 - 0.18 * dy),
+        (x1 + 0.18 * dx, y1),
+        (x1, y1 + 0.18 * dy),
+    )
+
+    best_mixed_anchor = (x0, y0)
+    best_mixed_stats = (0, 0)
+    best_mixed_score = -1.0
+
+    best_any_anchor = (x0, y0)
+    best_any_stats = (0, 0)
+    best_any_score = -1.0
+
+    for candidate in candidates:
+        try:
+            folded = folded_quadrature_rule(
+                local_panel,
+                order=4,
+                anchor=candidate,
+                require_interior_anchor=False,
+            )
+        except ValueError:
+            continue
+
+        pos = sum(1 for triangle in folded.triangles if triangle.det_jacobian > 1.0e-13)
+        neg = sum(
+            1 for triangle in folded.triangles if triangle.det_jacobian < -1.0e-13
+        )
+        total = pos + neg
+        if total == 0:
+            continue
+
+        balance = min(pos, neg) / total
+        if balance > best_any_score:
+            best_any_score = balance
+            best_any_anchor = candidate
+            best_any_stats = (pos, neg)
+
+        if pos > 0 and neg > 0 and balance > best_mixed_score:
+            best_mixed_score = balance
+            best_mixed_anchor = candidate
+            best_mixed_stats = (pos, neg)
+
+    if best_mixed_score >= 0.0:
+        return best_mixed_anchor, best_mixed_stats
+    return best_any_anchor, best_any_stats
+
+
 def _build_single_cell_2d_data() -> dict[str, Any]:
     panel = build_section_6_1_1_bspline_panel(sample_count=512)
     snapshot = build_poisson_galerkin_geometry_snapshot(panel, resolution=8)
@@ -178,8 +263,8 @@ def _build_single_cell_2d_data() -> dict[str, Any]:
         float(target.cell.y1),
     )
 
-    local_anchor = (cell[0], cell[1])
     local_panel = TrimmedPanel2D(outer=PanelLoop2D(polygon))
+    local_anchor, _anchor_stats = _choose_contrast_anchor_2d(local_panel, cell)
     folded = folded_quadrature_rule(
         local_panel,
         order=6,
@@ -187,24 +272,38 @@ def _build_single_cell_2d_data() -> dict[str, Any]:
         require_interior_anchor=False,
     )
 
-    rays = tuple(
-        (
-            local_anchor,
+    rays = []
+    folded_count = 0
+    non_folded_count = 0
+    for triangle in folded.triangles:
+        det = float(triangle.det_jacobian)
+        sign = -1 if det < 0.0 else 1
+        if sign < 0:
+            folded_count += 1
+        else:
+            non_folded_count += 1
+
+        rays.append(
             (
-                0.5 * (float(triangle.p0[0]) + float(triangle.p1[0])),
-                0.5 * (float(triangle.p0[1]) + float(triangle.p1[1])),
-            ),
+                local_anchor,
+                (
+                    0.5 * (float(triangle.p0[0]) + float(triangle.p1[0])),
+                    0.5 * (float(triangle.p0[1]) + float(triangle.p1[1])),
+                ),
+                sign,
+            )
         )
-        for triangle in folded.triangles
-    )
+
     points = tuple((float(x), float(y)) for x, y in folded.rule.points)
     return {
         "polygon": polygon,
         "cell": cell,
         "anchor": local_anchor,
-        "rays": rays,
+        "rays": tuple(rays),
         "points": points,
         "triangle_count": len(folded.triangles),
+        "folded_count": folded_count,
+        "non_folded_count": non_folded_count,
     }
 
 
@@ -216,6 +315,8 @@ def _render_cover_2d(*, width: int = 1280, height: int = 720) -> str:
     rays = data["rays"]
     points = data["points"]
     triangle_count = data["triangle_count"]
+    folded_count = data["folded_count"]
+    non_folded_count = data["non_folded_count"]
 
     cell_corners = (
         (cell[0], cell[1]),
@@ -351,8 +452,8 @@ def _render_cover_2d(*, width: int = 1280, height: int = 720) -> str:
         'stroke-width="2.6"/>'
     )
 
-    ray_step = max(1, len(rays) // 160)
-    for ray_start, ray_end in rays[::ray_step]:
+    ray_step = max(1, len(rays) // 170)
+    for ray_start, ray_end, sign in rays[::ray_step]:
         sx, sy = _map_point_2d(
             ray_start,
             bounds=bounds,
@@ -367,9 +468,11 @@ def _render_cover_2d(*, width: int = 1280, height: int = 720) -> str:
             height=height,
             margin=margin,
         )
+        color = "#67e8f9" if sign > 0 else "#f472b6"
+        opacity = "0.20" if sign > 0 else "0.30"
         lines.append(
             f'<line x1="{sx:.3f}" y1="{sy:.3f}" x2="{ex:.3f}" y2="{ey:.3f}" '
-            'stroke="#67e8f9" stroke-opacity="0.22" stroke-width="1.15"/>'
+            f'stroke="{color}" stroke-opacity="{opacity}" stroke-width="1.15"/>'
         )
 
     point_step = max(1, len(points) // 760)
@@ -430,21 +533,21 @@ def _render_cover_2d(*, width: int = 1280, height: int = 720) -> str:
     lines.append(
         f'<text x="{legend_x + 146}" y="{legend_y + 29}" fill="#f8fafc" '
         'font-size="13" font-family="Avenir Next, Futura, Trebuchet MS, sans-serif">'
-        "fold rays</text>"
+        "non-folded</text>"
     )
     lines.append(
-        f'<circle cx="{legend_x + 216}" cy="{legend_y + 24}" r="6" fill="#fb7185"/>'
+        f'<circle cx="{legend_x + 216}" cy="{legend_y + 24}" r="6" fill="#f472b6"/>'
     )
     lines.append(
         f'<text x="{legend_x + 230}" y="{legend_y + 29}" fill="#f8fafc" '
         'font-size="13" font-family="Avenir Next, Futura, Trebuchet MS, sans-serif">'
-        "anchor</text>"
+        "folded</text>"
     )
     lines.append(
         f'<text x="{legend_x + 20}" y="{legend_y + 55}" fill="#bfdbfe" '
         'font-size="12" font-family="Avenir Next, Futura, Trebuchet MS, sans-serif">'
         f"cell [{cell[0]:.3f},{cell[2]:.3f}] x [{cell[1]:.3f},{cell[3]:.3f}], "
-        f"triangles={triangle_count}</text>"
+        f"triangles={triangle_count}, +={non_folded_count}, -={folded_count}</text>"
     )
 
     lines.append(
@@ -593,6 +696,163 @@ def _grid_polylines(
     return tuple(lines)
 
 
+def _sub3(a: Point3D, b: Point3D) -> Point3D:
+    return (a[0] - b[0], a[1] - b[1], a[2] - b[2])
+
+
+def _dot3(a: Point3D, b: Point3D) -> float:
+    return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
+
+
+def _cross3(a: Point3D, b: Point3D) -> Point3D:
+    return (
+        a[1] * b[2] - a[2] * b[1],
+        a[2] * b[0] - a[0] * b[2],
+        a[0] * b[1] - a[1] * b[0],
+    )
+
+
+def _lower_surface_normal(
+    grid: list[list[Point3D | None]],
+    iy: int,
+    iz: int,
+) -> Point3D | None:
+    point = grid[iy][iz]
+    if point is None:
+        return None
+
+    size_y = len(grid)
+    size_z = len(grid[0]) if grid else 0
+
+    up = down = left = right = None
+    for step in range(1, size_y):
+        idx = iy + step
+        if idx < size_y and grid[idx][iz] is not None:
+            up = grid[idx][iz]
+            break
+    for step in range(1, size_y):
+        idx = iy - step
+        if idx >= 0 and grid[idx][iz] is not None:
+            down = grid[idx][iz]
+            break
+    for step in range(1, size_z):
+        idx = iz + step
+        if idx < size_z and grid[iy][idx] is not None:
+            right = grid[iy][idx]
+            break
+    for step in range(1, size_z):
+        idx = iz - step
+        if idx >= 0 and grid[iy][idx] is not None:
+            left = grid[iy][idx]
+            break
+
+    if up is None or down is None or right is None or left is None:
+        return None
+
+    tangent_y = _sub3(up, down)
+    tangent_z = _sub3(right, left)
+    normal = _cross3(tangent_y, tangent_z)
+    norm = abs(normal[0]) + abs(normal[1]) + abs(normal[2])
+    if norm <= 1.0e-16:
+        return None
+
+    if normal[0] > 0.0:
+        normal = (-normal[0], -normal[1], -normal[2])
+    return normal
+
+
+def _boundary_samples_with_normals(
+    grid: list[list[Point3D | None]],
+    cell: CartesianCell3D,
+    *,
+    stride: int,
+) -> tuple[tuple[Point3D, Point3D], ...]:
+    samples: list[tuple[Point3D, Point3D]] = []
+    size_y = len(grid)
+    size_z = len(grid[0]) if grid else 0
+
+    for iy in range(0, size_y, stride):
+        for iz in range(0, size_z, stride):
+            point = grid[iy][iz]
+            if point is None:
+                continue
+
+            lower_normal = _lower_surface_normal(grid, iy, iz)
+            if lower_normal is None:
+                lower_normal = (-1.0, 0.0, 0.0)
+            samples.append((point, lower_normal))
+
+            top = (cell.x1, point[1], point[2])
+            samples.append((top, (1.0, 0.0, 0.0)))
+
+    return tuple(samples)
+
+
+def _choose_contrast_anchor_3d(
+    cell: CartesianCell3D,
+    samples: tuple[tuple[Point3D, Point3D], ...],
+) -> tuple[Point3D, tuple[int, int]]:
+    cx = 0.5 * (cell.x0 + cell.x1)
+    cy = 0.5 * (cell.y0 + cell.y1)
+    cz = 0.5 * (cell.z0 + cell.z1)
+
+    candidates: tuple[Point3D, ...] = (
+        (cell.x0, cell.y0, cell.z0),
+        (cell.x0, cell.y0, cell.z1),
+        (cell.x0, cell.y1, cell.z0),
+        (cell.x0, cell.y1, cell.z1),
+        (cell.x1, cell.y0, cell.z0),
+        (cell.x1, cell.y0, cell.z1),
+        (cell.x1, cell.y1, cell.z0),
+        (cell.x1, cell.y1, cell.z1),
+        (cx, cy, cz),
+        (cell.x0, cy, cz),
+        (cx, cell.y0, cz),
+        (cx, cy, cell.z0),
+        (cx, cell.y1, cz),
+        (cx, cy, cell.z1),
+        (cell.x0 + 0.30 * (cell.x1 - cell.x0), cy, cz),
+        (cell.x0 + 0.50 * (cell.x1 - cell.x0), cy, cz),
+    )
+
+    best_mixed_anchor = candidates[0]
+    best_mixed_stats = (0, 0)
+    best_mixed_score = -1.0
+
+    best_any_anchor = candidates[0]
+    best_any_stats = (0, 0)
+    best_any_score = -1.0
+
+    for candidate in candidates:
+        pos = 0
+        neg = 0
+        for point, normal in samples:
+            measure = _dot3(_sub3(point, candidate), normal)
+            if measure > 1.0e-14:
+                pos += 1
+            elif measure < -1.0e-14:
+                neg += 1
+
+        total = pos + neg
+        if total == 0:
+            continue
+
+        balance = min(pos, neg) / total
+        if balance > best_any_score:
+            best_any_score = balance
+            best_any_anchor = candidate
+            best_any_stats = (pos, neg)
+
+        if pos > 0 and neg > 0 and balance > best_mixed_score:
+            best_mixed_score = balance
+            best_mixed_anchor = candidate
+            best_mixed_stats = (pos, neg)
+
+    if best_mixed_score >= 0.0:
+        return best_mixed_anchor, best_mixed_stats
+    return best_any_anchor, best_any_stats
+
+
 def _box_corners(cell: CartesianCell3D) -> tuple[Point3D, ...]:
     return (
         (cell.x0, cell.y0, cell.z0),
@@ -627,7 +887,6 @@ def _box_edges(cell: CartesianCell3D) -> tuple[tuple[Point3D, Point3D], ...]:
 
 def _build_single_cell_3d_data() -> dict[str, Any]:
     cell = _select_scary_cell_3d(resolution=8)
-    anchor = (cell.x0, cell.y0, cell.z0)
 
     grid_size = 31
     grid, active_points = _sample_lower_surface_grid(cell, size=grid_size)
@@ -640,8 +899,10 @@ def _build_single_cell_3d_data() -> dict[str, Any]:
         for polyline in lower_lines
     )
 
+    anchor_samples = _boundary_samples_with_normals(grid, cell, stride=2)
+    anchor, _anchor_stats = _choose_contrast_anchor_3d(cell, anchor_samples)
+
     struts: list[tuple[Point3D, Point3D]] = []
-    boundary_points_raw: list[Point3D] = []
     stride = 3
     for iy in range(0, grid_size, stride):
         for iz in range(0, grid_size, stride):
@@ -650,34 +911,62 @@ def _build_single_cell_3d_data() -> dict[str, Any]:
                 continue
             top = (cell.x1, point[1], point[2])
             struts.append((point, top))
-            if (
-                abs(point[0] - anchor[0]) > 1.0e-12
-                or abs(point[1] - anchor[1]) > 1.0e-12
-                or abs(point[2] - anchor[2]) > 1.0e-12
-            ):
-                boundary_points_raw.append(point)
-            boundary_points_raw.append(top)
 
-    seen: set[tuple[int, int, int]] = set()
-    boundary_points: list[Point3D] = []
-    for point in boundary_points_raw:
+    boundary_samples = _boundary_samples_with_normals(grid, cell, stride=3)
+    signed_points: dict[tuple[int, int, int], tuple[Point3D, float]] = {}
+    for point, normal in boundary_samples:
+        if (
+            abs(point[0] - anchor[0]) <= 1.0e-12
+            and abs(point[1] - anchor[1]) <= 1.0e-12
+            and abs(point[2] - anchor[2]) <= 1.0e-12
+        ):
+            continue
+
+        signed_measure = _dot3(_sub3(point, anchor), normal)
+        if abs(signed_measure) <= 1.0e-14:
+            continue
+
         key = (
             int(round(point[0] * 1.0e6)),
             int(round(point[1] * 1.0e6)),
             int(round(point[2] * 1.0e6)),
         )
-        if key in seen:
-            continue
-        seen.add(key)
-        boundary_points.append(point)
 
-    ray_step = max(1, len(boundary_points) // 140)
-    rays = tuple((anchor, point) for point in boundary_points[::ray_step])
+        sign_vote = 1.0 if signed_measure > 0.0 else -1.0
+        if key in signed_points:
+            existing_point, vote = signed_points[key]
+            signed_points[key] = (existing_point, vote + sign_vote)
+        else:
+            signed_points[key] = (point, sign_vote)
+
+    boundary_points_signed = [
+        (point, 1 if vote >= 0.0 else -1) for point, vote in signed_points.values()
+    ]
+
+    if not boundary_points_signed:
+        for point in _box_corners(cell):
+            if (
+                abs(point[0] - anchor[0]) <= 1.0e-12
+                and abs(point[1] - anchor[1]) <= 1.0e-12
+                and abs(point[2] - anchor[2]) <= 1.0e-12
+            ):
+                continue
+            boundary_points_signed.append((point, 1 if point[0] >= anchor[0] else -1))
+
+    folded_count = sum(1 for _, sign in boundary_points_signed if sign < 0)
+    non_folded_count = sum(1 for _, sign in boundary_points_signed if sign > 0)
+
+    ray_step = max(1, len(boundary_points_signed) // 150)
+    rays = tuple(
+        (anchor, point, sign) for point, sign in boundary_points_signed[::ray_step]
+    )
 
     radial_nodes, _ = gauss_legendre_01(4)
-    cloud_sources = boundary_points[:: max(1, len(boundary_points) // 210)]
+    cloud_sources = boundary_points_signed[
+        :: max(1, len(boundary_points_signed) // 210)
+    ]
     cloud_points: list[Point3D] = []
-    for boundary_point in cloud_sources:
+    for boundary_point, _sign in cloud_sources:
         delta = (
             boundary_point[0] - anchor[0],
             boundary_point[1] - anchor[1],
@@ -702,6 +991,8 @@ def _build_single_cell_3d_data() -> dict[str, Any]:
         "rays": rays,
         "cloud_points": tuple(cloud_points),
         "box_edges": _box_edges(cell),
+        "folded_count": folded_count,
+        "non_folded_count": non_folded_count,
     }
 
 
@@ -712,9 +1003,11 @@ def _render_cover_3d(*, width: int = 1280, height: int = 720) -> str:
     lower_lines: tuple[tuple[Point3D, ...], ...] = data["lower_lines"]
     upper_lines: tuple[tuple[Point3D, ...], ...] = data["upper_lines"]
     struts: tuple[tuple[Point3D, Point3D], ...] = data["struts"]
-    rays: tuple[tuple[Point3D, Point3D], ...] = data["rays"]
+    rays: tuple[tuple[Point3D, Point3D, int], ...] = data["rays"]
     cloud_points: tuple[Point3D, ...] = data["cloud_points"]
     box_edges: tuple[tuple[Point3D, Point3D], ...] = data["box_edges"]
+    folded_count = data["folded_count"]
+    non_folded_count = data["non_folded_count"]
 
     center = (
         0.5 * (cell.x0 + cell.x1),
@@ -725,7 +1018,10 @@ def _render_cover_3d(*, width: int = 1280, height: int = 720) -> str:
     projected_points: list[Projected3D] = [_project_3d(anchor, center=center)]
     for polyline in (*lower_lines, *upper_lines):
         projected_points.extend(_project_3d(point, center=center) for point in polyline)
-    for start, end in (*rays, *struts, *box_edges):
+    for start, end, _sign in rays:
+        projected_points.append(_project_3d(start, center=center))
+        projected_points.append(_project_3d(end, center=center))
+    for start, end in (*struts, *box_edges):
         projected_points.append(_project_3d(start, center=center))
         projected_points.append(_project_3d(end, center=center))
     projected_points.extend(_project_3d(point, center=center) for point in cloud_points)
@@ -783,7 +1079,7 @@ def _render_cover_3d(*, width: int = 1280, height: int = 720) -> str:
         f'<rect x="0" y="0" width="{width}" height="{height}" fill="url(#halo3d_b)"/>'
     )
 
-    for start, end in rays:
+    for start, end, sign in rays:
         p0 = _project_3d(start, center=center)
         p1 = _project_3d(end, center=center)
         x0, y0 = _map_projected(
@@ -801,10 +1097,11 @@ def _render_cover_3d(*, width: int = 1280, height: int = 720) -> str:
             margin=margin,
         )
         depth = _normalize(p1[2], lower=zmin, upper=zmax)
-        opacity = 0.11 + 0.24 * (1.0 - depth)
+        opacity = 0.10 + (0.26 if sign < 0 else 0.18) * (1.0 - depth)
+        color = "#f9a8d4" if sign < 0 else "#67e8f9"
         lines.append(
             f'<line x1="{x0:.3f}" y1="{y0:.3f}" x2="{x1:.3f}" y2="{y1:.3f}" '
-            f'stroke="#f9a8d4" stroke-opacity="{opacity:.3f}" stroke-width="1.0"/>'
+            f'stroke="{color}" stroke-opacity="{opacity:.3f}" stroke-width="1.0"/>'
         )
 
     lower_with_depth = []
@@ -974,29 +1271,29 @@ def _render_cover_3d(*, width: int = 1280, height: int = 720) -> str:
     lines.append(
         f'<text x="{legend_x + 152}" y="{legend_y + 29}" fill="#f8fafc" '
         'font-size="13" font-family="Avenir Next, Futura, Trebuchet MS, sans-serif">'
-        "fold rays</text>"
+        "folded rays</text>"
     )
     lines.append(
-        f'<circle cx="{legend_x + 222}" cy="{legend_y + 24}" r="6" fill="#f8fafc"/>'
+        f'<circle cx="{legend_x + 222}" cy="{legend_y + 24}" r="6" fill="#67e8f9"/>'
     )
     lines.append(
         f'<text x="{legend_x + 236}" y="{legend_y + 29}" fill="#f8fafc" '
         'font-size="13" font-family="Avenir Next, Futura, Trebuchet MS, sans-serif">'
-        "quad cloud</text>"
+        "non-folded rays</text>"
     )
     lines.append(
-        f'<circle cx="{legend_x + 312}" cy="{legend_y + 24}" r="6" fill="#fb7185"/>'
+        f'<circle cx="{legend_x + 312}" cy="{legend_y + 24}" r="6" fill="#f8fafc"/>'
     )
     lines.append(
         f'<text x="{legend_x + 326}" y="{legend_y + 29}" fill="#f8fafc" '
         'font-size="13" font-family="Avenir Next, Futura, Trebuchet MS, sans-serif">'
-        "anchor</text>"
+        "quad cloud</text>"
     )
     lines.append(
         f'<text x="{legend_x + 20}" y="{legend_y + 55}" fill="#c7d2fe" '
         'font-size="12" font-family="Avenir Next, Futura, Trebuchet MS, sans-serif">'
         f"cell [{cell.x0:.3f},{cell.x1:.3f}] x [{cell.y0:.3f},{cell.y1:.3f}] x "
-        f"[{cell.z0:.3f},{cell.z1:.3f}]</text>"
+        f"[{cell.z0:.3f},{cell.z1:.3f}], +={non_folded_count}, -={folded_count}</text>"
     )
 
     lines.append(
