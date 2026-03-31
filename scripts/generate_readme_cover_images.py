@@ -431,7 +431,7 @@ def _render_cover_2d(*, width: int = 1280, height: int = 720) -> str:
             f'stroke="{color}" stroke-opacity="{opacity}" stroke-width="0.95"/>'
         )
 
-    point_step = max(1, math.ceil(len(points) / 140))
+    point_step = max(1, math.ceil(len(points) / 100))
     for point in points[::point_step]:
         px, py = _map_point_2d(
             point,
@@ -457,42 +457,46 @@ def _render_cover_2d(*, width: int = 1280, height: int = 720) -> str:
     )
     lines.append(f'<circle cx="{ax:.3f}" cy="{ay:.3f}" r="4.8" fill="#fb7185"/>')
 
-    legend_x = width - 306
-    legend_y = 24
+    legend_x = width - 248
+    legend_y = 20
     lines.append(
-        f'<rect x="{legend_x}" y="{legend_y}" width="260" height="74" rx="12" '
-        'fill="#0b1224" fill-opacity="0.52" stroke="#e2e8f0" '
-        'stroke-opacity="0.20"/>'
+        f'<rect x="{legend_x}" y="{legend_y}" width="214" height="68" rx="11" '
+        'fill="#0b1224" fill-opacity="0.50" stroke="#e2e8f0" '
+        'stroke-opacity="0.18"/>'
     )
     lines.append(
-        f'<circle cx="{legend_x + 24}" cy="{legend_y + 24}" r="6" fill="#f97316"/>'
+        f'<circle cx="{legend_x + 20}" cy="{legend_y + 22}" r="5.5" fill="#f97316"/>'
     )
     lines.append(
-        f'<text x="{legend_x + 38}" y="{legend_y + 29}" fill="#f8fafc" '
-        'font-size="13" font-family="Avenir Next, Futura, Trebuchet MS, sans-serif">'
-        "trimmed curve</text>"
-    )
-    lines.append(
-        f'<circle cx="{legend_x + 132}" cy="{legend_y + 24}" r="6" fill="#67e8f9"/>'
-    )
-    lines.append(
-        f'<text x="{legend_x + 146}" y="{legend_y + 29}" fill="#f8fafc" '
-        'font-size="13" font-family="Avenir Next, Futura, Trebuchet MS, sans-serif">'
-        "non-folded</text>"
-    )
-    lines.append(
-        f'<circle cx="{legend_x + 216}" cy="{legend_y + 24}" r="6" fill="#f472b6"/>'
-    )
-    lines.append(
-        f'<text x="{legend_x + 230}" y="{legend_y + 29}" fill="#f8fafc" '
-        'font-size="13" font-family="Avenir Next, Futura, Trebuchet MS, sans-serif">'
-        "folded</text>"
-    )
-    lines.append(
-        f'<text x="{legend_x + 20}" y="{legend_y + 55}" fill="#bfdbfe" '
+        f'<text x="{legend_x + 33}" y="{legend_y + 26}" fill="#f8fafc" '
         'font-size="12" font-family="Avenir Next, Futura, Trebuchet MS, sans-serif">'
-        f"cell [{cell[0]:.3f},{cell[2]:.3f}] x [{cell[1]:.3f},{cell[3]:.3f}], "
-        f"triangles={triangle_count}, +={non_folded_count}, -={folded_count}, q=10</text>"
+        "trim edge</text>"
+    )
+    lines.append(
+        f'<circle cx="{legend_x + 96}" cy="{legend_y + 22}" r="5.5" fill="#67e8f9"/>'
+    )
+    lines.append(
+        f'<text x="{legend_x + 109}" y="{legend_y + 26}" fill="#f8fafc" '
+        'font-size="12" font-family="Avenir Next, Futura, Trebuchet MS, sans-serif">'
+        "+ray</text>"
+    )
+    lines.append(
+        f'<circle cx="{legend_x + 151}" cy="{legend_y + 22}" r="5.5" fill="#f472b6"/>'
+    )
+    lines.append(
+        f'<text x="{legend_x + 164}" y="{legend_y + 26}" fill="#f8fafc" '
+        'font-size="12" font-family="Avenir Next, Futura, Trebuchet MS, sans-serif">'
+        "-ray</text>"
+    )
+    lines.append(
+        f'<text x="{legend_x + 16}" y="{legend_y + 49}" fill="#bfdbfe" '
+        'font-size="11" font-family="Avenir Next, Futura, Trebuchet MS, sans-serif">'
+        f"tri={triangle_count}   +={non_folded_count}   -={folded_count}   q=10</text>"
+    )
+    lines.append(
+        f'<text x="{legend_x + 16}" y="{legend_y + 63}" fill="#94a3b8" '
+        'font-size="10" font-family="Avenir Next, Futura, Trebuchet MS, sans-serif">'
+        "single square cut-cell</text>"
     )
 
     lines.append(
@@ -1131,10 +1135,10 @@ def _render_cover_3d(*, width: int = 1280, height: int = 720) -> str:
                 for point in projected
             )
         )
-        alpha = 0.32 + 0.50 * (1.0 - _normalize(depth, lower=zmin, upper=zmax))
+        alpha = 0.40 + 0.50 * (1.0 - _normalize(depth, lower=zmin, upper=zmax))
         lines.append(
             f'<polyline points="{points_attr}" fill="none" stroke="#7dd3fc" '
-            f'stroke-opacity="{alpha:.3f}" stroke-width="1.75"/>'
+            f'stroke-opacity="{alpha:.3f}" stroke-width="2.0"/>'
         )
 
     upper_with_depth = []
@@ -1189,7 +1193,7 @@ def _render_cover_3d(*, width: int = 1280, height: int = 720) -> str:
         )
 
     cloud_with_depth = []
-    cloud_step = max(1, math.ceil(len(cloud_points) / 160))
+    cloud_step = max(1, math.ceil(len(cloud_points) / 80))
     for point in cloud_points[::cloud_step]:
         projected = _project_3d(point, center=center)
         cloud_with_depth.append((projected[2], projected))
@@ -1247,50 +1251,54 @@ def _render_cover_3d(*, width: int = 1280, height: int = 720) -> str:
     )
     lines.append(f'<circle cx="{ax:.3f}" cy="{ay:.3f}" r="5.0" fill="#fb7185"/>')
 
-    legend_x = width - 392
-    legend_y = 24
+    legend_x = width - 304
+    legend_y = 20
     lines.append(
-        f'<rect x="{legend_x}" y="{legend_y}" width="346" height="74" rx="12" '
-        'fill="#0a1327" fill-opacity="0.52" stroke="#dbeafe" '
-        'stroke-opacity="0.20"/>'
+        f'<rect x="{legend_x}" y="{legend_y}" width="258" height="68" rx="11" '
+        'fill="#0a1327" fill-opacity="0.50" stroke="#dbeafe" '
+        'stroke-opacity="0.18"/>'
     )
     lines.append(
-        f'<circle cx="{legend_x + 24}" cy="{legend_y + 24}" r="6" fill="#7dd3fc"/>'
+        f'<circle cx="{legend_x + 18}" cy="{legend_y + 22}" r="5.5" fill="#7dd3fc"/>'
     )
     lines.append(
-        f'<text x="{legend_x + 38}" y="{legend_y + 29}" fill="#f8fafc" '
-        'font-size="13" font-family="Avenir Next, Futura, Trebuchet MS, sans-serif">'
-        "cut surface</text>"
-    )
-    lines.append(
-        f'<circle cx="{legend_x + 138}" cy="{legend_y + 24}" r="6" fill="#f9a8d4"/>'
-    )
-    lines.append(
-        f'<text x="{legend_x + 152}" y="{legend_y + 29}" fill="#f8fafc" '
-        'font-size="13" font-family="Avenir Next, Futura, Trebuchet MS, sans-serif">'
-        "folded rays</text>"
-    )
-    lines.append(
-        f'<circle cx="{legend_x + 222}" cy="{legend_y + 24}" r="6" fill="#67e8f9"/>'
-    )
-    lines.append(
-        f'<text x="{legend_x + 236}" y="{legend_y + 29}" fill="#f8fafc" '
-        'font-size="13" font-family="Avenir Next, Futura, Trebuchet MS, sans-serif">'
-        "non-folded rays</text>"
-    )
-    lines.append(
-        f'<circle cx="{legend_x + 312}" cy="{legend_y + 24}" r="6" fill="#f8fafc"/>'
-    )
-    lines.append(
-        f'<text x="{legend_x + 326}" y="{legend_y + 29}" fill="#f8fafc" '
-        'font-size="13" font-family="Avenir Next, Futura, Trebuchet MS, sans-serif">'
-        "quad cloud</text>"
-    )
-    lines.append(
-        f'<text x="{legend_x + 20}" y="{legend_y + 55}" fill="#c7d2fe" '
+        f'<text x="{legend_x + 30}" y="{legend_y + 26}" fill="#f8fafc" '
         'font-size="12" font-family="Avenir Next, Futura, Trebuchet MS, sans-serif">'
-        f"cell [{cell.x0:.3f},{cell.x1:.3f}] x [{cell.y0:.3f},{cell.y1:.3f}] x "
-        f"[{cell.z0:.3f},{cell.z1:.3f}], +={non_folded_count}, -={folded_count}, q_r=8</text>"
+        "surface</text>"
+    )
+    lines.append(
+        f'<circle cx="{legend_x + 93}" cy="{legend_y + 22}" r="5.5" fill="#f9a8d4"/>'
+    )
+    lines.append(
+        f'<text x="{legend_x + 105}" y="{legend_y + 26}" fill="#f8fafc" '
+        'font-size="12" font-family="Avenir Next, Futura, Trebuchet MS, sans-serif">'
+        "-ray</text>"
+    )
+    lines.append(
+        f'<circle cx="{legend_x + 145}" cy="{legend_y + 22}" r="5.5" fill="#67e8f9"/>'
+    )
+    lines.append(
+        f'<text x="{legend_x + 157}" y="{legend_y + 26}" fill="#f8fafc" '
+        'font-size="12" font-family="Avenir Next, Futura, Trebuchet MS, sans-serif">'
+        "+ray</text>"
+    )
+    lines.append(
+        f'<circle cx="{legend_x + 196}" cy="{legend_y + 22}" r="5.5" fill="#f8fafc"/>'
+    )
+    lines.append(
+        f'<text x="{legend_x + 208}" y="{legend_y + 26}" fill="#f8fafc" '
+        'font-size="12" font-family="Avenir Next, Futura, Trebuchet MS, sans-serif">'
+        "cloud</text>"
+    )
+    lines.append(
+        f'<text x="{legend_x + 16}" y="{legend_y + 49}" fill="#c7d2fe" '
+        'font-size="11" font-family="Avenir Next, Futura, Trebuchet MS, sans-serif">'
+        f"+={non_folded_count}   -={folded_count}   q_r=8</text>"
+    )
+    lines.append(
+        f'<text x="{legend_x + 16}" y="{legend_y + 63}" fill="#94a3b8" '
+        'font-size="10" font-family="Avenir Next, Futura, Trebuchet MS, sans-serif">'
+        "single square cut-cell</text>"
     )
 
     lines.append(
