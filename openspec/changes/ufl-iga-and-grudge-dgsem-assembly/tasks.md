@@ -1,18 +1,18 @@
 ## 1. Phase 1: UFL Frontend + IR + IGA Backend
 
-- [ ] 1.1 Add UFL adapter entrypoint(s) for form parsing and backend selection.
-- [ ] 1.2 Add method-neutral weak-form IR types and deterministic diagnostics.
-- [ ] 1.3 Add supported-form capability matrix for initial scalar subset.
-- [ ] 1.4 Implement IR-to-IGA lowering for scalar diffusion/mass/reaction forms.
-- [ ] 1.5 Reuse CUTKIT trimmed quadrature in IGA backend assembly loops.
-- [ ] 1.6 Add boundary-condition lowering for essential/natural terms in the
+- [x] 1.1 Add UFL adapter entrypoint(s) for form parsing and backend selection.
+- [x] 1.2 Add method-neutral weak-form IR types and deterministic diagnostics.
+- [x] 1.3 Add supported-form capability matrix for initial scalar subset.
+- [x] 1.4 Implement IR-to-IGA lowering for scalar diffusion/mass/reaction forms.
+- [x] 1.5 Reuse CUTKIT trimmed quadrature in IGA backend assembly loops.
+- [x] 1.6 Add boundary-condition lowering for essential/natural terms in the
       initial subset.
 
 ## 2. Phase 1 Exit Gate
 
-- [ ] 2.1 Add unit tests for UFL parsing, IR construction, and capability checks.
-- [ ] 2.2 Add manufactured-solution tests for IGA assembly correctness.
-- [ ] 2.3 Document backend support matrix and unsupported-form diagnostics.
+- [x] 2.1 Add unit tests for UFL parsing, IR construction, and capability checks.
+- [x] 2.2 Add manufactured-solution tests for IGA assembly correctness.
+- [x] 2.3 Document backend support matrix and unsupported-form diagnostics.
 
 ## 3. Phase 2: meshmode+grudge DG-SEM Backend
 

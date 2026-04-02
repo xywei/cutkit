@@ -74,6 +74,11 @@ from cutkit.evals.poisson_galerkin import (
     run_poisson_galerkin_benchmark,
     solve_trimmed_poisson_galerkin,
 )
+from cutkit.evals.formdsl_benchmarks import (
+    FormDslParityBenchmark,
+    FormDslParityRow,
+    run_formdsl_parity_benchmark,
+)
 
 __all__ = [
     "case_to_fixture_payload",
@@ -138,4 +143,7 @@ __all__ = [
     "build_poisson_galerkin_geometry_snapshot",
     "run_poisson_galerkin_benchmark",
     "solve_trimmed_poisson_galerkin",
+    "FormDslParityBenchmark",
+    "FormDslParityRow",
+    "run_formdsl_parity_benchmark",
 ]

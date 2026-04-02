@@ -24,6 +24,7 @@ Repository-local documentation is the system of record for CUTKIT.
 - `docs/volumential-handoff.md`: CUTKIT far/near primitive handoff contract for volumential workflows
 - `docs/poisson-benchmarks.md`: Poisson-oriented benchmark usage and profiles
 - `docs/poisson-galerkin-solver.md`: immersed Poisson Galerkin solve + validation workflow
+- `docs/ufl-backend-support.md`: UFL form backend support matrix and diagnostics
 - `scripts/check_docs_freshness.py`: stale docs path + markdown-anchor checker
 - `scripts/minimize_cutpanel_fuzz_cases.py`: deterministic fuzz-candidate minimizer
 - `docs/entire-transcript-policy.md`: Entire transcript handling policy
