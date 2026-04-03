@@ -26,6 +26,13 @@ dependencies = []
 test = [
   "pytest>=8"
 ]
+forms = [
+  "ufl>=2017.1.0"
+]
+dgsem = [
+  "grudge>=2021.1",
+  "meshmode>=2021.1"
+]
 perf = [
   "numpy>=2"
 ]

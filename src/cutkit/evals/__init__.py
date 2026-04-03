@@ -138,4 +138,22 @@ __all__ = [
     "build_poisson_galerkin_geometry_snapshot",
     "run_poisson_galerkin_benchmark",
     "solve_trimmed_poisson_galerkin",
+    "FormDslParityBenchmark",
+    "FormDslParityRow",
+    "run_formdsl_parity_benchmark",
 ]
+
+
+_LAZY_EXPORTS = {
+    "FormDslParityBenchmark",
+    "FormDslParityRow",
+    "run_formdsl_parity_benchmark",
+}
+
+
+def __getattr__(name: str):
+    if name not in _LAZY_EXPORTS:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    from cutkit.evals import formdsl_benchmarks
+
+    return getattr(formdsl_benchmarks, name)
