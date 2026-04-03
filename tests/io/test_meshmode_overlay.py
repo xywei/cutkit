@@ -113,6 +113,25 @@ def test_overlay_permissive_reports_orientation_mismatch() -> None:
     )
 
 
+def test_overlay_rejects_non_integral_expected_orientation() -> None:
+    elements = (
+        MeshmodeOverlayElement(
+            source_element_id="s1",
+            points=((0.0, 0.0),),
+            weights=(1.0,),
+            orientation=1,
+        ),
+    )
+
+    with pytest.raises(ValueError, match=r"\+1 or -1 integers"):
+        build_meshmode_cut_overlay(
+            elements,
+            target_element_ids=(10,),
+            element_id_map={"s1": 10},
+            expected_orientation_by_target={10: 1.9},
+        )
+
+
 def test_overlay_strict_rejects_mapping_to_unknown_target() -> None:
     elements = (
         MeshmodeOverlayElement(

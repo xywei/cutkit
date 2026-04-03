@@ -65,6 +65,33 @@ def _normalize_metadata(metadata: Mapping[str, object]) -> tuple[tuple[str, str]
     return tuple(normalized)
 
 
+def _coerce_orientation(value: object) -> int:
+    if isinstance(value, bool):
+        raise ValueError("expected orientations must be +1 or -1 integers")
+
+    orientation: int
+    if isinstance(value, int):
+        orientation = value
+    elif isinstance(value, float):
+        if not value.is_integer():
+            raise ValueError("expected orientations must be +1 or -1 integers")
+        orientation = int(value)
+    elif isinstance(value, str):
+        text = value.strip()
+        if not text:
+            raise ValueError("expected orientations must be +1 or -1 integers")
+        try:
+            orientation = int(text)
+        except ValueError as exc:
+            raise ValueError("expected orientations must be +1 or -1 integers") from exc
+    else:
+        raise ValueError("expected orientations must be +1 or -1 integers")
+
+    if orientation not in {-1, 1}:
+        raise ValueError("expected orientations must be +1 or -1 integers")
+    return orientation
+
+
 @dataclass(frozen=True)
 class MeshmodeOverlayDiagnostic:
     """One structured diagnostic emitted during overlay construction."""
@@ -169,7 +196,9 @@ def build_meshmode_cut_overlay(
     *,
     target_element_ids: Sequence[ElementId],
     element_id_map: Mapping[ElementId, ElementId],
-    expected_orientation_by_target: Mapping[ElementId, int] | None = None,
+    expected_orientation_by_target: (
+        Mapping[ElementId, int | float | str] | None
+    ) = None,
     strict: bool = True,
     contract_version: int = 1,
 ) -> MeshmodeCutOverlay:
@@ -189,9 +218,7 @@ def build_meshmode_cut_overlay(
     if expected_orientation_by_target is not None:
         for raw_target, raw_orientation in expected_orientation_by_target.items():
             target_id = _coerce_element_id(raw_target, name="orientation target id")
-            orientation = int(raw_orientation)
-            if orientation not in {-1, 1}:
-                raise ValueError("expected orientations must be +1 or -1")
+            orientation = _coerce_orientation(raw_orientation)
             expected_orientation[target_id] = orientation
 
     diagnostics: list[MeshmodeOverlayDiagnostic] = []
