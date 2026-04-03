@@ -54,6 +54,95 @@ def test_parse_form_mapping_roundtrips() -> None:
     )
 
 
+def test_parse_form_accepts_ufl_like_scalar_form() -> None:
+    class Argument:
+        def __init__(self, number: int, element: str) -> None:
+            self._number = number
+            self._element = element
+            self.ufl_operands: tuple[object, ...] = ()
+
+        def number(self) -> int:
+            return self._number
+
+        def ufl_element(self) -> str:
+            return self._element
+
+    class FloatValue:
+        def __init__(self, value: float) -> None:
+            self._value = value
+            self.ufl_operands: tuple[object, ...] = ()
+
+        def __float__(self) -> float:
+            return self._value
+
+    class Grad:
+        def __init__(self, operand: object) -> None:
+            self.ufl_operands = (operand,)
+
+    class Inner:
+        def __init__(self, left: object, right: object) -> None:
+            self.ufl_operands = (left, right)
+
+    class Product:
+        def __init__(self, left: object, right: object) -> None:
+            self.ufl_operands = (left, right)
+
+    class Sum:
+        def __init__(self, left: object, right: object) -> None:
+            self.ufl_operands = (left, right)
+
+    class Integral:
+        def __init__(self, integral_type: str, integrand: object) -> None:
+            self._integral_type = integral_type
+            self._integrand = integrand
+
+        def integral_type(self) -> str:
+            return self._integral_type
+
+        def integrand(self) -> object:
+            return self._integrand
+
+    class UflLikeForm:
+        def __init__(
+            self, integrals: tuple[Integral, ...], arguments: tuple[Argument, ...]
+        ):
+            self._integrals = integrals
+            self._arguments = arguments
+
+        def integrals(self) -> tuple[Integral, ...]:
+            return self._integrals
+
+        def arguments(self) -> tuple[Argument, ...]:
+            return self._arguments
+
+    UflLikeForm.__module__ = "ufl.mock"
+
+    test_arg = Argument(0, "P2")
+    trial_arg = Argument(1, "P2")
+    diffusion = Product(FloatValue(2.0), Inner(Grad(trial_arg), Grad(test_arg)))
+    source = Product(FloatValue(-3.0), test_arg)
+    natural = Product(FloatValue(4.0), test_arg)
+    form = UflLikeForm(
+        integrals=(
+            Integral("cell", Sum(diffusion, source)),
+            Integral("exterior_facet", natural),
+        ),
+        arguments=(test_arg, trial_arg),
+    )
+
+    ir = parse_form(form, backend="iga")
+
+    assert ir.trial_space == "P2"
+    assert ir.test_space == "P2"
+    assert ir.terms == (
+        Term(kind="diffusion", coefficient=2.0, source=None),
+        Term(kind="source", coefficient=-3.0, source=1.0),
+    )
+    assert ir.boundary_conditions == (
+        BoundaryCondition(kind="natural", value=4.0, boundary="all"),
+    )
+
+
 def test_parse_form_weakformir_rejects_invalid_boundary_selector() -> None:
     form_ir = WeakFormIR(
         trial_space="P1",
@@ -162,6 +251,18 @@ def test_dgsem_contract_version_string_must_be_numeric() -> None:
             _base_form(),
             backend="dgsem",
             overlay_payload={"contract_version": "v1"},
+        )
+
+
+def test_dgsem_contract_version_float_must_be_integral() -> None:
+    with pytest.raises(
+        PrerequisiteError,
+        match="contract_version must be an integer value",
+    ):
+        assemble_form(
+            _base_form(),
+            backend="dgsem",
+            overlay_payload={"contract_version": 1.5},
         )
 
 

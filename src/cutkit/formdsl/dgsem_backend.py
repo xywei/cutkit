@@ -51,6 +51,10 @@ def lower_dgsem(
     elif isinstance(raw_version, int):
         version = raw_version
     elif isinstance(raw_version, float):
+        if not raw_version.is_integer():
+            raise PrerequisiteError(
+                "overlay payload contract_version must be an integer value"
+            )
         version = int(raw_version)
     elif isinstance(raw_version, str):
         try:
