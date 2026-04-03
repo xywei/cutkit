@@ -10,6 +10,15 @@ from .ir import BackendName, BoundaryCondition, Term, WeakFormIR
 _VALID_BOUNDARIES = {"all", "left", "right", "bottom", "top"}
 
 
+def _validate_ir_boundaries(boundary_conditions: tuple[BoundaryCondition, ...]) -> None:
+    for index, condition in enumerate(boundary_conditions):
+        if condition.boundary in _VALID_BOUNDARIES:
+            continue
+        raise ValueError(
+            f"boundary condition at index {index} has unsupported boundary {condition.boundary!r}"
+        )
+
+
 def parse_form(
     form: WeakFormIR | Mapping[str, Any] | Any,
     *,
@@ -24,6 +33,7 @@ def parse_form(
     del backend
 
     if isinstance(form, WeakFormIR):
+        _validate_ir_boundaries(form.boundary_conditions)
         return form
 
     module_name = type(form).__module__
@@ -84,10 +94,12 @@ def parse_form(
     if isinstance(raw_meta, Mapping):
         metadata = {str(key): str(value) for key, value in raw_meta.items()}
 
-    return WeakFormIR(
+    form_ir = WeakFormIR(
         trial_space=trial_space,
         test_space=test_space,
         terms=tuple(terms),
         boundary_conditions=tuple(boundary_conditions),
         metadata=metadata,
     )
+    _validate_ir_boundaries(form_ir.boundary_conditions)
+    return form_ir

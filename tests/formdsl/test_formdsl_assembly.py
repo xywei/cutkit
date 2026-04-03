@@ -7,7 +7,15 @@ import pytest
 
 from cutkit.evals import antolin_wei_buffa_2022_2d as awb2d
 from cutkit.evals import poisson_galerkin as pg
-from cutkit.formdsl import CapabilityError, PrerequisiteError, assemble_form, parse_form
+from cutkit.formdsl import (
+    BoundaryCondition,
+    CapabilityError,
+    PrerequisiteError,
+    Term,
+    WeakFormIR,
+    assemble_form,
+    parse_form,
+)
 from cutkit.formdsl.dgsem_backend import DGSEMLoweringResult
 from cutkit.formdsl.iga_backend import IGAAssemblyResult
 
@@ -44,6 +52,20 @@ def test_parse_form_mapping_roundtrips() -> None:
     assert tuple(condition.kind for condition in ir.boundary_conditions) == (
         "essential",
     )
+
+
+def test_parse_form_weakformir_rejects_invalid_boundary_selector() -> None:
+    form_ir = WeakFormIR(
+        trial_space="P1",
+        test_space="P1",
+        terms=(Term(kind="diffusion", coefficient=1.0),),
+        boundary_conditions=(
+            BoundaryCondition(kind="natural", value=1.0, boundary="diagonal"),
+        ),
+    )
+
+    with pytest.raises(ValueError, match="unsupported boundary"):
+        parse_form(form_ir, backend="iga")
 
 
 def test_capability_check_strict_vs_permissive() -> None:
