@@ -36,7 +36,12 @@ def lower_dgsem(
     elif isinstance(raw_version, float):
         version = int(raw_version)
     elif isinstance(raw_version, str):
-        version = int(raw_version)
+        try:
+            version = int(raw_version)
+        except ValueError as exc:
+            raise PrerequisiteError(
+                "overlay payload contract_version must be numeric"
+            ) from exc
     else:
         raise PrerequisiteError("overlay payload contract_version must be numeric")
     if version < 1:

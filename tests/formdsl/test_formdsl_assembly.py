@@ -128,6 +128,21 @@ def test_dgsem_lowering_requires_overlay_payload() -> None:
         assemble_form(_base_form(), backend="dgsem")
 
 
+def test_unknown_backend_reports_capability_error() -> None:
+    with pytest.raises(CapabilityError) as error:
+        assemble_form(_base_form(), backend="foo")  # type: ignore[arg-type]
+    assert error.value.diagnostic.code == "unsupported_backend"
+
+
+def test_dgsem_contract_version_string_must_be_numeric() -> None:
+    with pytest.raises(PrerequisiteError, match="contract_version must be numeric"):
+        assemble_form(
+            _base_form(),
+            backend="dgsem",
+            overlay_payload={"contract_version": "v1"},
+        )
+
+
 def test_backend_parity_payload_uses_shared_ir_terms() -> None:
     panel = awb2d.build_section_6_1_1_bspline_panel(sample_count=128)
     form: dict[str, object] = {
