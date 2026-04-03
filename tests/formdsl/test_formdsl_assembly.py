@@ -8,6 +8,7 @@ import pytest
 from cutkit.evals import antolin_wei_buffa_2022_2d as awb2d
 from cutkit.evals import poisson_galerkin as pg
 from cutkit.geometry import PanelLoop2D, TrimmedPanel2D
+from cutkit.io import MeshmodeCutOverlay, MeshmodeOverlayDiagnostic, OverlayStatus
 from cutkit.formdsl import (
     BoundaryCondition,
     CapabilityError,
@@ -31,6 +32,29 @@ def _base_form() -> dict[str, object]:
         ],
         "boundary_conditions": [{"kind": "essential", "value": 0.0}],
     }
+
+
+def _overlay_contract(
+    *,
+    contract_version: int = 1,
+    statuses: tuple[OverlayStatus, ...] = ("ok",),
+    diagnostics: tuple[MeshmodeOverlayDiagnostic, ...] = (),
+) -> MeshmodeCutOverlay:
+    target_element_ids = tuple(range(len(statuses)))
+    source_element_ids = tuple(
+        index if status == "ok" else None for index, status in enumerate(statuses)
+    )
+    return MeshmodeCutOverlay(
+        contract_version=contract_version,
+        target_element_ids=target_element_ids,
+        source_element_ids=source_element_ids,
+        statuses=statuses,
+        diagnostics=diagnostics,
+        point_indptr_by_element=tuple(0 for _ in range(len(statuses) + 1)),
+        point_coords=(),
+        point_weights=(),
+        geometry_metadata_by_element=tuple(() for _ in statuses),
+    )
 
 
 def _assert_sparse_close(
@@ -354,25 +378,50 @@ def test_unknown_backend_reports_capability_error() -> None:
     assert error.value.diagnostic.code == "unsupported_backend"
 
 
-def test_dgsem_contract_version_string_must_be_numeric() -> None:
-    with pytest.raises(PrerequisiteError, match="contract_version must be numeric"):
+def test_dgsem_overlay_contract_version_must_be_supported() -> None:
+    with pytest.raises(ValueError, match="contract_version must be >= 1"):
+        _overlay_contract(contract_version=0)
+
+
+def test_dgsem_strict_rejects_overlay_diagnostics() -> None:
+    with pytest.raises(PrerequisiteError, match="source_unmapped"):
         assemble_form(
             _base_form(),
             backend="dgsem",
-            overlay_payload={"contract_version": "v1"},
+            overlay_payload=_overlay_contract(
+                diagnostics=(
+                    MeshmodeOverlayDiagnostic(
+                        code="source_unmapped",
+                        detail="unused source",
+                        source_element_id=99,
+                    ),
+                ),
+            ),
+            strict=True,
         )
 
 
-def test_dgsem_contract_version_float_must_be_integral() -> None:
-    with pytest.raises(
-        PrerequisiteError,
-        match="contract_version must be an integer value",
-    ):
-        assemble_form(
-            _base_form(),
-            backend="dgsem",
-            overlay_payload={"contract_version": 1.5},
-        )
+def test_dgsem_permissive_passthrough_overlay_diagnostics() -> None:
+    result = assemble_form(
+        _base_form(),
+        backend="dgsem",
+        overlay_payload=_overlay_contract(
+            statuses=("mapping_mismatch",),
+            diagnostics=(
+                MeshmodeOverlayDiagnostic(
+                    code="target_unmapped",
+                    detail="target 0 missing",
+                    target_element_id=0,
+                ),
+            ),
+        ),
+        strict=False,
+    )
+    payload = cast(DGSEMLoweringResult, result.payload)
+
+    assert payload.overlay_statuses == ("mapping_mismatch",)
+    assert payload.overlay_diagnostics
+    assert payload.overlay_diagnostics[0].code == "target_unmapped"
 
 
 def test_backend_parity_payload_uses_shared_ir_terms() -> None:
@@ -395,7 +444,7 @@ def test_backend_parity_payload_uses_shared_ir_terms() -> None:
     dgsem = assemble_form(
         form,
         backend="dgsem",
-        overlay_payload={"contract_version": 1},
+        overlay_payload=_overlay_contract(),
         strict=True,
     )
     dgsem_payload = cast(DGSEMLoweringResult, dgsem.payload)
@@ -409,18 +458,20 @@ def test_backend_parity_payload_uses_shared_ir_terms() -> None:
         "source:1:const:1",
     )
     assert dgsem_payload.trace_terms == ("dirichlet:all:0", "neumann:top:1")
+    assert dgsem_payload.overlay_statuses == ("ok",)
+    assert not dgsem_payload.overlay_diagnostics
 
 
 def test_dgsem_lowering_distinguishes_term_coefficients() -> None:
     low = assemble_form(
         {"terms": [{"kind": "mass", "coefficient": 0.1}]},
         backend="dgsem",
-        overlay_payload={"contract_version": 1},
+        overlay_payload=_overlay_contract(),
     )
     high = assemble_form(
         {"terms": [{"kind": "mass", "coefficient": 10.0}]},
         backend="dgsem",
-        overlay_payload={"contract_version": 1},
+        overlay_payload=_overlay_contract(),
     )
     low_payload = cast(DGSEMLoweringResult, low.payload)
     high_payload = cast(DGSEMLoweringResult, high.payload)
@@ -437,7 +488,7 @@ def test_dgsem_lowering_distinguishes_boundary_values() -> None:
             "boundary_conditions": [{"kind": "natural", "value": 1.0}],
         },
         backend="dgsem",
-        overlay_payload={"contract_version": 1},
+        overlay_payload=_overlay_contract(),
     )
     double = assemble_form(
         {
@@ -445,7 +496,7 @@ def test_dgsem_lowering_distinguishes_boundary_values() -> None:
             "boundary_conditions": [{"kind": "natural", "value": 2.0}],
         },
         backend="dgsem",
-        overlay_payload={"contract_version": 1},
+        overlay_payload=_overlay_contract(),
     )
     unit_payload = cast(DGSEMLoweringResult, unit.payload)
     double_payload = cast(DGSEMLoweringResult, double.payload)
@@ -462,12 +513,12 @@ def test_dgsem_lowering_distinguishes_callable_source_closures() -> None:
     low = assemble_form(
         {"terms": [{"kind": "source", "source": make_source(1.0)}]},
         backend="dgsem",
-        overlay_payload={"contract_version": 1},
+        overlay_payload=_overlay_contract(),
     )
     high = assemble_form(
         {"terms": [{"kind": "source", "source": make_source(2.0)}]},
         backend="dgsem",
-        overlay_payload={"contract_version": 1},
+        overlay_payload=_overlay_contract(),
     )
     low_payload = cast(DGSEMLoweringResult, low.payload)
     high_payload = cast(DGSEMLoweringResult, high.payload)

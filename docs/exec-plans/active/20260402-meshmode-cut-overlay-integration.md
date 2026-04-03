@@ -37,14 +37,14 @@ This plan is a prerequisite for DG-SEM backend work in
 
 ## Implementation Checklist
 
-- [ ] Define overlay dataclasses/contracts at a stable public boundary.
-- [ ] Implement overlay assembly entrypoint with explicit mapping inputs.
-- [ ] Implement deterministic mapping + validation checks.
-- [ ] Implement strict/permissive modes and status population.
-- [ ] Add unit tests for mapping, statuses, and diagnostics.
+- [x] Define overlay dataclasses/contracts at a stable public boundary.
+- [x] Implement overlay assembly entrypoint with explicit mapping inputs.
+- [x] Implement deterministic mapping + validation checks.
+- [x] Implement strict/permissive modes and status population.
+- [x] Add unit tests for mapping, statuses, and diagnostics.
 - [ ] Add integration tests with representative meshmode-style layouts.
-- [ ] Add docs usage section and minimal end-to-end example.
-- [ ] Run `make dev`.
+- [x] Add docs usage section and minimal end-to-end example.
+- [x] Run `make dev`.
 
 ## Phase Gates
 

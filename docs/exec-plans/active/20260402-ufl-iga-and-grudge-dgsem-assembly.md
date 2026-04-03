@@ -40,13 +40,13 @@ MVP sequencing:
 
 ## Implementation Checklist
 
-- [ ] Add UFL adapter entrypoint + IR.
-- [ ] Add IGA lowering for supported scalar terms.
+- [x] Add UFL adapter entrypoint + IR.
+- [x] Add IGA lowering for supported scalar terms.
 - [ ] Add DG-SEM lowering via meshmode+grudge adapters.
-- [ ] Add strict/permissive validation behavior.
+- [x] Add strict/permissive validation behavior.
 - [ ] Add shared-form backend parity tests.
-- [ ] Update docs and support matrix.
-- [ ] Run `make dev`.
+- [x] Update docs and support matrix.
+- [x] Run `make dev`.
 
 ## Phase Gates
 

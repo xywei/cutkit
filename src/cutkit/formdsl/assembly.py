@@ -8,6 +8,7 @@ from typing import Any
 
 from cutkit.evals.poisson_galerkin import BackendMode
 from cutkit.geometry import TrimmedPanel2D
+from cutkit.io.meshmode_overlay import MeshmodeCutOverlay
 
 from .adapter import parse_form
 from .capabilities import check_support
@@ -37,7 +38,7 @@ def assemble_form(
     quadrature_order: int = 4,
     backend_mode: BackendMode = "jplus",
     bounds: tuple[float, float, float, float] | None = None,
-    overlay_payload: Mapping[str, object] | None = None,
+    overlay_payload: MeshmodeCutOverlay | None = None,
 ) -> AssemblyResult:
     """Parse and lower one weak form into the selected backend."""
 
@@ -60,9 +61,8 @@ def assemble_form(
     else:
         payload = lower_dgsem(
             form_ir,
-            overlay_payload=dict(overlay_payload)
-            if overlay_payload is not None
-            else None,
+            overlay_payload=overlay_payload,
+            strict=strict,
         )
 
     return AssemblyResult(

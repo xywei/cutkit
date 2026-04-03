@@ -26,6 +26,32 @@ CUTKIT-to-target element mapping.
 - `strict=False`: return partial-success payloads and collect deterministic
   diagnostics for failed elements.
 
+## Minimal Example
+
+```python
+from cutkit.io import MeshmodeOverlayElement, build_meshmode_cut_overlay
+
+elements = (
+    MeshmodeOverlayElement(
+        source_element_id="cell-10",
+        points=((0.1, 0.2), (0.3, 0.4)),
+        weights=(0.5, 0.5),
+        geometry_metadata={"cut_fraction": 0.8},
+        orientation=1,
+    ),
+)
+
+overlay = build_meshmode_cut_overlay(
+    elements,
+    target_element_ids=(10,),
+    element_id_map={"cell-10": 10},
+    strict=True,
+)
+
+assert overlay.contract_version == 1
+assert overlay.statuses == ("ok",)
+```
+
 ## Status Model
 
 - Source-propagated statuses: `ok`, `empty`, `invalid_box`, `backend_error`

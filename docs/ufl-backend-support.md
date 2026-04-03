@@ -49,9 +49,16 @@ Common diagnostic codes:
 
 ## DG-SEM Prerequisite
 
-The `dgsem` backend requires an explicit meshmode cut-overlay payload with
-`contract_version >= 1`. If missing, lowering raises `PrerequisiteError`
-instead of attempting implicit translation.
+The `dgsem` backend requires an explicit `MeshmodeCutOverlay` payload from
+`cutkit.io` with `contract_version >= 1`. If missing, lowering raises
+`PrerequisiteError` instead of attempting implicit translation.
+
+Overlay viability is also mode-sensitive:
+
+- strict mode: fails fast on overlay diagnostics or blocking statuses
+  (`mapping_mismatch`, `orientation_mismatch`, `invalid_box`, `backend_error`).
+- permissive mode: returns DG lowering payloads while forwarding deterministic
+  overlay statuses/diagnostics in the DG payload.
 
 ## Phase 3 Evaluation Notes
 
