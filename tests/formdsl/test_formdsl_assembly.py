@@ -7,6 +7,7 @@ import pytest
 
 from cutkit.evals import antolin_wei_buffa_2022_2d as awb2d
 from cutkit.evals import poisson_galerkin as pg
+from cutkit.geometry import PanelLoop2D, TrimmedPanel2D
 from cutkit.formdsl import (
     BoundaryCondition,
     CapabilityError,
@@ -96,9 +97,16 @@ def test_parse_form_accepts_ufl_like_scalar_form() -> None:
             self.ufl_operands = (left, right)
 
     class Integral:
-        def __init__(self, integral_type: str, integrand: object) -> None:
+        def __init__(
+            self,
+            integral_type: str,
+            integrand: object,
+            *,
+            subdomain_id: object | None = None,
+        ) -> None:
             self._integral_type = integral_type
             self._integrand = integrand
+            self._subdomain_id = subdomain_id
 
         def integral_type(self) -> str:
             return self._integral_type
@@ -106,12 +114,22 @@ def test_parse_form_accepts_ufl_like_scalar_form() -> None:
         def integrand(self) -> object:
             return self._integrand
 
+        def subdomain_id(self) -> object | None:
+            return self._subdomain_id
+
     class UflLikeForm:
         def __init__(
-            self, integrals: tuple[Integral, ...], arguments: tuple[Argument, ...]
+            self,
+            integrals: tuple[Integral, ...],
+            arguments: tuple[Argument, ...],
+            *,
+            boundary_marker_map: dict[int, str] | None = None,
         ):
             self._integrals = integrals
             self._arguments = arguments
+            self.boundary_marker_map = (
+                dict(boundary_marker_map) if boundary_marker_map is not None else {}
+            )
 
         def integrals(self) -> tuple[Integral, ...]:
             return self._integrals
@@ -145,6 +163,20 @@ def test_parse_form_accepts_ufl_like_scalar_form() -> None:
     assert ir.boundary_conditions == (
         BoundaryCondition(kind="natural", value=4.0, boundary="all"),
     )
+
+    localized = UflLikeForm(
+        integrals=(
+            Integral("cell", diffusion),
+            Integral("exterior_facet", natural, subdomain_id=3),
+        ),
+        arguments=(test_arg, trial_arg),
+        boundary_marker_map={3: "top"},
+    )
+    localized_ir = parse_form(localized, backend="iga")
+    assert localized_ir.boundary_conditions == (
+        BoundaryCondition(kind="natural", value=4.0, boundary="marker:3"),
+    )
+    assert localized_ir.metadata["boundary_marker:3"] == "top"
 
     nonlinear = UflLikeForm(
         integrals=(
@@ -431,8 +463,60 @@ def test_source_term_coefficients_contribute_to_rhs() -> None:
         assert isclose(left, right, abs_tol=1.0e-12, rel_tol=0.0)
 
 
-def test_natural_boundary_all_matches_sum_of_each_edge() -> None:
+def test_marker_boundary_selector_requires_mapping() -> None:
     panel = awb2d.build_section_6_1_1_bspline_panel(sample_count=128)
+
+    with pytest.raises(ValueError, match="missing selector mapping"):
+        assemble_form(
+            {
+                "terms": [{"kind": "diffusion", "coefficient": 1.0}],
+                "boundary_conditions": [
+                    {"kind": "natural", "value": 1.0, "boundary": "marker:42"}
+                ],
+            },
+            backend="iga",
+            panel=panel,
+            strict=True,
+        )
+
+
+def test_marker_boundary_selector_matches_named_selector() -> None:
+    panel = awb2d.build_section_6_1_1_bspline_panel(sample_count=128)
+
+    marker_result = assemble_form(
+        {
+            "terms": [{"kind": "diffusion", "coefficient": 1.0}],
+            "boundary_conditions": [
+                {"kind": "natural", "value": 1.0, "boundary": "marker:3"}
+            ],
+            "metadata": {"boundary_marker:3": "top"},
+        },
+        backend="iga",
+        panel=panel,
+        strict=True,
+    )
+    top_result = assemble_form(
+        {
+            "terms": [{"kind": "diffusion", "coefficient": 1.0}],
+            "boundary_conditions": [
+                {"kind": "natural", "value": 1.0, "boundary": "top"}
+            ],
+        },
+        backend="iga",
+        panel=panel,
+        strict=True,
+    )
+
+    marker_rhs = cast(IGAAssemblyResult, marker_result.payload).rhs
+    top_rhs = cast(IGAAssemblyResult, top_result.payload).rhs
+    for marker_value, top_value in zip(marker_rhs, top_rhs, strict=True):
+        assert isclose(marker_value, top_value, abs_tol=1.0e-12, rel_tol=0.0)
+
+
+def test_natural_boundary_all_matches_sum_of_box_edges_for_square() -> None:
+    panel = TrimmedPanel2D(
+        outer=PanelLoop2D(((0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)))
+    )
 
     def _assemble_natural(boundary: str) -> tuple[float, ...]:
         form: dict[str, object] = {
@@ -454,3 +538,28 @@ def test_natural_boundary_all_matches_sum_of_each_edge() -> None:
     for idx, value in enumerate(rhs_all):
         expected = rhs_left[idx] + rhs_right[idx] + rhs_bottom[idx] + rhs_top[idx]
         assert isclose(value, expected, abs_tol=1.0e-12, rel_tol=0.0)
+
+
+def test_natural_boundary_all_includes_non_box_trimmed_edges() -> None:
+    panel = awb2d.build_section_6_1_1_bspline_panel(sample_count=128)
+
+    def _assemble_natural(boundary: str) -> tuple[float, ...]:
+        form: dict[str, object] = {
+            "terms": [{"kind": "diffusion", "coefficient": 1.0}],
+            "boundary_conditions": [
+                {"kind": "natural", "value": 1.0, "boundary": boundary}
+            ],
+        }
+        result = assemble_form(form, backend="iga", panel=panel, strict=True)
+        payload = cast(IGAAssemblyResult, result.payload)
+        return payload.rhs
+
+    rhs_all = _assemble_natural("all")
+    rhs_left = _assemble_natural("left")
+    rhs_right = _assemble_natural("right")
+    rhs_bottom = _assemble_natural("bottom")
+    rhs_top = _assemble_natural("top")
+
+    all_total = sum(rhs_all)
+    box_total = sum(rhs_left) + sum(rhs_right) + sum(rhs_bottom) + sum(rhs_top)
+    assert all_total > box_total + 1.0e-6

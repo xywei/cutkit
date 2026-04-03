@@ -26,6 +26,13 @@ UFL-style form DSL entrypoint in `cutkit.formdsl`.
 
 Boundary selectors currently use: `all`, `left`, `right`, `bottom`, `top`.
 
+Natural loads on `iga` are integrated over the trimmed panel boundary geometry.
+Selectors `left|right|bottom|top` are geometric filters on boundary segments that
+lie on the corresponding effective bounding-box side.
+
+Marker selectors are also supported via `marker:<id>` when metadata provides a
+mapping key `boundary_marker:<id>` to one of `all|left|right|bottom|top`.
+
 ## Deterministic Capability Diagnostics
 
 `cutkit.formdsl` provides strict and permissive capability checks:

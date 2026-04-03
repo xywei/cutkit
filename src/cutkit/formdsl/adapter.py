@@ -10,13 +10,75 @@ from .ir import BackendName, BoundaryCondition, Term, WeakFormIR
 _VALID_BOUNDARIES = {"all", "left", "right", "bottom", "top"}
 
 
+def _is_valid_boundary_selector(boundary: str) -> bool:
+    if boundary in _VALID_BOUNDARIES:
+        return True
+    if not boundary.startswith("marker:"):
+        return False
+    marker = boundary.removeprefix("marker:").strip()
+    return bool(marker)
+
+
+def _validate_boundary_marker_metadata(metadata: Mapping[str, str]) -> None:
+    for key, value in metadata.items():
+        if not key.startswith("boundary_marker:"):
+            continue
+        marker = key.removeprefix("boundary_marker:").strip()
+        if not marker:
+            raise ValueError("boundary marker metadata key is missing marker id")
+        if value not in _VALID_BOUNDARIES:
+            raise ValueError(
+                f"boundary marker metadata {key!r} has unsupported selector {value!r}"
+            )
+
+
 def _validate_ir_boundaries(boundary_conditions: tuple[BoundaryCondition, ...]) -> None:
     for index, condition in enumerate(boundary_conditions):
-        if condition.boundary in _VALID_BOUNDARIES:
+        if _is_valid_boundary_selector(condition.boundary):
             continue
         raise ValueError(
             f"boundary condition at index {index} has unsupported boundary {condition.boundary!r}"
         )
+
+
+def _integral_subdomain_id(integral: object) -> object | None:
+    subdomain_id_fn = getattr(integral, "subdomain_id", None)
+    if callable(subdomain_id_fn):
+        return subdomain_id_fn()
+    if subdomain_id_fn is None:
+        return None
+    return subdomain_id_fn
+
+
+def _boundary_selector_from_integral(integral: object) -> str:
+    subdomain_id = _integral_subdomain_id(integral)
+    if subdomain_id is None:
+        return "all"
+
+    selector = str(subdomain_id).strip()
+    if selector in {"", "everywhere", "otherwise", "on_boundary"}:
+        return "all"
+    if selector in _VALID_BOUNDARIES:
+        return selector
+    return f"marker:{selector}"
+
+
+def _extract_ufl_boundary_marker_metadata(form: Any) -> dict[str, str]:
+    raw_marker_map = getattr(form, "boundary_marker_map", None)
+    if raw_marker_map is None:
+        return {}
+    if not isinstance(raw_marker_map, Mapping):
+        raise TypeError("UFL boundary_marker_map must be a mapping if provided")
+
+    metadata: dict[str, str] = {}
+    for marker_id, selector in raw_marker_map.items():
+        marker_text = str(marker_id).strip()
+        if not marker_text:
+            raise ValueError("UFL boundary marker map contains empty marker id")
+        metadata[f"boundary_marker:{marker_text}"] = str(selector).strip()
+
+    _validate_boundary_marker_metadata(metadata)
+    return metadata
 
 
 def _ufl_operands(node: object) -> tuple[object, ...]:
@@ -232,6 +294,7 @@ def _parse_ufl_form(form: Any) -> WeakFormIR:
 
     terms: list[Term] = []
     boundary_conditions: list[BoundaryCondition] = []
+    metadata = _extract_ufl_boundary_marker_metadata(form)
 
     for integral in integrals:
         integral_type_fn = getattr(integral, "integral_type", None)
@@ -283,11 +346,12 @@ def _parse_ufl_form(form: Any) -> WeakFormIR:
 
             if integral_type == "exterior_facet":
                 if len(factors) == 1 and _ufl_is_argument(factors[0], number=0):
+                    boundary_selector = _boundary_selector_from_integral(integral)
                     boundary_conditions.append(
                         BoundaryCondition(
                             kind="natural",
                             value=coefficient,
-                            boundary="all",
+                            boundary=boundary_selector,
                         )
                     )
                     continue
@@ -305,6 +369,7 @@ def _parse_ufl_form(form: Any) -> WeakFormIR:
         test_space=test_space,
         terms=tuple(terms),
         boundary_conditions=tuple(boundary_conditions),
+        metadata=metadata,
     )
     _validate_ir_boundaries(form_ir.boundary_conditions)
     return form_ir
@@ -366,7 +431,7 @@ def parse_form(
         if not kind:
             raise ValueError(f"boundary condition at index {index} is missing 'kind'")
         boundary = str(raw_bc.get("boundary", "all"))
-        if boundary not in _VALID_BOUNDARIES:
+        if not _is_valid_boundary_selector(boundary):
             raise ValueError(
                 f"boundary condition at index {index} has unsupported boundary {boundary!r}"
             )
@@ -382,6 +447,7 @@ def parse_form(
     raw_meta = form.get("metadata", {})
     if isinstance(raw_meta, Mapping):
         metadata = {str(key): str(value) for key, value in raw_meta.items()}
+    _validate_boundary_marker_metadata(metadata)
 
     form_ir = WeakFormIR(
         trial_space=trial_space,

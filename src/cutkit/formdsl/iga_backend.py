@@ -3,14 +3,16 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from math import isclose
+from math import hypot, isclose
 from typing import Callable
 
 from cutkit.evals import antolin_wei_buffa_2022_2d as awb2d
 from cutkit.evals import poisson_galerkin as pg
-from cutkit.geometry import TrimmedPanel2D
+from cutkit.geometry import Point2D, TrimmedPanel2D
 
 from .ir import WeakFormIR
+
+_BOUNDARY_SELECTORS = {"all", "left", "right", "bottom", "top"}
 
 
 @dataclass(frozen=True)
@@ -57,6 +59,78 @@ def _source_fn(form_ir: WeakFormIR) -> Callable[[float, float], float]:
     return _composite_source
 
 
+def _resolve_boundary_selector(boundary: str, *, metadata: dict[str, str]) -> str:
+    if boundary in _BOUNDARY_SELECTORS:
+        return boundary
+    if not boundary.startswith("marker:"):
+        raise ValueError(f"unknown boundary selector: {boundary!r}")
+
+    marker = boundary.removeprefix("marker:").strip()
+    if not marker:
+        raise ValueError("boundary marker selector is missing marker id")
+
+    metadata_key = f"boundary_marker:{marker}"
+    resolved = metadata.get(metadata_key)
+    if resolved is None:
+        raise ValueError(
+            f"boundary marker {marker!r} is missing selector mapping in metadata"
+        )
+    if resolved not in _BOUNDARY_SELECTORS:
+        raise ValueError(
+            f"boundary marker {marker!r} maps to unsupported selector {resolved!r}"
+        )
+    return resolved
+
+
+def _segment_matches_selector(
+    start: Point2D,
+    end: Point2D,
+    *,
+    selector: str,
+    bounds: tuple[float, float, float, float],
+    tol: float,
+) -> bool:
+    if selector == "all":
+        return True
+
+    x0, y0 = start
+    x1, y1 = end
+    xmin, ymin, xmax, ymax = bounds
+    if selector == "left":
+        return abs(x0 - xmin) <= tol and abs(x1 - xmin) <= tol
+    if selector == "right":
+        return abs(x0 - xmax) <= tol and abs(x1 - xmax) <= tol
+    if selector == "bottom":
+        return abs(y0 - ymin) <= tol and abs(y1 - ymin) <= tol
+    if selector == "top":
+        return abs(y0 - ymax) <= tol and abs(y1 - ymax) <= tol
+    raise ValueError(f"unknown boundary selector: {selector!r}")
+
+
+def _selected_boundary_segments(
+    panel: TrimmedPanel2D,
+    *,
+    selector: str,
+    bounds: tuple[float, float, float, float],
+) -> tuple[tuple[Point2D, Point2D], ...]:
+    xmin, ymin, xmax, ymax = bounds
+    scale = max(abs(xmax - xmin), abs(ymax - ymin), 1.0)
+    tol = 1.0e-12 * scale
+
+    selected: list[tuple[Point2D, Point2D]] = []
+    for loop in panel.loops():
+        for start, end in loop.edges():
+            if _segment_matches_selector(
+                start,
+                end,
+                selector=selector,
+                bounds=bounds,
+                tol=tol,
+            ):
+                selected.append((start, end))
+    return tuple(selected)
+
+
 def _is_boundary_dof(index: int, *, n_basis_axis: int, boundary: str) -> bool:
     ix = index % n_basis_axis
     iy = index // n_basis_axis
@@ -101,6 +175,7 @@ def _add_natural_rhs(
     rhs: list[float],
     *,
     form_ir: WeakFormIR,
+    panel: TrimmedPanel2D,
     resolution: int,
     spline_degree: int,
     n_basis_axis: int,
@@ -108,43 +183,45 @@ def _add_natural_rhs(
     knots_y: tuple[float, ...],
     bounds: tuple[float, float, float, float],
 ) -> None:
-    def _accumulate_edge(*, x: float | None, y: float | None, scale: float) -> None:
-        for t, w in zip(nodes_1d, weights_1d, strict=True):
-            sample_x = x
-            sample_y = y
-            if sample_x is None:
-                sample_x = xmin + t * (xmax - xmin)
-            if sample_y is None:
-                sample_y = ymin + t * (ymax - ymin)
-            terms = pg._basis_terms_at_point(
-                x=sample_x,
-                y=sample_y,
-                resolution=resolution,
-                spline_degree=spline_degree,
-                n_basis_axis=n_basis_axis,
-                knots_x=knots_x,
-                knots_y=knots_y,
-                bounds=bounds,
-            )
-            edge_weight = w * scale
-            for index, value, _gx, _gy in terms:
-                rhs[index] += edge_weight * condition.value * value
+    nodes_1d, weights_1d = pg.gauss_legendre_01(max(2, spline_degree + 1))
 
     for condition in form_ir.boundary_conditions:
         if condition.kind != "natural" or isclose(condition.value, 0.0):
             continue
 
-        nodes_1d, weights_1d = pg.gauss_legendre_01(max(2, spline_degree + 1))
-        xmin, ymin, xmax, ymax = bounds
+        selector = _resolve_boundary_selector(
+            condition.boundary,
+            metadata=form_ir.metadata,
+        )
+        segments = _selected_boundary_segments(
+            panel,
+            selector=selector,
+            bounds=bounds,
+        )
 
-        if condition.boundary in {"all", "left"}:
-            _accumulate_edge(x=xmin, y=None, scale=ymax - ymin)
-        if condition.boundary in {"all", "right"}:
-            _accumulate_edge(x=xmax, y=None, scale=ymax - ymin)
-        if condition.boundary in {"all", "bottom"}:
-            _accumulate_edge(x=None, y=ymin, scale=xmax - xmin)
-        if condition.boundary in {"all", "top"}:
-            _accumulate_edge(x=None, y=ymax, scale=xmax - xmin)
+        for start, end in segments:
+            dx = end[0] - start[0]
+            dy = end[1] - start[1]
+            segment_length = hypot(dx, dy)
+            if segment_length <= 1.0e-18:
+                continue
+
+            for t, w in zip(nodes_1d, weights_1d, strict=True):
+                sample_x = start[0] + t * dx
+                sample_y = start[1] + t * dy
+                terms = pg._basis_terms_at_point(
+                    x=sample_x,
+                    y=sample_y,
+                    resolution=resolution,
+                    spline_degree=spline_degree,
+                    n_basis_axis=n_basis_axis,
+                    knots_x=knots_x,
+                    knots_y=knots_y,
+                    bounds=bounds,
+                )
+                edge_weight = w * segment_length
+                for index, value, _gx, _gy in terms:
+                    rhs[index] += edge_weight * condition.value * value
 
 
 def assemble_iga(
@@ -242,6 +319,7 @@ def assemble_iga(
     _add_natural_rhs(
         rhs,
         form_ir=form_ir,
+        panel=panel,
         resolution=resolution,
         spline_degree=spline_degree,
         n_basis_axis=n_basis_axis,
@@ -258,12 +336,14 @@ def assemble_iga(
     for condition in form_ir.boundary_conditions:
         if condition.kind != "essential":
             continue
+        selector = _resolve_boundary_selector(
+            condition.boundary,
+            metadata=form_ir.metadata,
+        )
         for index in range(dof_count):
             if not active_mask[index]:
                 continue
-            if _is_boundary_dof(
-                index, n_basis_axis=n_basis_axis, boundary=condition.boundary
-            ):
+            if _is_boundary_dof(index, n_basis_axis=n_basis_axis, boundary=selector):
                 fixed_values[index] = condition.value
 
     _apply_essential_values(matrix_rows, rhs, fixed_values=fixed_values)
