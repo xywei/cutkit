@@ -34,6 +34,17 @@ from cutkit.io.opencascade3d import (
     solid_to_surface_quadrature_3d,
     write_brep_shape_3d,
 )
+from cutkit.io.meshmode_overlay import (
+    ElementId,
+    MeshmodeCutOverlay,
+    MeshmodeOverlayBuildError,
+    MeshmodeOverlayDiagnostic,
+    MeshmodeOverlayElement,
+    OverlayDiagnosticCode,
+    OverlayStatus,
+    SourceOverlayStatus,
+    build_meshmode_cut_overlay,
+)
 
 __all__ = [
     "OpenCascadeStatus",
@@ -66,4 +77,13 @@ __all__ = [
     "solid_to_surface_quadrature_3d",
     "solid_to_folded_quadrature_rule_3d",
     "write_brep_shape_3d",
+    "ElementId",
+    "MeshmodeCutOverlay",
+    "MeshmodeOverlayBuildError",
+    "MeshmodeOverlayDiagnostic",
+    "MeshmodeOverlayElement",
+    "OverlayDiagnosticCode",
+    "OverlayStatus",
+    "SourceOverlayStatus",
+    "build_meshmode_cut_overlay",
 ]
