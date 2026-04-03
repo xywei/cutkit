@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Callable
 
 from .diagnostics import PrerequisiteError
 from .ir import WeakFormIR
@@ -16,6 +17,22 @@ class DGSEMLoweringResult:
     trace_terms: tuple[str, ...]
     flux_family: str
     overlay_version: int
+
+
+def _format_float(value: float) -> str:
+    return f"{value:.16g}"
+
+
+def _source_signature(
+    term_source: float | Callable[[float, float], float] | None,
+) -> str:
+    if callable(term_source):
+        module = getattr(term_source, "__module__", "")
+        qualname = getattr(term_source, "__qualname__", type(term_source).__name__)
+        return f"callable:{module}.{qualname}" if module else f"callable:{qualname}"
+    if term_source is None:
+        return "implicit:1"
+    return f"const:{_format_float(float(term_source))}"
 
 
 def lower_dgsem(
@@ -49,18 +66,26 @@ def lower_dgsem(
             "dgsem backend requires meshmode cut-overlay contract_version >= 1"
         )
 
-    volume_terms = tuple(sorted({term.kind for term in form_ir.terms}))
+    volume_terms: list[str] = []
+    for term in form_ir.terms:
+        if term.kind == "source":
+            volume_terms.append(
+                f"source:{_format_float(term.coefficient)}:{_source_signature(term.source)}"
+            )
+            continue
+        volume_terms.append(f"{term.kind}:{_format_float(term.coefficient)}")
+
     trace_terms: list[str] = []
     for bc in form_ir.boundary_conditions:
         if bc.kind == "natural":
-            trace_terms.append(f"neumann:{bc.boundary}")
+            trace_terms.append(f"neumann:{bc.boundary}:{_format_float(bc.value)}")
         elif bc.kind == "essential":
-            trace_terms.append(f"dirichlet:{bc.boundary}")
+            trace_terms.append(f"dirichlet:{bc.boundary}:{_format_float(bc.value)}")
 
     flux_family = str(form_ir.metadata.get("dg_flux", "sipg"))
     return DGSEMLoweringResult(
-        volume_terms=volume_terms,
-        trace_terms=tuple(sorted(set(trace_terms))),
+        volume_terms=tuple(sorted(volume_terms)),
+        trace_terms=tuple(sorted(trace_terms)),
         flux_family=flux_family,
         overlay_version=version,
     )

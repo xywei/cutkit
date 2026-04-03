@@ -170,8 +170,57 @@ def test_backend_parity_payload_uses_shared_ir_terms() -> None:
 
     assert not iga.diagnostics
     assert not dgsem.diagnostics
-    assert dgsem_payload.volume_terms == ("diffusion", "mass", "reaction", "source")
-    assert dgsem_payload.trace_terms == ("dirichlet:all", "neumann:top")
+    assert dgsem_payload.volume_terms == (
+        "diffusion:1",
+        "mass:0.1",
+        "reaction:0.2",
+        "source:1:const:1",
+    )
+    assert dgsem_payload.trace_terms == ("dirichlet:all:0", "neumann:top:1")
+
+
+def test_dgsem_lowering_distinguishes_term_coefficients() -> None:
+    low = assemble_form(
+        {"terms": [{"kind": "mass", "coefficient": 0.1}]},
+        backend="dgsem",
+        overlay_payload={"contract_version": 1},
+    )
+    high = assemble_form(
+        {"terms": [{"kind": "mass", "coefficient": 10.0}]},
+        backend="dgsem",
+        overlay_payload={"contract_version": 1},
+    )
+    low_payload = cast(DGSEMLoweringResult, low.payload)
+    high_payload = cast(DGSEMLoweringResult, high.payload)
+
+    assert low_payload.volume_terms == ("mass:0.1",)
+    assert high_payload.volume_terms == ("mass:10",)
+    assert low_payload.volume_terms != high_payload.volume_terms
+
+
+def test_dgsem_lowering_distinguishes_boundary_values() -> None:
+    unit = assemble_form(
+        {
+            "terms": [{"kind": "diffusion", "coefficient": 1.0}],
+            "boundary_conditions": [{"kind": "natural", "value": 1.0}],
+        },
+        backend="dgsem",
+        overlay_payload={"contract_version": 1},
+    )
+    double = assemble_form(
+        {
+            "terms": [{"kind": "diffusion", "coefficient": 1.0}],
+            "boundary_conditions": [{"kind": "natural", "value": 2.0}],
+        },
+        backend="dgsem",
+        overlay_payload={"contract_version": 1},
+    )
+    unit_payload = cast(DGSEMLoweringResult, unit.payload)
+    double_payload = cast(DGSEMLoweringResult, double.payload)
+
+    assert unit_payload.trace_terms == ("neumann:all:1",)
+    assert double_payload.trace_terms == ("neumann:all:2",)
+    assert unit_payload.trace_terms != double_payload.trace_terms
 
 
 def test_source_term_coefficients_contribute_to_rhs() -> None:
