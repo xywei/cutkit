@@ -233,12 +233,24 @@ def build_meshmode_cut_overlay(
         diagnostics.append(diagnostic)
 
     elements_by_source: dict[ElementId, MeshmodeOverlayElement] = {}
+    ambiguous_source_ids: set[ElementId] = set()
     for element in elements:
         source_id = _coerce_element_id(
             element.source_element_id,
             name="source_element_id",
         )
+        if source_id in ambiguous_source_ids:
+            _emit(
+                MeshmodeOverlayDiagnostic(
+                    code="duplicate_source",
+                    source_element_id=source_id,
+                    detail=f"duplicate CUTKIT source element id {source_id!r}",
+                )
+            )
+            continue
         if source_id in elements_by_source:
+            ambiguous_source_ids.add(source_id)
+            del elements_by_source[source_id]
             _emit(
                 MeshmodeOverlayDiagnostic(
                     code="duplicate_source",
@@ -333,6 +345,22 @@ def build_meshmode_cut_overlay(
 
         source_id = source_ids[0]
         source_element_ids.append(source_id)
+        if source_id in ambiguous_source_ids:
+            statuses.append("mapping_mismatch")
+            metadata_by_element.append(())
+            point_indptr.append(len(point_coords))
+            _emit(
+                MeshmodeOverlayDiagnostic(
+                    code="target_ambiguous",
+                    source_element_id=source_id,
+                    target_element_id=target_id,
+                    detail=(
+                        f"target element {target_id!r} maps to duplicate source "
+                        f"element {source_id!r}"
+                    ),
+                )
+            )
+            continue
         mapped_element = elements_by_source.get(source_id)
         if mapped_element is None:
             statuses.append("mapping_mismatch")

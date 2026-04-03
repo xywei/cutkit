@@ -185,3 +185,34 @@ def test_overlay_propagates_source_status_and_empty_elements() -> None:
     assert not overlay.point_coords
     assert not overlay.point_weights
     assert not overlay.diagnostics
+
+
+def test_overlay_permissive_duplicate_source_marks_mapping_mismatch() -> None:
+    elements = (
+        MeshmodeOverlayElement(
+            source_element_id="s1",
+            points=((0.0, 0.0),),
+            weights=(1.0,),
+        ),
+        MeshmodeOverlayElement(
+            source_element_id="s1",
+            points=((1.0, 1.0),),
+            weights=(2.0,),
+        ),
+    )
+
+    overlay = build_meshmode_cut_overlay(
+        elements,
+        target_element_ids=(10,),
+        element_id_map={"s1": 10},
+        strict=False,
+    )
+
+    assert overlay.statuses == ("mapping_mismatch",)
+    assert overlay.point_indptr_by_element == (0, 0)
+    assert any(
+        diagnostic.code == "duplicate_source" for diagnostic in overlay.diagnostics
+    )
+    assert any(
+        diagnostic.code == "target_ambiguous" for diagnostic in overlay.diagnostics
+    )
