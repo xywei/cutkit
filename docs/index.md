@@ -22,6 +22,7 @@ Repository-local documentation is the system of record for CUTKIT.
 - `docs/antolin-parity-fixtures.md`: Section 6 parity fixture and update workflow
 - `docs/cad-box-batch-interface.md`: consumer-facing CAD object-or-arrays clip/integrate interface
 - `docs/volumential-handoff.md`: CUTKIT far/near primitive handoff contract for volumential workflows
+- `docs/meshmode-cut-overlay.md`: meshmode cut-overlay contract and validation semantics
 - `docs/poisson-benchmarks.md`: Poisson-oriented benchmark usage and profiles
 - `docs/poisson-galerkin-solver.md`: immersed Poisson Galerkin solve + validation workflow
 - `docs/ufl-backend-support.md`: UFL form backend support matrix and diagnostics
