@@ -132,6 +132,16 @@ def test_overlay_rejects_non_integral_expected_orientation() -> None:
         )
 
 
+def test_overlay_element_rejects_boolean_orientation() -> None:
+    with pytest.raises(ValueError, match=r"\+1 or -1 integer"):
+        MeshmodeOverlayElement(
+            source_element_id="s1",
+            points=((0.0, 0.0),),
+            weights=(1.0,),
+            orientation=True,
+        )
+
+
 def test_overlay_strict_rejects_mapping_to_unknown_target() -> None:
     elements = (
         MeshmodeOverlayElement(

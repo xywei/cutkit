@@ -132,8 +132,11 @@ class MeshmodeOverlayElement:
             raise ValueError("points and weights length must match")
         if self.status not in _VALID_SOURCE_STATUSES:
             raise ValueError(f"unsupported source overlay status: {self.status!r}")
-        if self.orientation not in {-1, 1}:
-            raise ValueError("orientation must be +1 or -1")
+        if isinstance(self.orientation, bool) or not isinstance(self.orientation, int):
+            raise ValueError("orientation must be +1 or -1 integer")
+        orientation = int(self.orientation)
+        if orientation not in {-1, 1}:
+            raise ValueError("orientation must be +1 or -1 integer")
 
         metadata = {str(key): value for key, value in self.geometry_metadata.items()}
 
@@ -141,6 +144,7 @@ class MeshmodeOverlayElement:
         object.__setattr__(self, "points", points)
         object.__setattr__(self, "weights", weights)
         object.__setattr__(self, "geometry_metadata", metadata)
+        object.__setattr__(self, "orientation", orientation)
 
 
 @dataclass(frozen=True)
