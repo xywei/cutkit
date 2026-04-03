@@ -59,14 +59,6 @@ def _ufl_contains_argument(node: object, *, number: int) -> bool:
     return False
 
 
-def _ufl_argument_count(node: object, *, number: int) -> int:
-    count = 0
-    for current in _ufl_walk(node):
-        if _ufl_argument_number(current) == number:
-            count += 1
-    return count
-
-
 def _ufl_contains_grad_argument(node: object, *, number: int) -> bool:
     for current in _ufl_walk(node):
         if type(current).__name__ not in {"Grad", "ReferenceGrad"}:
@@ -77,19 +69,6 @@ def _ufl_contains_grad_argument(node: object, *, number: int) -> bool:
         if _ufl_contains_argument(operands[0], number=number):
             return True
     return False
-
-
-def _ufl_grad_argument_count(node: object, *, number: int) -> int:
-    count = 0
-    for current in _ufl_walk(node):
-        if type(current).__name__ not in {"Grad", "ReferenceGrad"}:
-            continue
-        operands = _ufl_operands(current)
-        if not operands:
-            continue
-        if _ufl_contains_argument(operands[0], number=number):
-            count += 1
-    return count
 
 
 def _ufl_numeric_value(node: object) -> float | None:
@@ -141,6 +120,66 @@ def _ufl_split_sum(node: object) -> tuple[object, ...]:
     for operand in _ufl_operands(node):
         terms.extend(_ufl_split_sum(operand))
     return tuple(terms)
+
+
+def _ufl_non_scalar_factors(node: object) -> tuple[object, ...] | None:
+    node_type = type(node).__name__
+    operands = _ufl_operands(node)
+
+    if node_type == "Product":
+        factors: list[object] = []
+        for operand in operands:
+            operand_factors = _ufl_non_scalar_factors(operand)
+            if operand_factors is None:
+                return None
+            factors.extend(operand_factors)
+        return tuple(factors)
+
+    if node_type == "Division" and len(operands) == 2:
+        numerator_factors = _ufl_non_scalar_factors(operands[0])
+        denominator_factors = _ufl_non_scalar_factors(operands[1])
+        if numerator_factors is None or denominator_factors is None:
+            return None
+        if denominator_factors:
+            return None
+        return numerator_factors
+
+    if node_type.startswith("Negative") and operands:
+        return _ufl_non_scalar_factors(operands[0])
+
+    if _ufl_numeric_value(node) is not None:
+        return ()
+
+    return (node,)
+
+
+def _ufl_is_argument(node: object, *, number: int) -> bool:
+    return _ufl_argument_number(node) == number and not _ufl_operands(node)
+
+
+def _ufl_is_grad_of_argument(node: object, *, number: int) -> bool:
+    if type(node).__name__ not in {"Grad", "ReferenceGrad"}:
+        return False
+    operands = _ufl_operands(node)
+    if len(operands) != 1:
+        return False
+    return _ufl_is_argument(operands[0], number=number)
+
+
+def _ufl_is_diffusion_factor(node: object) -> bool:
+    if type(node).__name__ not in {"Inner", "Dot"}:
+        return False
+    operands = _ufl_operands(node)
+    if len(operands) != 2:
+        return False
+    left, right = operands
+    return (
+        _ufl_is_grad_of_argument(left, number=1)
+        and _ufl_is_grad_of_argument(right, number=0)
+    ) or (
+        _ufl_is_grad_of_argument(left, number=0)
+        and _ufl_is_grad_of_argument(right, number=1)
+    )
 
 
 def _ufl_has_unsupported_leaf(node: object) -> bool:
@@ -209,43 +248,31 @@ def _parse_ufl_form(form: Any) -> WeakFormIR:
                 )
 
             coefficient = _ufl_scalar_factor(summand)
-            has_test = _ufl_contains_argument(summand, number=0)
-            has_trial = _ufl_contains_argument(summand, number=1)
-            has_grad_test = _ufl_contains_grad_argument(summand, number=0)
-            has_grad_trial = _ufl_contains_grad_argument(summand, number=1)
-            test_count = _ufl_argument_count(summand, number=0)
-            trial_count = _ufl_argument_count(summand, number=1)
-            test_grad_count = _ufl_grad_argument_count(summand, number=0)
-            trial_grad_count = _ufl_grad_argument_count(summand, number=1)
+            factors = _ufl_non_scalar_factors(summand)
+            if factors is None:
+                raise ValueError(
+                    "unsupported UFL integrand structure for current scalar subset"
+                )
 
             if integral_type == "cell":
-                if (
-                    has_grad_test
-                    and has_grad_trial
-                    and test_count == 1
-                    and trial_count == 1
-                    and test_grad_count == 1
-                    and trial_grad_count == 1
-                ):
+                if len(factors) == 1 and _ufl_is_diffusion_factor(factors[0]):
                     terms.append(Term(kind="diffusion", coefficient=coefficient))
                     continue
                 if (
-                    has_test
-                    and has_trial
-                    and not has_grad_test
-                    and not has_grad_trial
-                    and test_count == 1
-                    and trial_count == 1
+                    len(factors) == 2
+                    and _ufl_is_argument(factors[0], number=0)
+                    and _ufl_is_argument(factors[1], number=1)
                 ):
                     terms.append(Term(kind="mass", coefficient=coefficient))
                     continue
                 if (
-                    has_test
-                    and not has_trial
-                    and not has_grad_test
-                    and test_count == 1
-                    and trial_count == 0
+                    len(factors) == 2
+                    and _ufl_is_argument(factors[0], number=1)
+                    and _ufl_is_argument(factors[1], number=0)
                 ):
+                    terms.append(Term(kind="mass", coefficient=coefficient))
+                    continue
+                if len(factors) == 1 and _ufl_is_argument(factors[0], number=0):
                     terms.append(
                         Term(kind="source", coefficient=coefficient, source=1.0)
                     )
@@ -255,7 +282,7 @@ def _parse_ufl_form(form: Any) -> WeakFormIR:
                 )
 
             if integral_type == "exterior_facet":
-                if has_test and not has_trial:
+                if len(factors) == 1 and _ufl_is_argument(factors[0], number=0):
                     boundary_conditions.append(
                         BoundaryCondition(
                             kind="natural",

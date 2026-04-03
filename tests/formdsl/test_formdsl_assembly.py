@@ -87,6 +87,10 @@ def test_parse_form_accepts_ufl_like_scalar_form() -> None:
         def __init__(self, left: object, right: object) -> None:
             self.ufl_operands = (left, right)
 
+    class Division:
+        def __init__(self, left: object, right: object) -> None:
+            self.ufl_operands = (left, right)
+
     class Sum:
         def __init__(self, left: object, right: object) -> None:
             self.ufl_operands = (left, right)
@@ -153,6 +157,30 @@ def test_parse_form_accepts_ufl_like_scalar_form() -> None:
     )
     with pytest.raises(ValueError, match="unsupported UFL cell integrand"):
         parse_form(nonlinear, backend="iga")
+
+    rational = UflLikeForm(
+        integrals=(
+            Integral(
+                "cell",
+                Division(test_arg, trial_arg),
+            ),
+        ),
+        arguments=(test_arg, trial_arg),
+    )
+    with pytest.raises(ValueError, match="unsupported UFL"):
+        parse_form(rational, backend="iga")
+
+    nonlinear_facet = UflLikeForm(
+        integrals=(
+            Integral(
+                "exterior_facet",
+                Product(test_arg, test_arg),
+            ),
+        ),
+        arguments=(test_arg, trial_arg),
+    )
+    with pytest.raises(ValueError, match="unsupported UFL exterior facet"):
+        parse_form(nonlinear_facet, backend="iga")
 
 
 def test_parse_form_weakformir_rejects_invalid_boundary_selector() -> None:
