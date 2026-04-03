@@ -3,6 +3,7 @@ from __future__ import annotations
 import pytest
 
 from cutkit.io import (
+    MeshmodeCutOverlay,
     MeshmodeOverlayBuildError,
     MeshmodeOverlayElement,
     build_meshmode_cut_overlay,
@@ -216,3 +217,37 @@ def test_overlay_permissive_duplicate_source_marks_mapping_mismatch() -> None:
     assert any(
         diagnostic.code == "target_ambiguous" for diagnostic in overlay.diagnostics
     )
+
+
+def test_overlay_rejects_unknown_orientation_override_target() -> None:
+    elements = (
+        MeshmodeOverlayElement(
+            source_element_id="s1",
+            points=((0.0, 0.0),),
+            weights=(1.0,),
+        ),
+    )
+
+    with pytest.raises(ValueError, match="unknown target element"):
+        build_meshmode_cut_overlay(
+            elements,
+            target_element_ids=(10,),
+            element_id_map={"s1": 10},
+            expected_orientation_by_target={99: 1},
+            strict=False,
+        )
+
+
+def test_overlay_payload_rejects_nonzero_indptr_prefix() -> None:
+    with pytest.raises(ValueError, match="must start at 0"):
+        MeshmodeCutOverlay(
+            contract_version=1,
+            target_element_ids=(10,),
+            source_element_ids=("s1",),
+            statuses=("ok",),
+            diagnostics=(),
+            point_indptr_by_element=(1, 1),
+            point_coords=(),
+            point_weights=(),
+            geometry_metadata_by_element=((),),
+        )

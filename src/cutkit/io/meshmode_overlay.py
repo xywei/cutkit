@@ -177,6 +177,8 @@ class MeshmodeCutOverlay:
             raise ValueError("point_indptr_by_element length must be n_elements + 1")
         if len(self.point_coords) != len(self.point_weights):
             raise ValueError("point_coords and point_weights length must match")
+        if self.point_indptr_by_element[0] != 0:
+            raise ValueError("point_indptr_by_element must start at 0")
 
         previous = 0
         for index, value in enumerate(self.point_indptr_by_element):
@@ -217,6 +219,7 @@ def build_meshmode_cut_overlay(
     )
     if len(set(targets)) != len(targets):
         raise ValueError("target_element_ids must be unique")
+    target_set = set(targets)
 
     expected_orientation: dict[ElementId, int] = {}
     if expected_orientation_by_target is not None:
@@ -224,6 +227,12 @@ def build_meshmode_cut_overlay(
             target_id = _coerce_element_id(raw_target, name="orientation target id")
             orientation = _coerce_orientation(raw_orientation)
             expected_orientation[target_id] = orientation
+        for target_id in sorted(expected_orientation, key=_element_id_order_key):
+            if target_id in target_set:
+                continue
+            raise ValueError(
+                f"expected orientations reference unknown target element {target_id!r}"
+            )
 
     diagnostics: list[MeshmodeOverlayDiagnostic] = []
 
@@ -273,7 +282,6 @@ def build_meshmode_cut_overlay(
         target_id = _coerce_element_id(raw_target, name="map target id")
         source_ids_by_target.setdefault(target_id, []).append(source_id)
 
-    target_set = set(targets)
     for target_id in sorted(
         source_ids_by_target,
         key=_element_id_order_key,
