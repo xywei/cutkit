@@ -106,6 +106,8 @@ def lower_dgsem(
 
     if overlay_payload is None:
         raise PrerequisiteError("dgsem backend requires meshmode cut-overlay payload")
+    if not isinstance(overlay_payload, MeshmodeCutOverlay):
+        raise PrerequisiteError("dgsem backend requires MeshmodeCutOverlay payload")
 
     raw_version = overlay_payload.contract_version
     if isinstance(raw_version, bool) or not isinstance(raw_version, int):

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from math import isclose
-from typing import cast
+from typing import Any, cast
 
 import pytest
 
@@ -370,6 +370,15 @@ def test_iga_backend_mode_must_be_supported() -> None:
 def test_dgsem_lowering_requires_overlay_payload() -> None:
     with pytest.raises(PrerequisiteError):
         assemble_form(_base_form(), backend="dgsem")
+
+
+def test_dgsem_overlay_payload_must_be_contract_object() -> None:
+    with pytest.raises(PrerequisiteError, match="MeshmodeCutOverlay"):
+        assemble_form(
+            _base_form(),
+            backend="dgsem",
+            overlay_payload=cast(Any, {"contract_version": 1}),
+        )
 
 
 def test_unknown_backend_reports_capability_error() -> None:
