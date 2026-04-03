@@ -31,19 +31,30 @@ def _term_scalar(form_ir: WeakFormIR, kind: str) -> float:
 
 
 def _source_fn(form_ir: WeakFormIR) -> Callable[[float, float], float]:
+    callable_sources: list[tuple[float, Callable[[float, float], float]]] = []
+    constant_total = 0.0
+
     for term in form_ir.terms:
-        if term.kind != "source":
+        if term.kind != "source" or isclose(term.coefficient, 0.0):
             continue
         if callable(term.source):
-            return term.source
-        if term.source is not None:
-            constant = float(term.source)
+            callable_sources.append((term.coefficient, term.source))
+            continue
+        if term.source is None:
+            constant_total += term.coefficient
+            continue
+        constant_total += term.coefficient * float(term.source)
 
-            def _constant_source(_x: float, _y: float) -> float:
-                return constant
+    if not callable_sources and isclose(constant_total, 0.0):
+        return lambda _x, _y: 0.0
 
-            return _constant_source
-    return lambda _x, _y: 0.0
+    def _composite_source(x: float, y: float) -> float:
+        value = constant_total
+        for coefficient, source in callable_sources:
+            value += coefficient * source(x, y)
+        return value
+
+    return _composite_source
 
 
 def _is_boundary_dof(index: int, *, n_basis_axis: int, boundary: str) -> bool:
@@ -97,6 +108,28 @@ def _add_natural_rhs(
     knots_y: tuple[float, ...],
     bounds: tuple[float, float, float, float],
 ) -> None:
+    def _accumulate_edge(*, x: float | None, y: float | None, scale: float) -> None:
+        for t, w in zip(nodes_1d, weights_1d, strict=True):
+            sample_x = x
+            sample_y = y
+            if sample_x is None:
+                sample_x = xmin + t * (xmax - xmin)
+            if sample_y is None:
+                sample_y = ymin + t * (ymax - ymin)
+            terms = pg._basis_terms_at_point(
+                x=sample_x,
+                y=sample_y,
+                resolution=resolution,
+                spline_degree=spline_degree,
+                n_basis_axis=n_basis_axis,
+                knots_x=knots_x,
+                knots_y=knots_y,
+                bounds=bounds,
+            )
+            edge_weight = w * scale
+            for index, value, _gx, _gy in terms:
+                rhs[index] += edge_weight * condition.value * value
+
     for condition in form_ir.boundary_conditions:
         if condition.kind != "natural" or isclose(condition.value, 0.0):
             continue
@@ -104,41 +137,14 @@ def _add_natural_rhs(
         nodes_1d, weights_1d = pg.gauss_legendre_01(max(2, spline_degree + 1))
         xmin, ymin, xmax, ymax = bounds
 
-        if condition.boundary in {"all", "left", "right"}:
-            x = xmin if condition.boundary in {"all", "left"} else xmax
-            for t, w in zip(nodes_1d, weights_1d, strict=True):
-                y = ymin + t * (ymax - ymin)
-                terms = pg._basis_terms_at_point(
-                    x=x,
-                    y=y,
-                    resolution=resolution,
-                    spline_degree=spline_degree,
-                    n_basis_axis=n_basis_axis,
-                    knots_x=knots_x,
-                    knots_y=knots_y,
-                    bounds=bounds,
-                )
-                edge_weight = w * (ymax - ymin)
-                for index, value, _gx, _gy in terms:
-                    rhs[index] += edge_weight * condition.value * value
-
-        if condition.boundary in {"all", "bottom", "top"}:
-            y = ymin if condition.boundary in {"all", "bottom"} else ymax
-            for t, w in zip(nodes_1d, weights_1d, strict=True):
-                x = xmin + t * (xmax - xmin)
-                terms = pg._basis_terms_at_point(
-                    x=x,
-                    y=y,
-                    resolution=resolution,
-                    spline_degree=spline_degree,
-                    n_basis_axis=n_basis_axis,
-                    knots_x=knots_x,
-                    knots_y=knots_y,
-                    bounds=bounds,
-                )
-                edge_weight = w * (xmax - xmin)
-                for index, value, _gx, _gy in terms:
-                    rhs[index] += edge_weight * condition.value * value
+        if condition.boundary in {"all", "left"}:
+            _accumulate_edge(x=xmin, y=None, scale=ymax - ymin)
+        if condition.boundary in {"all", "right"}:
+            _accumulate_edge(x=xmax, y=None, scale=ymax - ymin)
+        if condition.boundary in {"all", "bottom"}:
+            _accumulate_edge(x=None, y=ymin, scale=xmax - xmin)
+        if condition.boundary in {"all", "top"}:
+            _accumulate_edge(x=None, y=ymax, scale=xmax - xmin)
 
 
 def assemble_iga(

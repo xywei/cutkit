@@ -74,11 +74,6 @@ from cutkit.evals.poisson_galerkin import (
     run_poisson_galerkin_benchmark,
     solve_trimmed_poisson_galerkin,
 )
-from cutkit.evals.formdsl_benchmarks import (
-    FormDslParityBenchmark,
-    FormDslParityRow,
-    run_formdsl_parity_benchmark,
-)
 
 __all__ = [
     "case_to_fixture_payload",
@@ -147,3 +142,18 @@ __all__ = [
     "FormDslParityRow",
     "run_formdsl_parity_benchmark",
 ]
+
+
+_LAZY_EXPORTS = {
+    "FormDslParityBenchmark",
+    "FormDslParityRow",
+    "run_formdsl_parity_benchmark",
+}
+
+
+def __getattr__(name: str):
+    if name not in _LAZY_EXPORTS:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    from cutkit.evals import formdsl_benchmarks
+
+    return getattr(formdsl_benchmarks, name)

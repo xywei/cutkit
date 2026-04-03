@@ -157,3 +157,62 @@ def test_backend_parity_payload_uses_shared_ir_terms() -> None:
     assert not dgsem.diagnostics
     assert dgsem_payload.volume_terms == ("diffusion", "mass", "reaction", "source")
     assert dgsem_payload.trace_terms == ("dirichlet:all", "neumann:top")
+
+
+def test_source_term_coefficients_contribute_to_rhs() -> None:
+    panel = awb2d.build_section_6_1_1_bspline_panel(sample_count=128)
+    weighted_form: dict[str, object] = {
+        "terms": [
+            {"kind": "diffusion", "coefficient": 1.0},
+            {
+                "kind": "source",
+                "coefficient": 2.5,
+                "source": pg.default_poisson_source,
+            },
+            {"kind": "source", "coefficient": -0.75, "source": 1.0},
+        ],
+        "boundary_conditions": [{"kind": "essential", "value": 0.0}],
+    }
+    equivalent_form: dict[str, object] = {
+        "terms": [
+            {"kind": "diffusion", "coefficient": 1.0},
+            {
+                "kind": "source",
+                "source": lambda x, y: 2.5 * pg.default_poisson_source(x, y) - 0.75,
+            },
+        ],
+        "boundary_conditions": [{"kind": "essential", "value": 0.0}],
+    }
+
+    weighted = assemble_form(weighted_form, backend="iga", panel=panel, strict=True)
+    equivalent = assemble_form(equivalent_form, backend="iga", panel=panel, strict=True)
+    weighted_payload = cast(IGAAssemblyResult, weighted.payload)
+    equivalent_payload = cast(IGAAssemblyResult, equivalent.payload)
+
+    for left, right in zip(weighted_payload.rhs, equivalent_payload.rhs, strict=True):
+        assert isclose(left, right, abs_tol=1.0e-12, rel_tol=0.0)
+
+
+def test_natural_boundary_all_matches_sum_of_each_edge() -> None:
+    panel = awb2d.build_section_6_1_1_bspline_panel(sample_count=128)
+
+    def _assemble_natural(boundary: str) -> tuple[float, ...]:
+        form: dict[str, object] = {
+            "terms": [{"kind": "diffusion", "coefficient": 1.0}],
+            "boundary_conditions": [
+                {"kind": "natural", "value": 1.0, "boundary": boundary}
+            ],
+        }
+        result = assemble_form(form, backend="iga", panel=panel, strict=True)
+        payload = cast(IGAAssemblyResult, result.payload)
+        return payload.rhs
+
+    rhs_all = _assemble_natural("all")
+    rhs_left = _assemble_natural("left")
+    rhs_right = _assemble_natural("right")
+    rhs_bottom = _assemble_natural("bottom")
+    rhs_top = _assemble_natural("top")
+
+    for idx, value in enumerate(rhs_all):
+        expected = rhs_left[idx] + rhs_right[idx] + rhs_bottom[idx] + rhs_top[idx]
+        assert isclose(value, expected, abs_tol=1.0e-12, rel_tol=0.0)
