@@ -142,6 +142,18 @@ def test_parse_form_accepts_ufl_like_scalar_form() -> None:
         BoundaryCondition(kind="natural", value=4.0, boundary="all"),
     )
 
+    nonlinear = UflLikeForm(
+        integrals=(
+            Integral(
+                "cell",
+                Product(Product(trial_arg, trial_arg), test_arg),
+            ),
+        ),
+        arguments=(test_arg, trial_arg),
+    )
+    with pytest.raises(ValueError, match="unsupported UFL cell integrand"):
+        parse_form(nonlinear, backend="iga")
+
 
 def test_parse_form_weakformir_rejects_invalid_boundary_selector() -> None:
     form_ir = WeakFormIR(
@@ -232,6 +244,17 @@ def test_manufactured_solution_iga_path_is_consistent() -> None:
     free = pg._free_indices_for_compare(panel, resolution=8, bounds=None)
     max_error = max(abs(sampled[index] - reference.solution[index]) for index in free)
     assert max_error <= 2.0e-4
+
+
+def test_iga_backend_mode_must_be_supported() -> None:
+    panel = awb2d.build_section_6_1_1_bspline_panel(sample_count=128)
+    with pytest.raises(ValueError, match="unsupported backend_mode"):
+        assemble_form(
+            _base_form(),
+            backend="iga",
+            panel=panel,
+            backend_mode="jpls",  # type: ignore[arg-type]
+        )
 
 
 def test_dgsem_lowering_requires_overlay_payload() -> None:

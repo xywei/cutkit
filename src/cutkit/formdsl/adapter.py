@@ -59,6 +59,14 @@ def _ufl_contains_argument(node: object, *, number: int) -> bool:
     return False
 
 
+def _ufl_argument_count(node: object, *, number: int) -> int:
+    count = 0
+    for current in _ufl_walk(node):
+        if _ufl_argument_number(current) == number:
+            count += 1
+    return count
+
+
 def _ufl_contains_grad_argument(node: object, *, number: int) -> bool:
     for current in _ufl_walk(node):
         if type(current).__name__ not in {"Grad", "ReferenceGrad"}:
@@ -69,6 +77,19 @@ def _ufl_contains_grad_argument(node: object, *, number: int) -> bool:
         if _ufl_contains_argument(operands[0], number=number):
             return True
     return False
+
+
+def _ufl_grad_argument_count(node: object, *, number: int) -> int:
+    count = 0
+    for current in _ufl_walk(node):
+        if type(current).__name__ not in {"Grad", "ReferenceGrad"}:
+            continue
+        operands = _ufl_operands(current)
+        if not operands:
+            continue
+        if _ufl_contains_argument(operands[0], number=number):
+            count += 1
+    return count
 
 
 def _ufl_numeric_value(node: object) -> float | None:
@@ -192,15 +213,39 @@ def _parse_ufl_form(form: Any) -> WeakFormIR:
             has_trial = _ufl_contains_argument(summand, number=1)
             has_grad_test = _ufl_contains_grad_argument(summand, number=0)
             has_grad_trial = _ufl_contains_grad_argument(summand, number=1)
+            test_count = _ufl_argument_count(summand, number=0)
+            trial_count = _ufl_argument_count(summand, number=1)
+            test_grad_count = _ufl_grad_argument_count(summand, number=0)
+            trial_grad_count = _ufl_grad_argument_count(summand, number=1)
 
             if integral_type == "cell":
-                if has_grad_test and has_grad_trial:
+                if (
+                    has_grad_test
+                    and has_grad_trial
+                    and test_count == 1
+                    and trial_count == 1
+                    and test_grad_count == 1
+                    and trial_grad_count == 1
+                ):
                     terms.append(Term(kind="diffusion", coefficient=coefficient))
                     continue
-                if has_test and has_trial:
+                if (
+                    has_test
+                    and has_trial
+                    and not has_grad_test
+                    and not has_grad_trial
+                    and test_count == 1
+                    and trial_count == 1
+                ):
                     terms.append(Term(kind="mass", coefficient=coefficient))
                     continue
-                if has_test and not has_trial:
+                if (
+                    has_test
+                    and not has_trial
+                    and not has_grad_test
+                    and test_count == 1
+                    and trial_count == 0
+                ):
                     terms.append(
                         Term(kind="source", coefficient=coefficient, source=1.0)
                     )

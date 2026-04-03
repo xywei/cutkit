@@ -165,6 +165,10 @@ def assemble_iga(
         raise ValueError("spline_degree must be positive")
     if quadrature_order < 1:
         raise ValueError("quadrature_order must be positive")
+    if backend_mode not in {"jplus", "folded"}:
+        raise ValueError(
+            f"unsupported backend_mode {backend_mode!r}; expected 'jplus' or 'folded'"
+        )
 
     diffusion = _term_scalar(form_ir, "diffusion")
     mass = _term_scalar(form_ir, "mass")
