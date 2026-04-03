@@ -229,6 +229,32 @@ def test_parse_form_weakformir_rejects_invalid_boundary_selector() -> None:
         parse_form(form_ir, backend="iga")
 
 
+def test_parse_form_weakformir_rejects_empty_terms() -> None:
+    form_ir = WeakFormIR(
+        trial_space="P1",
+        test_space="P1",
+        terms=(),
+    )
+
+    with pytest.raises(ValueError, match="non-empty 'terms' list"):
+        parse_form(form_ir, backend="iga")
+
+
+def test_parse_form_weakformir_rejects_invalid_marker_metadata() -> None:
+    form_ir = WeakFormIR(
+        trial_space="P1",
+        test_space="P1",
+        terms=(Term(kind="diffusion", coefficient=1.0),),
+        boundary_conditions=(
+            BoundaryCondition(kind="natural", value=1.0, boundary="marker:3"),
+        ),
+        metadata={"boundary_marker:3": "diagonal"},
+    )
+
+    with pytest.raises(ValueError, match="unsupported selector"):
+        parse_form(form_ir, backend="iga")
+
+
 def test_capability_check_strict_vs_permissive() -> None:
     panel = awb2d.build_section_6_1_1_bspline_panel(sample_count=128)
     unsupported: dict[str, object] = {
@@ -427,6 +453,26 @@ def test_dgsem_lowering_distinguishes_boundary_values() -> None:
     assert unit_payload.trace_terms == ("neumann:all:1",)
     assert double_payload.trace_terms == ("neumann:all:2",)
     assert unit_payload.trace_terms != double_payload.trace_terms
+
+
+def test_dgsem_lowering_distinguishes_callable_source_closures() -> None:
+    def make_source(scale: float):
+        return lambda x, y: scale * (x + y)
+
+    low = assemble_form(
+        {"terms": [{"kind": "source", "source": make_source(1.0)}]},
+        backend="dgsem",
+        overlay_payload={"contract_version": 1},
+    )
+    high = assemble_form(
+        {"terms": [{"kind": "source", "source": make_source(2.0)}]},
+        backend="dgsem",
+        overlay_payload={"contract_version": 1},
+    )
+    low_payload = cast(DGSEMLoweringResult, low.payload)
+    high_payload = cast(DGSEMLoweringResult, high.payload)
+
+    assert low_payload.volume_terms != high_payload.volume_terms
 
 
 def test_source_term_coefficients_contribute_to_rhs() -> None:

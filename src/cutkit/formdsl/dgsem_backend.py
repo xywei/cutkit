@@ -23,13 +23,53 @@ def _format_float(value: float) -> str:
     return f"{value:.16g}"
 
 
+def _closure_value_signature(value: object) -> str:
+    if value is None:
+        return "none"
+    if isinstance(value, bool):
+        return f"bool:{int(value)}"
+    if isinstance(value, int):
+        return f"int:{value}"
+    if isinstance(value, float):
+        return f"float:{_format_float(value)}"
+    if isinstance(value, str):
+        return f"str:{value}"
+    if callable(value):
+        module = getattr(value, "__module__", "")
+        qualname = getattr(value, "__qualname__", type(value).__name__)
+        return f"callable:{module}.{qualname}" if module else f"callable:{qualname}"
+    return f"type:{type(value).__module__}.{type(value).__qualname__}"
+
+
+def _callable_closure_signature(func: Callable[[float, float], float]) -> str:
+    closure = getattr(func, "__closure__", None)
+    if not closure:
+        return ""
+
+    code = getattr(func, "__code__", None)
+    freevars = tuple(getattr(code, "co_freevars", ())) if code is not None else ()
+    parts: list[str] = []
+    for index, cell in enumerate(closure):
+        name = freevars[index] if index < len(freevars) else f"var{index}"
+        try:
+            content = cell.cell_contents
+        except ValueError:
+            content = None
+        parts.append(f"{name}={_closure_value_signature(content)}")
+    return "|".join(parts)
+
+
 def _source_signature(
     term_source: float | Callable[[float, float], float] | None,
 ) -> str:
     if callable(term_source):
         module = getattr(term_source, "__module__", "")
         qualname = getattr(term_source, "__qualname__", type(term_source).__name__)
-        return f"callable:{module}.{qualname}" if module else f"callable:{qualname}"
+        base = f"callable:{module}.{qualname}" if module else f"callable:{qualname}"
+        closure = _callable_closure_signature(term_source)
+        if closure:
+            return f"{base}[{closure}]"
+        return base
     if term_source is None:
         return "implicit:1"
     return f"const:{_format_float(float(term_source))}"

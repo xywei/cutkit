@@ -41,6 +41,13 @@ def _validate_ir_boundaries(boundary_conditions: tuple[BoundaryCondition, ...]) 
         )
 
 
+def _validate_form_ir(form_ir: WeakFormIR) -> None:
+    if not form_ir.terms:
+        raise ValueError("form payload must provide a non-empty 'terms' list")
+    _validate_ir_boundaries(form_ir.boundary_conditions)
+    _validate_boundary_marker_metadata(form_ir.metadata)
+
+
 def _integral_subdomain_id(integral: object) -> object | None:
     subdomain_id_fn = getattr(integral, "subdomain_id", None)
     if callable(subdomain_id_fn):
@@ -371,7 +378,7 @@ def _parse_ufl_form(form: Any) -> WeakFormIR:
         boundary_conditions=tuple(boundary_conditions),
         metadata=metadata,
     )
-    _validate_ir_boundaries(form_ir.boundary_conditions)
+    _validate_form_ir(form_ir)
     return form_ir
 
 
@@ -389,7 +396,7 @@ def parse_form(
     del backend
 
     if isinstance(form, WeakFormIR):
-        _validate_ir_boundaries(form.boundary_conditions)
+        _validate_form_ir(form)
         return form
 
     module_name = type(form).__module__
@@ -456,5 +463,5 @@ def parse_form(
         boundary_conditions=tuple(boundary_conditions),
         metadata=metadata,
     )
-    _validate_ir_boundaries(form_ir.boundary_conditions)
+    _validate_form_ir(form_ir)
     return form_ir
