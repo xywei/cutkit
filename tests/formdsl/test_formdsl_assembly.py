@@ -383,6 +383,15 @@ def test_dgsem_overlay_contract_version_must_be_supported() -> None:
         _overlay_contract(contract_version=0)
 
 
+def test_dgsem_overlay_contract_version_must_be_integer() -> None:
+    with pytest.raises(PrerequisiteError, match="integer meshmode cut-overlay"):
+        assemble_form(
+            _base_form(),
+            backend="dgsem",
+            overlay_payload=_overlay_contract(contract_version=cast(int, 1.5)),
+        )
+
+
 def test_dgsem_strict_rejects_overlay_diagnostics() -> None:
     with pytest.raises(PrerequisiteError, match="source_unmapped"):
         assemble_form(
