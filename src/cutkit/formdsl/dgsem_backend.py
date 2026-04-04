@@ -5,8 +5,27 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Callable
 
+from cutkit.io.meshmode_overlay import ElementId, MeshmodeCutOverlay, OverlayStatus
+
 from .diagnostics import PrerequisiteError
 from .ir import WeakFormIR
+
+_BLOCKING_OVERLAY_STATUSES = {
+    "invalid_box",
+    "backend_error",
+    "mapping_mismatch",
+    "orientation_mismatch",
+}
+
+
+@dataclass(frozen=True)
+class DGSEMOverlayDiagnostic:
+    """Structured diagnostic forwarded from meshmode overlay validation."""
+
+    code: str
+    detail: str
+    target_element_id: ElementId | None = None
+    source_element_id: ElementId | None = None
 
 
 @dataclass(frozen=True)
@@ -17,6 +36,8 @@ class DGSEMLoweringResult:
     trace_terms: tuple[str, ...]
     flux_family: str
     overlay_version: int
+    overlay_statuses: tuple[OverlayStatus, ...]
+    overlay_diagnostics: tuple[DGSEMOverlayDiagnostic, ...]
 
 
 def _format_float(value: float) -> str:
@@ -78,37 +99,54 @@ def _source_signature(
 def lower_dgsem(
     form_ir: WeakFormIR,
     *,
-    overlay_payload: dict[str, object] | None,
+    overlay_payload: MeshmodeCutOverlay | None,
+    strict: bool,
 ) -> DGSEMLoweringResult:
     """Lower shared IR into a DG-SEM-oriented payload."""
 
     if overlay_payload is None:
         raise PrerequisiteError("dgsem backend requires meshmode cut-overlay payload")
+    if not isinstance(overlay_payload, MeshmodeCutOverlay):
+        raise PrerequisiteError("dgsem backend requires MeshmodeCutOverlay payload")
 
-    raw_version = overlay_payload.get("contract_version", 0)
-    if isinstance(raw_version, bool):
-        version = int(raw_version)
-    elif isinstance(raw_version, int):
-        version = raw_version
-    elif isinstance(raw_version, float):
-        if not raw_version.is_integer():
-            raise PrerequisiteError(
-                "overlay payload contract_version must be an integer value"
-            )
-        version = int(raw_version)
-    elif isinstance(raw_version, str):
-        try:
-            version = int(raw_version)
-        except ValueError as exc:
-            raise PrerequisiteError(
-                "overlay payload contract_version must be numeric"
-            ) from exc
-    else:
-        raise PrerequisiteError("overlay payload contract_version must be numeric")
+    raw_version = overlay_payload.contract_version
+    if isinstance(raw_version, bool) or not isinstance(raw_version, int):
+        raise PrerequisiteError(
+            "dgsem backend requires integer meshmode cut-overlay contract_version"
+        )
+    version = raw_version
     if version < 1:
         raise PrerequisiteError(
             "dgsem backend requires meshmode cut-overlay contract_version >= 1"
         )
+
+    overlay_statuses = overlay_payload.statuses
+    overlay_diagnostics = tuple(
+        DGSEMOverlayDiagnostic(
+            code=diagnostic.code,
+            detail=diagnostic.detail,
+            target_element_id=diagnostic.target_element_id,
+            source_element_id=diagnostic.source_element_id,
+        )
+        for diagnostic in overlay_payload.diagnostics
+    )
+
+    if strict and overlay_diagnostics:
+        first = overlay_diagnostics[0]
+        raise PrerequisiteError(
+            "dgsem backend requires mismatch-free meshmode overlay diagnostics: "
+            f"{first.code}"
+        )
+
+    if strict:
+        for index, status in enumerate(overlay_statuses):
+            if status not in _BLOCKING_OVERLAY_STATUSES:
+                continue
+            target = overlay_payload.target_element_ids[index]
+            raise PrerequisiteError(
+                "dgsem backend requires viable overlay statuses; "
+                f"target {target!r} has status {status!r}"
+            )
 
     volume_terms: list[str] = []
     for term in form_ir.terms:
@@ -132,4 +170,6 @@ def lower_dgsem(
         trace_terms=tuple(sorted(trace_terms)),
         flux_family=flux_family,
         overlay_version=version,
+        overlay_statuses=overlay_statuses,
+        overlay_diagnostics=overlay_diagnostics,
     )

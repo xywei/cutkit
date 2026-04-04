@@ -10,6 +10,21 @@ from cutkit.evals import poisson_galerkin as pg
 from cutkit.formdsl import assemble_form
 from cutkit.formdsl.dgsem_backend import DGSEMLoweringResult
 from cutkit.formdsl.iga_backend import IGAAssemblyResult
+from cutkit.io import MeshmodeCutOverlay
+
+
+def _benchmark_overlay_payload() -> MeshmodeCutOverlay:
+    return MeshmodeCutOverlay(
+        contract_version=1,
+        target_element_ids=(0,),
+        source_element_ids=(0,),
+        statuses=("ok",),
+        diagnostics=(),
+        point_indptr_by_element=(0, 0),
+        point_coords=(),
+        point_weights=(),
+        geometry_metadata_by_element=((),),
+    )
 
 
 @dataclass(frozen=True)
@@ -79,7 +94,7 @@ def run_formdsl_parity_benchmark(
     dgsem = assemble_form(
         form,
         backend="dgsem",
-        overlay_payload={"contract_version": 1},
+        overlay_payload=_benchmark_overlay_payload(),
     )
     dgsem_payload = cast(DGSEMLoweringResult, dgsem.payload)
     signature = dgsem_payload.volume_terms + dgsem_payload.trace_terms
