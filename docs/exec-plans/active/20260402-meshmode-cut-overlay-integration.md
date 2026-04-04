@@ -42,7 +42,7 @@ This plan is a prerequisite for DG-SEM backend work in
 - [x] Implement deterministic mapping + validation checks.
 - [x] Implement strict/permissive modes and status population.
 - [x] Add unit tests for mapping, statuses, and diagnostics.
-- [ ] Add integration tests with representative meshmode-style layouts.
+- [x] Add integration tests with representative meshmode-style layouts.
 - [x] Add docs usage section and minimal end-to-end example.
 - [x] Run `make dev`.
 
