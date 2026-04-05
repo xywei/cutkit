@@ -46,8 +46,9 @@ MVP sequencing:
 - [x] Add strict/permissive validation behavior.
 - [x] Add shared-form backend parity tests.
 - [x] Add convergence/parity benchmark examples.
+- [x] Verify strict/permissive diagnostics in regression tests.
 - [x] Update docs and support matrix.
-- [x] Run `make dev`.
+- [x] Run `make dev` (validated via CI quality/tests/evals gates).
 
 ## Phase Gates
 
