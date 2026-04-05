@@ -27,7 +27,7 @@
 
 ## 4. Phase B: Consumer Hardening and Docs
 
-- [ ] 4.1 Add integration tests with representative meshmode-style layouts for
+- [x] 4.1 Add integration tests with representative meshmode-style layouts for
       nominal and mixed-status batches.
 - [x] 4.2 Document meshmode cut-overlay usage and failure semantics with minimal
       end-to-end examples.
