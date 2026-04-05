@@ -8,7 +8,14 @@ from typing import Any
 from .ir import BackendName, BoundaryCondition, Term, WeakFormIR
 
 _VALID_BOUNDARIES = {"all", "left", "right", "bottom", "top"}
-_VECTOR_SPACE_TOKENS = ("vector", "tensor")
+_VECTOR_SPACE_PATTERNS = (
+    "vector(",
+    "vectorelement(",
+    "vector element",
+    "tensor(",
+    "tensorelement(",
+    "tensor element",
+)
 
 
 def _is_valid_boundary_selector(boundary: str) -> bool:
@@ -44,7 +51,7 @@ def _validate_ir_boundaries(boundary_conditions: tuple[BoundaryCondition, ...]) 
 
 def _is_vector_space_label(space: str) -> bool:
     lowered = space.strip().lower()
-    return any(token in lowered for token in _VECTOR_SPACE_TOKENS)
+    return any(pattern in lowered for pattern in _VECTOR_SPACE_PATTERNS)
 
 
 def _validate_scalar_spaces(*, trial_space: str, test_space: str) -> None:

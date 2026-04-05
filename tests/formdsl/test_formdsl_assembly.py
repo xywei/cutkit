@@ -255,6 +255,20 @@ def test_parse_form_rejects_vector_space_labels_in_mapping_payload() -> None:
         )
 
 
+def test_parse_form_accepts_scalar_tensor_product_space_labels() -> None:
+    ir = parse_form(
+        {
+            "trial_space": "TensorProductElement(Q2,Q2)",
+            "test_space": "TensorProductElement(Q2,Q2)",
+            "terms": [{"kind": "diffusion", "coefficient": 1.0}],
+        },
+        backend="iga",
+    )
+
+    assert ir.trial_space == "TensorProductElement(Q2,Q2)"
+    assert ir.test_space == "TensorProductElement(Q2,Q2)"
+
+
 def test_parse_form_rejects_vector_space_labels_in_weakform_ir() -> None:
     form_ir = WeakFormIR(
         trial_space="Tensor(P1)",
