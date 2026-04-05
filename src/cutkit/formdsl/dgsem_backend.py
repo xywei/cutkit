@@ -289,7 +289,11 @@ def lower_dgsem(
     )
 
     flux_family, flux_family_diagnostics = _parse_flux_family(form_ir, strict=strict)
-    penalty, penalty_diagnostics = _parse_penalty(form_ir, strict=strict)
+    if flux_family == "sipg":
+        penalty, penalty_diagnostics = _parse_penalty(form_ir, strict=strict)
+    else:
+        penalty = 1.0
+        penalty_diagnostics = ()
     lowering_diagnostics = flux_family_diagnostics + penalty_diagnostics
 
     if strict and overlay_diagnostics:

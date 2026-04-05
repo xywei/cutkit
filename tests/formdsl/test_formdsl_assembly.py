@@ -645,6 +645,23 @@ def test_dgsem_flux_lowering_fallback_on_invalid_penalty_permissive() -> None:
     )
 
 
+def test_dgsem_non_sipg_ignores_invalid_penalty_metadata() -> None:
+    result = assemble_form(
+        {
+            "terms": [{"kind": "diffusion", "coefficient": 1.0}],
+            "metadata": {"dg_flux": "central", "dg_penalty": "bad"},
+        },
+        backend="dgsem",
+        overlay_payload=_overlay_contract(),
+        strict=True,
+    )
+    payload = cast(DGSEMLoweringResult, result.payload)
+
+    assert payload.flux_family == "central"
+    assert not payload.lowering_diagnostics
+    assert all(entry.penalty is None for entry in payload.flux_lowering)
+
+
 def test_dgsem_lowering_distinguishes_callable_source_closures() -> None:
     def make_source(scale: float):
         return lambda x, y: scale * (x + y)
