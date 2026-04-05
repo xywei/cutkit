@@ -57,7 +57,7 @@ MVP sequencing:
 
 ## Phase 3 Follow-up
 
-- [ ] Evaluate expansion to vector-valued forms.
+- [x] Evaluate expansion to vector-valued forms.
 - [x] Evaluate additional DG flux families.
 - [ ] Evaluate NURBS geometry mapping and multipatch support.
 
