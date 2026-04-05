@@ -63,10 +63,22 @@ MVP sequencing:
 
 ## OpenSpec Link
 
-- `openspec/changes/ufl-iga-and-grudge-dgsem-assembly/`
+- `openspec/changes/archive/2026-04-05-ufl-iga-and-grudge-dgsem-assembly/`
 
-## Risks / Open Questions
+## Final Outcome
 
-- UFL subset boundary for first release.
-- Flux policy defaults for DG-SEM backend.
-- B-spline-only vs NURBS-in-first-slice rollout.
+- Status: completed and archived.
+- Validation: merged PR CI suites were green across quality, tests, and eval
+  gates.
+- Key merged PRs:
+  - `https://github.com/xywei/cutkit/pull/27`
+  - `https://github.com/xywei/cutkit/pull/28`
+  - `https://github.com/xywei/cutkit/pull/29`
+  - `https://github.com/xywei/cutkit/pull/30`
+  - `https://github.com/xywei/cutkit/pull/31`
+  - `https://github.com/xywei/cutkit/pull/32`
+  - `https://github.com/xywei/cutkit/pull/33`
+- Follow-up items left open:
+  - Implement vector-valued form support beyond scalar guardrails.
+  - Stage NURBS geometry-map and multipatch interface implementation following
+    `docs/formdsl-nurbs-multipatch-evaluation.md`.

@@ -55,5 +55,7 @@ Implication:
 
 ## Tracking
 
-- OpenSpec change: `openspec/changes/ufl-iga-and-grudge-dgsem-assembly/`
-- Active plan: `docs/exec-plans/active/20260402-ufl-iga-and-grudge-dgsem-assembly.md`
+- OpenSpec archive:
+  `openspec/changes/archive/2026-04-05-ufl-iga-and-grudge-dgsem-assembly/`
+- Completed plan:
+  `docs/exec-plans/completed/20260402-ufl-iga-and-grudge-dgsem-assembly.md`
