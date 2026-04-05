@@ -491,6 +491,25 @@ def test_iga_rejects_vector_value_shape() -> None:
     assert error.value.diagnostic.code == "unsupported_value_shape"
 
 
+def test_iga_permissive_reports_vector_value_shape_diagnostic() -> None:
+    panel = awb2d.build_section_6_1_1_bspline_panel(sample_count=128)
+
+    result = assemble_form(
+        {
+            "trial_space": "Vector(P2)",
+            "test_space": "Vector(P2)",
+            "value_shape": [2],
+            "terms": [{"kind": "diffusion", "coefficient": 1.0}],
+            "boundary_conditions": [{"kind": "essential", "value": 0.0}],
+        },
+        backend="iga",
+        panel=panel,
+        strict=False,
+    )
+
+    assert any(d.code == "unsupported_value_shape" for d in result.diagnostics)
+
+
 def test_dgsem_accepts_vector_value_shape() -> None:
     result = assemble_form(
         {
