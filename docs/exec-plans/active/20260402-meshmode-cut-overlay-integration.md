@@ -6,8 +6,8 @@ Define and implement a first-class CUTKIT adapter that maps trimmed/cut-cell
 integration outputs onto meshmode-friendly overlay payloads for DG assembly
 without body-fitted meshing.
 
-This plan is a prerequisite for DG-SEM backend work in
-`20260402-ufl-iga-and-grudge-dgsem-assembly.md`.
+This plan is a prerequisite for DG-SEM backend work documented in
+`docs/exec-plans/completed/20260402-ufl-iga-and-grudge-dgsem-assembly.md`.
 
 ## Scope
 
