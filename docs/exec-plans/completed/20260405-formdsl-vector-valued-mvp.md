@@ -39,7 +39,18 @@ form slice in the shared formdsl path without regressing deterministic behavior.
 - [x] Add regression tests for mapping, WeakFormIR, UFL-like vector parsing,
       and backend capability behavior.
 - [x] Update support docs and OpenSpec artifacts.
-- [ ] Merge PR with green CI.
+- [x] Merge PR with green CI.
+
+## Final Outcome
+
+- Status: completed and merged.
+- Validation:
+  - `uv run ruff check src/cutkit/formdsl/adapter.py src/cutkit/formdsl/capabilities.py src/cutkit/formdsl/dgsem_backend.py src/cutkit/formdsl/iga_backend.py src/cutkit/formdsl/ir.py tests/formdsl/test_formdsl_assembly.py`
+  - `uv run pytest -q tests/formdsl/test_formdsl_assembly.py -k "value_shape or vector_space or vector_valued_ufl_arguments"`
+  - `openspec validate formdsl-vector-valued-mvp`
+- Key PR: `https://github.com/xywei/cutkit/pull/35`
+- OpenSpec archive:
+  - `openspec/changes/archive/2026-04-05-formdsl-vector-valued-mvp/`
 
 ## Risks / Open Questions
 
