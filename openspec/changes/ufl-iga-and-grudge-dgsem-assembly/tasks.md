@@ -24,7 +24,7 @@
 
 ## 4. Phase 2 Exit Gate
 
-- [ ] 4.1 Add backend parity tests (same form/problem on `iga` and `dgsem`).
+- [x] 4.1 Add backend parity tests (same form/problem on `iga` and `dgsem`).
 - [ ] 4.2 Add convergence/parity benchmark examples.
 - [ ] 4.3 Verify strict/permissive diagnostics and run `make dev`.
 
