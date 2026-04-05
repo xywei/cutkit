@@ -391,6 +391,20 @@ def test_unknown_backend_reports_capability_error() -> None:
     assert error.value.diagnostic.code == "unsupported_backend"
 
 
+def test_dgsem_permissive_omits_unsupported_terms_from_lowering() -> None:
+    result = assemble_form(
+        {"terms": [{"kind": "convection", "coefficient": 1.0}]},
+        backend="dgsem",
+        overlay_payload=_overlay_contract(),
+        strict=False,
+    )
+    payload = cast(DGSEMLoweringResult, result.payload)
+
+    assert payload.volume_terms == ()
+    assert payload.volume_lowering == ()
+    assert any(d.code == "unsupported_term" for d in payload.lowering_diagnostics)
+
+
 def test_dgsem_overlay_contract_version_must_be_supported() -> None:
     with pytest.raises(ValueError, match="contract_version must be >= 1"):
         _overlay_contract(contract_version=0)

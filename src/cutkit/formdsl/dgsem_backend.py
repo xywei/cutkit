@@ -29,7 +29,11 @@ DGSEMBuildingBlock = Literal[
     "grudge.op.weak_local_div",
 ]
 DGSEMFluxFamily = Literal["sipg", "central", "upwind"]
-DGSEMLoweringDiagnosticCode = Literal["unsupported_flux_family", "invalid_penalty"]
+DGSEMLoweringDiagnosticCode = Literal[
+    "unsupported_flux_family",
+    "invalid_penalty",
+    "unsupported_term",
+]
 
 _SUPPORTED_FLUX_FAMILIES: tuple[DGSEMFluxFamily, ...] = ("sipg", "central", "upwind")
 
@@ -308,6 +312,7 @@ def lower_dgsem(
     volume_terms: list[str] = []
     volume_lowering: list[DGSEMVolumeLowering] = []
     diffusion_coefficients: list[float] = []
+    term_diagnostics: list[DGSEMLoweringDiagnostic] = []
     for term in form_ir.terms:
         coefficient = float(term.coefficient)
         if term.kind == "source":
@@ -324,8 +329,8 @@ def lower_dgsem(
                 )
             )
             continue
-        volume_terms.append(f"{term.kind}:{_format_float(coefficient)}")
         if term.kind == "diffusion":
+            volume_terms.append(f"{term.kind}:{_format_float(coefficient)}")
             diffusion_coefficients.append(coefficient)
             volume_lowering.append(
                 DGSEMVolumeLowering(
@@ -334,7 +339,8 @@ def lower_dgsem(
                     operator_chain=_DIFFUSION_OPERATOR_CHAIN,
                 )
             )
-        else:
+        elif term.kind in {"mass", "reaction"}:
+            volume_terms.append(f"{term.kind}:{_format_float(coefficient)}")
             volume_lowering.append(
                 DGSEMVolumeLowering(
                     kind=term.kind,
@@ -342,6 +348,14 @@ def lower_dgsem(
                     operator_chain=_MASS_OPERATOR_CHAIN,
                 )
             )
+        else:
+            diagnostic = DGSEMLoweringDiagnostic(
+                code="unsupported_term",
+                detail=f"unsupported dgsem term kind {term.kind!r} omitted from lowering",
+            )
+            if strict:
+                raise PrerequisiteError(f"dgsem backend {diagnostic.detail}")
+            term_diagnostics.append(diagnostic)
 
     if diffusion_coefficients:
         flux_family, flux_family_diagnostics = _parse_flux_family(
@@ -352,7 +366,7 @@ def lower_dgsem(
         else:
             penalty = 1.0
             penalty_diagnostics = ()
-        lowering_diagnostics = flux_family_diagnostics + penalty_diagnostics
+        lowering_diagnostics_list = list(flux_family_diagnostics + penalty_diagnostics)
     else:
         raw_flux_family = str(form_ir.metadata.get("dg_flux", "sipg")).strip().lower()
         if raw_flux_family in _SUPPORTED_FLUX_FAMILIES:
@@ -360,7 +374,9 @@ def lower_dgsem(
         else:
             flux_family = "sipg"
         penalty = 1.0
-        lowering_diagnostics = ()
+        lowering_diagnostics_list = []
+
+    lowering_diagnostics_list.extend(term_diagnostics)
 
     trace_terms: list[str] = []
     trace_lowering: list[DGSEMTraceLowering] = []
@@ -443,7 +459,7 @@ def lower_dgsem(
         overlay_version=version,
         overlay_statuses=overlay_statuses,
         overlay_diagnostics=overlay_diagnostics,
-        lowering_diagnostics=lowering_diagnostics,
+        lowering_diagnostics=tuple(lowering_diagnostics_list),
         volume_lowering=tuple(
             sorted(
                 volume_lowering,
