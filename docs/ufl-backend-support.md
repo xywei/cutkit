@@ -106,5 +106,6 @@ These are tracked outcomes from the Phase 3 backlog tasks:
 - Additional DG flux families: `central` and `upwind` are now evaluated with
   deterministic lowering coverage; future work should refine physically richer
   upwind variants once full DG operator execution lands.
-- NURBS and multipatch mapping: postpone until B-spline single-patch parity is
-  stable; add geometry-map diagnostics before enabling rational terms.
+- NURBS and multipatch mapping: evaluation completed and tracked in
+  `docs/formdsl-nurbs-multipatch-evaluation.md`; implementation remains staged
+  behind explicit geometry-map and interface diagnostics.

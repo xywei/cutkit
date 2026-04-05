@@ -59,7 +59,7 @@ MVP sequencing:
 
 - [x] Evaluate expansion to vector-valued forms.
 - [x] Evaluate additional DG flux families.
-- [ ] Evaluate NURBS geometry mapping and multipatch support.
+- [x] Evaluate NURBS geometry mapping and multipatch support.
 
 ## OpenSpec Link
 
