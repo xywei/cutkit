@@ -243,6 +243,131 @@ def test_parse_form_accepts_ufl_like_scalar_form() -> None:
         parse_form(nonlinear_facet, backend="iga")
 
 
+def test_parse_form_rejects_vector_space_labels_in_mapping_payload() -> None:
+    with pytest.raises(ValueError, match="scalar spaces only"):
+        parse_form(
+            {
+                "trial_space": "Vector(P2)",
+                "test_space": "Vector(P2)",
+                "terms": [{"kind": "diffusion", "coefficient": 1.0}],
+            },
+            backend="iga",
+        )
+
+
+def test_parse_form_accepts_scalar_tensor_product_space_labels() -> None:
+    ir = parse_form(
+        {
+            "trial_space": "TensorProductElement(Q2,Q2)",
+            "test_space": "TensorProductElement(Q2,Q2)",
+            "terms": [{"kind": "diffusion", "coefficient": 1.0}],
+        },
+        backend="iga",
+    )
+
+    assert ir.trial_space == "TensorProductElement(Q2,Q2)"
+    assert ir.test_space == "TensorProductElement(Q2,Q2)"
+
+
+def test_parse_form_rejects_vector_space_labels_in_weakform_ir() -> None:
+    form_ir = WeakFormIR(
+        trial_space="Tensor(P1)",
+        test_space="P1",
+        terms=(Term(kind="diffusion", coefficient=1.0),),
+    )
+
+    with pytest.raises(ValueError, match="scalar spaces only"):
+        parse_form(form_ir, backend="iga")
+
+
+def test_parse_form_rejects_vector_valued_ufl_arguments() -> None:
+    class Argument:
+        def __init__(
+            self,
+            number: int,
+            element: str,
+            shape: tuple[int, ...],
+        ) -> None:
+            self._number = number
+            self._element = element
+            self._shape = shape
+            self.ufl_operands: tuple[object, ...] = ()
+
+        def number(self) -> int:
+            return self._number
+
+        def ufl_element(self) -> str:
+            return self._element
+
+        def ufl_shape(self) -> tuple[int, ...]:
+            return self._shape
+
+    class FloatValue:
+        def __init__(self, value: float) -> None:
+            self._value = value
+            self.ufl_operands: tuple[object, ...] = ()
+
+        def __float__(self) -> float:
+            return self._value
+
+    class Grad:
+        def __init__(self, operand: object) -> None:
+            self.ufl_operands = (operand,)
+
+    class Inner:
+        def __init__(self, left: object, right: object) -> None:
+            self.ufl_operands = (left, right)
+
+    class Product:
+        def __init__(self, left: object, right: object) -> None:
+            self.ufl_operands = (left, right)
+
+    class Integral:
+        def __init__(self, integral_type: str, integrand: object) -> None:
+            self._integral_type = integral_type
+            self._integrand = integrand
+
+        def integral_type(self) -> str:
+            return self._integral_type
+
+        def integrand(self) -> object:
+            return self._integrand
+
+        def subdomain_id(self) -> object | None:
+            return None
+
+    class UflLikeForm:
+        def __init__(
+            self,
+            integrals: tuple[Integral, ...],
+            arguments: tuple[Argument, ...],
+        ) -> None:
+            self._integrals = integrals
+            self._arguments = arguments
+
+        def integrals(self) -> tuple[Integral, ...]:
+            return self._integrals
+
+        def arguments(self) -> tuple[Argument, ...]:
+            return self._arguments
+
+    UflLikeForm.__module__ = "ufl.mock"
+
+    test_arg = Argument(0, "P2", (2,))
+    trial_arg = Argument(1, "P2", (2,))
+    diffusion = Product(
+        FloatValue(1.0),
+        Inner(Grad(trial_arg), Grad(test_arg)),
+    )
+    form = UflLikeForm(
+        integrals=(Integral("cell", diffusion),),
+        arguments=(test_arg, trial_arg),
+    )
+
+    with pytest.raises(ValueError, match="vector-valued UFL arguments"):
+        parse_form(form, backend="iga")
+
+
 def test_parse_form_weakformir_rejects_invalid_boundary_selector() -> None:
     form_ir = WeakFormIR(
         trial_space="P1",

@@ -8,6 +8,10 @@ UFL-style form DSL entrypoint in `cutkit.formdsl`.
 - `iga`: trimmed-domain spline assembly using CUTKIT quadrature integration.
 - `dgsem`: method-neutral lowering payload for meshmode+grudge adapters.
 
+The current formdsl slice is scalar-space only. Mapping payloads or UFL forms
+that declare vector/tensor trial/test arguments are rejected with deterministic
+parse-time errors.
+
 ## Supported Scalar Term Subset
 
 | Term kind | iga | dgsem |
@@ -97,7 +101,8 @@ signatures for the same form IR.
 These are tracked outcomes from the Phase 3 backlog tasks:
 
 - Vector-valued forms: defer until scalar parity metrics stabilize; extend IR
-  with explicit component shape and tensor contraction metadata.
+  with explicit component shape and tensor contraction metadata. Current
+  evaluation work adds explicit vector-space rejection guardrails in parsing.
 - Additional DG flux families: `central` and `upwind` are now evaluated with
   deterministic lowering coverage; future work should refine physically richer
   upwind variants once full DG operator execution lands.

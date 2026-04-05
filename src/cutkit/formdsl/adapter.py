@@ -8,6 +8,14 @@ from typing import Any
 from .ir import BackendName, BoundaryCondition, Term, WeakFormIR
 
 _VALID_BOUNDARIES = {"all", "left", "right", "bottom", "top"}
+_VECTOR_SPACE_PATTERNS = (
+    "vector(",
+    "vectorelement(",
+    "vector element",
+    "tensor(",
+    "tensorelement(",
+    "tensor element",
+)
 
 
 def _is_valid_boundary_selector(boundary: str) -> bool:
@@ -41,9 +49,30 @@ def _validate_ir_boundaries(boundary_conditions: tuple[BoundaryCondition, ...]) 
         )
 
 
+def _is_vector_space_label(space: str) -> bool:
+    lowered = space.strip().lower()
+    return any(pattern in lowered for pattern in _VECTOR_SPACE_PATTERNS)
+
+
+def _validate_scalar_spaces(*, trial_space: str, test_space: str) -> None:
+    for label_name, label in (
+        ("trial_space", trial_space),
+        ("test_space", test_space),
+    ):
+        if _is_vector_space_label(label):
+            raise ValueError(
+                f"{label_name} {label!r} is vector-valued; "
+                "current formdsl subset supports scalar spaces only"
+            )
+
+
 def _validate_form_ir(form_ir: WeakFormIR) -> None:
     if not form_ir.terms:
         raise ValueError("form payload must provide a non-empty 'terms' list")
+    _validate_scalar_spaces(
+        trial_space=form_ir.trial_space,
+        test_space=form_ir.test_space,
+    )
     _validate_ir_boundaries(form_ir.boundary_conditions)
     _validate_boundary_marker_metadata(form_ir.metadata)
 
@@ -270,6 +299,32 @@ def _ufl_space_label(argument: object) -> str:
     return "P1"
 
 
+def _ufl_argument_shape(argument: object) -> tuple[int, ...] | None:
+    raw_shape = getattr(argument, "ufl_shape", None)
+    shape = raw_shape() if callable(raw_shape) else raw_shape
+
+    if shape is None:
+        element_fn = getattr(argument, "ufl_element", None)
+        if callable(element_fn):
+            element = element_fn()
+            raw_value_shape = getattr(element, "value_shape", None)
+            shape = raw_value_shape() if callable(raw_value_shape) else raw_value_shape
+
+    if shape is None:
+        return None
+    if isinstance(shape, tuple):
+        try:
+            return tuple(int(entry) for entry in shape)
+        except (TypeError, ValueError):
+            return None
+    if isinstance(shape, list):
+        try:
+            return tuple(int(entry) for entry in shape)
+        except (TypeError, ValueError):
+            return None
+    return None
+
+
 def _parse_ufl_form(form: Any) -> WeakFormIR:
     integrals_fn = getattr(form, "integrals", None)
     if not callable(integrals_fn):
@@ -294,10 +349,23 @@ def _parse_ufl_form(form: Any) -> WeakFormIR:
             key=_argument_sort_key,
         )
         if arguments:
+            for argument in arguments:
+                shape = _ufl_argument_shape(argument)
+                if shape in (None, ()):
+                    continue
+                raise ValueError(
+                    "vector-valued UFL arguments are not supported "
+                    "for current scalar subset"
+                )
             test_space = _ufl_space_label(arguments[0])
             trial_space = (
                 _ufl_space_label(arguments[1]) if len(arguments) > 1 else test_space
             )
+
+    _validate_scalar_spaces(
+        trial_space=trial_space,
+        test_space=test_space,
+    )
 
     terms: list[Term] = []
     boundary_conditions: list[BoundaryCondition] = []
@@ -408,6 +476,10 @@ def parse_form(
 
     trial_space = str(form.get("trial_space", "P1"))
     test_space = str(form.get("test_space", "P1"))
+    _validate_scalar_spaces(
+        trial_space=trial_space,
+        test_space=test_space,
+    )
 
     raw_terms = form.get("terms")
     if not isinstance(raw_terms, list) or not raw_terms:
