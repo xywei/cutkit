@@ -26,6 +26,7 @@ Repository-local documentation is the system of record for CUTKIT.
 - `docs/poisson-benchmarks.md`: Poisson-oriented benchmark usage and profiles
 - `docs/poisson-galerkin-solver.md`: immersed Poisson Galerkin solve + validation workflow
 - `docs/formdsl-parity-benchmarks.md`: shared IGA + DG-SEM formdsl parity benchmark usage
+- `docs/formdsl-nurbs-multipatch-evaluation.md`: Phase 3 evaluation notes for NURBS mapping and multipatch rollout
 - `docs/ufl-backend-support.md`: UFL form backend support matrix and diagnostics
 - `scripts/check_docs_freshness.py`: stale docs path + markdown-anchor checker
 - `scripts/minimize_cutpanel_fuzz_cases.py`: deterministic fuzz-candidate minimizer

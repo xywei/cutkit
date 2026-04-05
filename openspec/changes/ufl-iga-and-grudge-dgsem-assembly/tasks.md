@@ -32,4 +32,4 @@
 
 - [x] 5.1 Evaluate expansion to vector-valued forms.
 - [x] 5.2 Evaluate additional DG flux families.
-- [ ] 5.3 Evaluate NURBS geometry mapping and multipatch support.
+- [x] 5.3 Evaluate NURBS geometry mapping and multipatch support.
