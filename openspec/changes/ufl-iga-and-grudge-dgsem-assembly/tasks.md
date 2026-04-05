@@ -31,5 +31,5 @@
 ## 5. Phase 3 Backlog (post-MVP)
 
 - [ ] 5.1 Evaluate expansion to vector-valued forms.
-- [ ] 5.2 Evaluate additional DG flux families.
+- [x] 5.2 Evaluate additional DG flux families.
 - [ ] 5.3 Evaluate NURBS geometry mapping and multipatch support.

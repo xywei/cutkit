@@ -68,12 +68,24 @@ _INTERIOR_FLUX_OPERATOR_CHAIN: dict[DGSEMFluxFamily, tuple[DGSEMBuildingBlock, .
         "grudge.op.face_mass",
     ),
 }
-_BOUNDARY_FLUX_OPERATOR_CHAIN: tuple[DGSEMBuildingBlock, ...] = (
-    "grudge.op.bdry_trace_pair",
-    "grudge.op.project",
-    "grudge.op.face_mass",
-    "grudge.op.inverse_mass",
-)
+_BOUNDARY_FLUX_OPERATOR_CHAIN: dict[DGSEMFluxFamily, tuple[DGSEMBuildingBlock, ...]] = {
+    "sipg": (
+        "grudge.op.bdry_trace_pair",
+        "grudge.op.project",
+        "grudge.op.face_mass",
+        "grudge.op.inverse_mass",
+    ),
+    "central": (
+        "grudge.op.bdry_trace_pair",
+        "grudge.op.project",
+        "grudge.op.face_mass",
+    ),
+    "upwind": (
+        "grudge.op.bdry_trace_pair",
+        "grudge.op.project",
+        "grudge.op.face_mass",
+    ),
+}
 
 
 @dataclass(frozen=True)
@@ -402,7 +414,7 @@ def lower_dgsem(
                         diffusion_coefficient=coefficient,
                         boundary_value=value,
                         penalty=penalty if flux_family == "sipg" else None,
-                        operator_chain=_BOUNDARY_FLUX_OPERATOR_CHAIN,
+                        operator_chain=_BOUNDARY_FLUX_OPERATOR_CHAIN[flux_family],
                     )
                 )
         elif bc.kind == "essential":
@@ -425,7 +437,7 @@ def lower_dgsem(
                         diffusion_coefficient=coefficient,
                         boundary_value=value,
                         penalty=penalty if flux_family == "sipg" else None,
-                        operator_chain=_BOUNDARY_FLUX_OPERATOR_CHAIN,
+                        operator_chain=_BOUNDARY_FLUX_OPERATOR_CHAIN[flux_family],
                     )
                 )
 
