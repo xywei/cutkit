@@ -25,9 +25,11 @@ Repository-local documentation is the system of record for CUTKIT.
 - `docs/meshmode-cut-overlay.md`: meshmode cut-overlay contract and validation semantics
 - `docs/poisson-benchmarks.md`: Poisson-oriented benchmark usage and profiles
 - `docs/poisson-galerkin-solver.md`: immersed Poisson Galerkin solve + validation workflow
+- `docs/formdsl-parity-benchmarks.md`: shared IGA + DG-SEM formdsl parity benchmark usage
 - `docs/ufl-backend-support.md`: UFL form backend support matrix and diagnostics
 - `scripts/check_docs_freshness.py`: stale docs path + markdown-anchor checker
 - `scripts/minimize_cutpanel_fuzz_cases.py`: deterministic fuzz-candidate minimizer
+- `scripts/run_formdsl_parity_benchmark.py`: run formdsl convergence + parity benchmark examples
 - `docs/entire-transcript-policy.md`: Entire transcript handling policy
 - `.github/workflows/weekly-janitor.yml`: scheduled repository cleanup automation
 

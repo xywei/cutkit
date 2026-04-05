@@ -66,7 +66,10 @@ def _term_signature(term: Term) -> str:
 
 
 def _boundary_signature(boundary: BoundaryCondition) -> str:
-    return f"{boundary.kind}:{boundary.boundary}:{_format_float(float(boundary.value))}"
+    signature = (
+        f"{boundary.kind}:{boundary.boundary}:{_format_float(float(boundary.value))}"
+    )
+    return signature
 
 
 def _metadata_signature(metadata: dict[str, str]) -> tuple[str, ...]:

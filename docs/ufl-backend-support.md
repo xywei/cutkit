@@ -73,6 +73,17 @@ In strict mode, unsupported flux families or invalid penalties raise
 `PrerequisiteError`. In permissive mode, lowering falls back to deterministic
 defaults and records structured lowering diagnostics in the DG payload.
 
+## Backend Parity Benchmark Example
+
+Use the formdsl parity benchmark runner for a shared IGA + DG-SEM example:
+
+```bash
+uv run python scripts/run_formdsl_parity_benchmark.py --resolutions 8,16
+```
+
+This reports manufactured-solution IGA errors and deterministic DG lowering
+signatures for the same form IR.
+
 ## Phase 3 Evaluation Notes
 
 These are tracked outcomes from the Phase 3 backlog tasks:
