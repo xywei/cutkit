@@ -60,6 +60,19 @@ Overlay viability is also mode-sensitive:
 - permissive mode: returns DG lowering payloads while forwarding deterministic
   overlay statuses/diagnostics in the DG payload.
 
+## DG Flux/Trace Lowering (Initial Subset)
+
+For the scalar subset, DG lowering emits deterministic operator-building payloads
+based on grudge API blocks (for example `grudge.op.mass`,
+`grudge.op.weak_local_grad`, `grudge.op.face_mass`, `grudge.op.project`).
+
+- supported `dg_flux` families: `sipg` (default), `central`, `upwind`
+- optional `dg_penalty`: positive float (used by `sipg`, defaults to `1.0`)
+
+In strict mode, unsupported flux families or invalid penalties raise
+`PrerequisiteError`. In permissive mode, lowering falls back to deterministic
+defaults and records structured lowering diagnostics in the DG payload.
+
 ## Phase 3 Evaluation Notes
 
 These are tracked outcomes from the Phase 3 backlog tasks:
