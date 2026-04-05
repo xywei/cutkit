@@ -246,6 +246,8 @@ def assemble_iga(
         raise ValueError(
             f"unsupported backend_mode {backend_mode!r}; expected 'jplus' or 'folded'"
         )
+    if form_ir.value_shape != ():
+        raise ValueError("iga backend currently supports scalar value_shape only")
 
     diffusion = _term_scalar(form_ir, "diffusion")
     mass = _term_scalar(form_ir, "mass")

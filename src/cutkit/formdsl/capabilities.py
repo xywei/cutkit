@@ -13,15 +13,26 @@ _SUPPORTED_BCS: dict[str, tuple[str, ...]] = {
     "iga": ("essential", "natural"),
     "dgsem": ("essential", "natural"),
 }
+_SUPPORTED_VALUE_SHAPES: dict[str, tuple[str, ...]] = {
+    "iga": ("()",),
+    "dgsem": ("()", "(N,)"),
+}
+
+
+def _is_supported_value_shape(value_shape: tuple[int, ...], *, backend: str) -> bool:
+    if value_shape == ():
+        return True
+    return backend == "dgsem" and len(value_shape) == 1
 
 
 def capability_matrix() -> dict[str, dict[str, tuple[str, ...]]]:
-    """Return the supported scalar subset by backend."""
+    """Return the supported form subset by backend."""
 
     return {
         backend: {
             "terms": terms,
             "boundary_conditions": _SUPPORTED_BCS[backend],
+            "value_shapes": _SUPPORTED_VALUE_SHAPES[backend],
         }
         for backend, terms in _SUPPORTED_TERM_KINDS.items()
     }
@@ -38,7 +49,12 @@ def check_support(
     diagnostics: list[CapabilityDiagnostic] = []
     supported_terms = _SUPPORTED_TERM_KINDS.get(backend)
     supported_bcs = _SUPPORTED_BCS.get(backend)
-    if supported_terms is None or supported_bcs is None:
+    supported_value_shapes = _SUPPORTED_VALUE_SHAPES.get(backend)
+    if (
+        supported_terms is None
+        or supported_bcs is None
+        or supported_value_shapes is None
+    ):
         raise CapabilityError(
             CapabilityDiagnostic(
                 code="unsupported_backend",
@@ -69,6 +85,19 @@ def check_support(
                 backend=backend,
                 detail=f"boundary condition '{condition.kind}' is not supported",
                 alternatives=supported_bcs,
+            )
+        )
+
+    if not _is_supported_value_shape(form_ir.value_shape, backend=backend):
+        diagnostics.append(
+            CapabilityDiagnostic(
+                code="unsupported_value_shape",
+                backend=backend,
+                detail=(
+                    f"value_shape {form_ir.value_shape!r} is not supported "
+                    f"for backend {backend!r}"
+                ),
+                alternatives=supported_value_shapes,
             )
         )
 

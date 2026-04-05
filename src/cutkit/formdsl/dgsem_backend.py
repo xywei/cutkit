@@ -146,6 +146,7 @@ class DGSEMLoweringResult:
     volume_terms: tuple[str, ...]
     trace_terms: tuple[str, ...]
     flux_family: str
+    value_shape: tuple[int, ...]
     overlay_version: int
     overlay_statuses: tuple[OverlayStatus, ...]
     overlay_diagnostics: tuple[DGSEMOverlayDiagnostic, ...]
@@ -468,6 +469,7 @@ def lower_dgsem(
         volume_terms=tuple(sorted(volume_terms)),
         trace_terms=tuple(sorted(trace_terms)),
         flux_family=flux_family,
+        value_shape=form_ir.value_shape,
         overlay_version=version,
         overlay_statuses=overlay_statuses,
         overlay_diagnostics=overlay_diagnostics,

@@ -28,10 +28,11 @@ class BoundaryCondition:
 
 @dataclass(frozen=True)
 class WeakFormIR:
-    """Canonical scalar weak form used by CUTKIT backend lowerers."""
+    """Canonical weak form used by CUTKIT backend lowerers."""
 
     trial_space: str
     test_space: str
     terms: tuple[Term, ...]
     boundary_conditions: tuple[BoundaryCondition, ...] = field(default_factory=tuple)
     metadata: dict[str, str] = field(default_factory=dict)
+    value_shape: tuple[int, ...] = field(default_factory=tuple)
