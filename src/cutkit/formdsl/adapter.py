@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from numbers import Integral as IntegralNumber
 from typing import Any
 
 from .ir import BackendName, BoundaryCondition, Term, WeakFormIR
@@ -54,25 +55,82 @@ def _is_vector_space_label(space: str) -> bool:
     return any(pattern in lowered for pattern in _VECTOR_SPACE_PATTERNS)
 
 
-def _validate_scalar_spaces(*, trial_space: str, test_space: str) -> None:
-    for label_name, label in (
-        ("trial_space", trial_space),
-        ("test_space", test_space),
-    ):
-        if _is_vector_space_label(label):
+def _normalize_value_shape(
+    raw_shape: object,
+    *,
+    context: str,
+) -> tuple[int, ...]:
+    if raw_shape in (None, (), []):
+        return ()
+    if isinstance(raw_shape, tuple):
+        entries = raw_shape
+    elif isinstance(raw_shape, list):
+        entries = tuple(raw_shape)
+    else:
+        raise ValueError(f"{context} value_shape must be tuple/list of positive ints")
+
+    value_shape: list[int] = []
+    for index, entry in enumerate(entries):
+        if isinstance(entry, bool):
             raise ValueError(
-                f"{label_name} {label!r} is vector-valued; "
-                "current formdsl subset supports scalar spaces only"
+                f"{context} value_shape entry {index} must be positive integer"
             )
+        if isinstance(entry, IntegralNumber):
+            normalized = int(entry)
+        elif isinstance(entry, str):
+            text = entry.strip()
+            if text.startswith("+"):
+                text = text[1:]
+            if not text.isdigit():
+                raise ValueError(
+                    f"{context} value_shape entry {index} must be positive integer"
+                )
+            normalized = int(text)
+        else:
+            raise ValueError(
+                f"{context} value_shape entry {index} must be positive integer"
+            )
+        if normalized <= 0:
+            raise ValueError(
+                f"{context} value_shape entry {index} must be positive integer"
+            )
+        value_shape.append(normalized)
+    return tuple(value_shape)
+
+
+def _mapping_value_shape(
+    *,
+    trial_space: str,
+    test_space: str,
+    raw_value_shape: object,
+) -> tuple[int, ...]:
+    value_shape = _normalize_value_shape(raw_value_shape, context="form payload")
+    if value_shape:
+        return value_shape
+
+    if _is_vector_space_label(trial_space) or _is_vector_space_label(test_space):
+        raise ValueError(
+            "form payload with vector/tensor space labels must declare value_shape"
+        )
+    return ()
 
 
 def _validate_form_ir(form_ir: WeakFormIR) -> None:
     if not form_ir.terms:
         raise ValueError("form payload must provide a non-empty 'terms' list")
-    _validate_scalar_spaces(
-        trial_space=form_ir.trial_space,
-        test_space=form_ir.test_space,
+    normalized_shape = _normalize_value_shape(
+        form_ir.value_shape,
+        context="WeakFormIR",
     )
+    if normalized_shape != form_ir.value_shape:
+        raise ValueError("WeakFormIR value_shape must be tuple of positive integers")
+    if normalized_shape == () and (
+        _is_vector_space_label(form_ir.trial_space)
+        or _is_vector_space_label(form_ir.test_space)
+    ):
+        raise ValueError(
+            "WeakFormIR with vector/tensor space labels must declare value_shape"
+        )
     _validate_ir_boundaries(form_ir.boundary_conditions)
     _validate_boundary_marker_metadata(form_ir.metadata)
 
@@ -310,19 +368,10 @@ def _ufl_argument_shape(argument: object) -> tuple[int, ...] | None:
             raw_value_shape = getattr(element, "value_shape", None)
             shape = raw_value_shape() if callable(raw_value_shape) else raw_value_shape
 
-    if shape is None:
+    try:
+        return _normalize_value_shape(shape, context="UFL argument")
+    except ValueError:
         return None
-    if isinstance(shape, tuple):
-        try:
-            return tuple(int(entry) for entry in shape)
-        except (TypeError, ValueError):
-            return None
-    if isinstance(shape, list):
-        try:
-            return tuple(int(entry) for entry in shape)
-        except (TypeError, ValueError):
-            return None
-    return None
 
 
 def _parse_ufl_form(form: Any) -> WeakFormIR:
@@ -336,6 +385,7 @@ def _parse_ufl_form(form: Any) -> WeakFormIR:
 
     trial_space = "P1"
     test_space = "P1"
+    value_shape: tuple[int, ...] = ()
     arguments_fn = getattr(form, "arguments", None)
     if callable(arguments_fn):
         raw_arguments = tuple(arguments_fn())
@@ -349,23 +399,26 @@ def _parse_ufl_form(form: Any) -> WeakFormIR:
             key=_argument_sort_key,
         )
         if arguments:
+            argument_shapes: list[tuple[int, ...]] = []
             for argument in arguments:
                 shape = _ufl_argument_shape(argument)
-                if shape in (None, ()):
-                    continue
+                if shape is None:
+                    raise ValueError(
+                        "UFL argument value_shape is invalid for formdsl parsing"
+                    )
+                argument_shapes.append(shape)
+
+            unique_shapes = tuple(sorted(set(argument_shapes)))
+            if len(unique_shapes) > 1:
                 raise ValueError(
-                    "vector-valued UFL arguments are not supported "
-                    "for current scalar subset"
+                    "UFL arguments must share one value_shape across trial/test spaces"
                 )
+
+            value_shape = argument_shapes[0]
             test_space = _ufl_space_label(arguments[0])
             trial_space = (
                 _ufl_space_label(arguments[1]) if len(arguments) > 1 else test_space
             )
-
-    _validate_scalar_spaces(
-        trial_space=trial_space,
-        test_space=test_space,
-    )
 
     terms: list[Term] = []
     boundary_conditions: list[BoundaryCondition] = []
@@ -389,7 +442,7 @@ def _parse_ufl_form(form: Any) -> WeakFormIR:
             factors = _ufl_non_scalar_factors(summand)
             if factors is None:
                 raise ValueError(
-                    "unsupported UFL integrand structure for current scalar subset"
+                    "unsupported UFL integrand structure for current formdsl subset"
                 )
 
             if integral_type == "cell":
@@ -416,7 +469,7 @@ def _parse_ufl_form(form: Any) -> WeakFormIR:
                     )
                     continue
                 raise ValueError(
-                    "unsupported UFL cell integrand for current scalar subset"
+                    "unsupported UFL cell integrand for current formdsl subset"
                 )
 
             if integral_type == "exterior_facet":
@@ -431,13 +484,13 @@ def _parse_ufl_form(form: Any) -> WeakFormIR:
                     )
                     continue
                 raise ValueError(
-                    "unsupported UFL exterior facet integrand for current scalar subset"
+                    "unsupported UFL exterior facet integrand for current formdsl subset"
                 )
 
             raise ValueError(f"unsupported UFL integral type {integral_type!r}")
 
     if not terms:
-        raise ValueError("UFL form did not yield any supported scalar terms")
+        raise ValueError("UFL form did not yield any supported form terms")
 
     form_ir = WeakFormIR(
         trial_space=trial_space,
@@ -445,6 +498,7 @@ def _parse_ufl_form(form: Any) -> WeakFormIR:
         terms=tuple(terms),
         boundary_conditions=tuple(boundary_conditions),
         metadata=metadata,
+        value_shape=value_shape,
     )
     _validate_form_ir(form_ir)
     return form_ir
@@ -458,7 +512,7 @@ def parse_form(
     """Parse a supported form object into ``WeakFormIR``.
 
     The adapter accepts a native ``WeakFormIR`` or a deterministic dictionary
-    payload for minimal scalar forms.
+    payload for minimal form terms.
     """
 
     del backend
@@ -476,9 +530,10 @@ def parse_form(
 
     trial_space = str(form.get("trial_space", "P1"))
     test_space = str(form.get("test_space", "P1"))
-    _validate_scalar_spaces(
+    value_shape = _mapping_value_shape(
         trial_space=trial_space,
         test_space=test_space,
+        raw_value_shape=form.get("value_shape"),
     )
 
     raw_terms = form.get("terms")
@@ -534,6 +589,7 @@ def parse_form(
         terms=tuple(terms),
         boundary_conditions=tuple(boundary_conditions),
         metadata=metadata,
+        value_shape=value_shape,
     )
     _validate_form_ir(form_ir)
     return form_ir

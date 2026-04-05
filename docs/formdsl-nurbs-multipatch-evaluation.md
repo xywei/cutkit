@@ -9,8 +9,8 @@ beyond the current scalar B-spline single-patch slice.
   current IGA and DG-SEM paths.
 - DG-SEM lowering consumes explicit meshmode overlay contracts and now includes
   deterministic flux-family behavior for SIPG, central, and upwind.
-- Form parsing now rejects vector/tensor-valued spaces so unsupported geometry
-  and shape combinations do not silently pass through.
+- Form parsing now carries explicit `value_shape` metadata and supports a
+  constrained vector MVP (`dgsem`: rank-1 vectors; `iga`: scalar-only gated).
 
 ## Gap Assessment
 

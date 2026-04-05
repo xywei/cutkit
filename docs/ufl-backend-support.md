@@ -1,18 +1,23 @@
 # UFL Form Backend Support
 
-This document describes the current scalar-form support matrix for the shared
-UFL-style form DSL entrypoint in `cutkit.formdsl`.
+This document describes the current form support matrix for the shared UFL-style
+form DSL entrypoint in `cutkit.formdsl`.
 
 ## Current Backends
 
 - `iga`: trimmed-domain spline assembly using CUTKIT quadrature integration.
 - `dgsem`: method-neutral lowering payload for meshmode+grudge adapters.
 
-The current formdsl slice is scalar-space only. Mapping payloads or UFL forms
-that declare vector/tensor trial/test arguments are rejected with deterministic
-parse-time errors.
+The parser now supports explicit `value_shape` metadata in `WeakFormIR` and
+mapping payloads. Current backend support is:
 
-## Supported Scalar Term Subset
+- `iga`: scalar value shape only (`()`)
+- `dgsem`: scalar and rank-1 vector value shapes (`()`, `(N,)`)
+
+Mapping payloads that use vector/tensor space labels must declare
+`value_shape`; otherwise parsing fails with a deterministic payload diagnostic.
+
+## Supported Term Subset
 
 | Term kind | iga | dgsem |
 | --- | --- | --- |
@@ -50,6 +55,7 @@ Common diagnostic codes:
 
 - `unsupported_term`
 - `unsupported_boundary_condition`
+- `unsupported_value_shape`
 
 ## DG-SEM Prerequisite
 
@@ -100,9 +106,9 @@ signatures for the same form IR.
 
 These are tracked outcomes from the Phase 3 backlog tasks:
 
-- Vector-valued forms: defer until scalar parity metrics stabilize; extend IR
-  with explicit component shape and tensor contraction metadata. Current
-  evaluation work adds explicit vector-space rejection guardrails in parsing.
+- Vector-valued forms: initial MVP landed with explicit `value_shape`
+  propagation in IR and DG-SEM lowering payloads, while IGA remains
+  capability-gated to scalar shape.
 - Additional DG flux families: `central` and `upwind` are now evaluated with
   deterministic lowering coverage; future work should refine physically richer
   upwind variants once full DG operator execution lands.

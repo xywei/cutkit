@@ -243,8 +243,8 @@ def test_parse_form_accepts_ufl_like_scalar_form() -> None:
         parse_form(nonlinear_facet, backend="iga")
 
 
-def test_parse_form_rejects_vector_space_labels_in_mapping_payload() -> None:
-    with pytest.raises(ValueError, match="scalar spaces only"):
+def test_parse_form_requires_value_shape_for_vector_space_labels() -> None:
+    with pytest.raises(ValueError, match="must declare value_shape"):
         parse_form(
             {
                 "trial_space": "Vector(P2)",
@@ -252,6 +252,44 @@ def test_parse_form_rejects_vector_space_labels_in_mapping_payload() -> None:
                 "terms": [{"kind": "diffusion", "coefficient": 1.0}],
             },
             backend="iga",
+        )
+
+
+def test_parse_form_accepts_vector_mapping_payload_with_value_shape() -> None:
+    ir = parse_form(
+        {
+            "trial_space": "Vector(P2)",
+            "test_space": "Vector(P2)",
+            "value_shape": [2],
+            "terms": [{"kind": "diffusion", "coefficient": 1.0}],
+        },
+        backend="dgsem",
+    )
+
+    assert ir.value_shape == (2,)
+
+
+def test_parse_form_rejects_invalid_value_shape_entries() -> None:
+    with pytest.raises(ValueError, match="value_shape entry"):
+        parse_form(
+            {
+                "trial_space": "Vector(P2)",
+                "test_space": "Vector(P2)",
+                "value_shape": [0],
+                "terms": [{"kind": "diffusion", "coefficient": 1.0}],
+            },
+            backend="dgsem",
+        )
+
+    with pytest.raises(ValueError, match="value_shape entry"):
+        parse_form(
+            {
+                "trial_space": "Vector(P2)",
+                "test_space": "Vector(P2)",
+                "value_shape": [2.5],
+                "terms": [{"kind": "diffusion", "coefficient": 1.0}],
+            },
+            backend="dgsem",
         )
 
 
@@ -269,18 +307,30 @@ def test_parse_form_accepts_scalar_tensor_product_space_labels() -> None:
     assert ir.test_space == "TensorProductElement(Q2,Q2)"
 
 
-def test_parse_form_rejects_vector_space_labels_in_weakform_ir() -> None:
+def test_parse_form_rejects_vector_labels_in_weakform_ir_without_shape() -> None:
+    form_ir = WeakFormIR(
+        trial_space="Vector(P1)",
+        test_space="Vector(P1)",
+        terms=(Term(kind="diffusion", coefficient=1.0),),
+    )
+
+    with pytest.raises(ValueError, match="must declare value_shape"):
+        parse_form(form_ir, backend="dgsem")
+
+
+def test_parse_form_accepts_vector_space_labels_in_weakform_ir() -> None:
     form_ir = WeakFormIR(
         trial_space="Tensor(P1)",
         test_space="P1",
         terms=(Term(kind="diffusion", coefficient=1.0),),
+        value_shape=(3,),
     )
 
-    with pytest.raises(ValueError, match="scalar spaces only"):
-        parse_form(form_ir, backend="iga")
+    parsed = parse_form(form_ir, backend="dgsem")
+    assert parsed.value_shape == (3,)
 
 
-def test_parse_form_rejects_vector_valued_ufl_arguments() -> None:
+def test_parse_form_accepts_vector_valued_ufl_arguments() -> None:
     class Argument:
         def __init__(
             self,
@@ -364,8 +414,8 @@ def test_parse_form_rejects_vector_valued_ufl_arguments() -> None:
         arguments=(test_arg, trial_arg),
     )
 
-    with pytest.raises(ValueError, match="vector-valued UFL arguments"):
-        parse_form(form, backend="iga")
+    ir = parse_form(form, backend="dgsem")
+    assert ir.value_shape == (2,)
 
 
 def test_parse_form_weakformir_rejects_invalid_boundary_selector() -> None:
@@ -420,6 +470,82 @@ def test_capability_check_strict_vs_permissive() -> None:
     permissive = assemble_form(unsupported, backend="iga", panel=panel, strict=False)
     assert permissive.diagnostics
     assert permissive.diagnostics[0].code == "unsupported_term"
+
+
+def test_iga_rejects_vector_value_shape() -> None:
+    panel = awb2d.build_section_6_1_1_bspline_panel(sample_count=128)
+
+    with pytest.raises(CapabilityError) as error:
+        assemble_form(
+            {
+                "trial_space": "Vector(P2)",
+                "test_space": "Vector(P2)",
+                "value_shape": [2],
+                "terms": [{"kind": "diffusion", "coefficient": 1.0}],
+                "boundary_conditions": [{"kind": "essential", "value": 0.0}],
+            },
+            backend="iga",
+            panel=panel,
+        )
+
+    assert error.value.diagnostic.code == "unsupported_value_shape"
+
+
+def test_iga_permissive_reports_vector_value_shape_diagnostic() -> None:
+    panel = awb2d.build_section_6_1_1_bspline_panel(sample_count=128)
+
+    result = assemble_form(
+        {
+            "trial_space": "Vector(P2)",
+            "test_space": "Vector(P2)",
+            "value_shape": [2],
+            "terms": [{"kind": "diffusion", "coefficient": 1.0}],
+            "boundary_conditions": [{"kind": "essential", "value": 0.0}],
+        },
+        backend="iga",
+        panel=panel,
+        strict=False,
+    )
+
+    assert any(d.code == "unsupported_value_shape" for d in result.diagnostics)
+
+
+def test_dgsem_accepts_vector_value_shape() -> None:
+    result = assemble_form(
+        {
+            "trial_space": "Vector(P2)",
+            "test_space": "Vector(P2)",
+            "value_shape": [2],
+            "terms": [
+                {"kind": "diffusion", "coefficient": 1.0},
+                {"kind": "source", "coefficient": 1.0, "source": 0.0},
+            ],
+            "boundary_conditions": [{"kind": "essential", "value": 0.0}],
+        },
+        backend="dgsem",
+        overlay_payload=_overlay_contract(),
+    )
+    payload = cast(DGSEMLoweringResult, result.payload)
+
+    assert result.ir.value_shape == (2,)
+    assert payload.value_shape == (2,)
+    assert payload.volume_terms
+
+
+def test_dgsem_rejects_rank2_value_shape() -> None:
+    with pytest.raises(CapabilityError) as error:
+        assemble_form(
+            {
+                "trial_space": "TensorElement(P2)",
+                "test_space": "TensorElement(P2)",
+                "value_shape": [2, 2],
+                "terms": [{"kind": "diffusion", "coefficient": 1.0}],
+            },
+            backend="dgsem",
+            overlay_payload=_overlay_contract(),
+        )
+
+    assert error.value.diagnostic.code == "unsupported_value_shape"
 
 
 def test_iga_diffusion_assembly_matches_existing_poisson_path() -> None:
