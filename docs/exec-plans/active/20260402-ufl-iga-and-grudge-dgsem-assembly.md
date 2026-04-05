@@ -45,6 +45,7 @@ MVP sequencing:
 - [x] Add DG-SEM lowering via meshmode+grudge adapters.
 - [x] Add strict/permissive validation behavior.
 - [x] Add shared-form backend parity tests.
+- [x] Add convergence/parity benchmark examples.
 - [x] Update docs and support matrix.
 - [x] Run `make dev`.
 
