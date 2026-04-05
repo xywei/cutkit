@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from numbers import Integral as IntegralNumber
 from typing import Any
 
 from .ir import BackendName, BoundaryCondition, Term, WeakFormIR
@@ -74,12 +75,21 @@ def _normalize_value_shape(
             raise ValueError(
                 f"{context} value_shape entry {index} must be positive integer"
             )
-        try:
+        if isinstance(entry, IntegralNumber):
             normalized = int(entry)
-        except (TypeError, ValueError) as exc:
+        elif isinstance(entry, str):
+            text = entry.strip()
+            if text.startswith("+"):
+                text = text[1:]
+            if not text.isdigit():
+                raise ValueError(
+                    f"{context} value_shape entry {index} must be positive integer"
+                )
+            normalized = int(text)
+        else:
             raise ValueError(
                 f"{context} value_shape entry {index} must be positive integer"
-            ) from exc
+            )
         if normalized <= 0:
             raise ValueError(
                 f"{context} value_shape entry {index} must be positive integer"
@@ -114,6 +124,13 @@ def _validate_form_ir(form_ir: WeakFormIR) -> None:
     )
     if normalized_shape != form_ir.value_shape:
         raise ValueError("WeakFormIR value_shape must be tuple of positive integers")
+    if normalized_shape == () and (
+        _is_vector_space_label(form_ir.trial_space)
+        or _is_vector_space_label(form_ir.test_space)
+    ):
+        raise ValueError(
+            "WeakFormIR with vector/tensor space labels must declare value_shape"
+        )
     _validate_ir_boundaries(form_ir.boundary_conditions)
     _validate_boundary_marker_metadata(form_ir.metadata)
 

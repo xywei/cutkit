@@ -281,6 +281,17 @@ def test_parse_form_rejects_invalid_value_shape_entries() -> None:
             backend="dgsem",
         )
 
+    with pytest.raises(ValueError, match="value_shape entry"):
+        parse_form(
+            {
+                "trial_space": "Vector(P2)",
+                "test_space": "Vector(P2)",
+                "value_shape": [2.5],
+                "terms": [{"kind": "diffusion", "coefficient": 1.0}],
+            },
+            backend="dgsem",
+        )
+
 
 def test_parse_form_accepts_scalar_tensor_product_space_labels() -> None:
     ir = parse_form(
@@ -294,6 +305,17 @@ def test_parse_form_accepts_scalar_tensor_product_space_labels() -> None:
 
     assert ir.trial_space == "TensorProductElement(Q2,Q2)"
     assert ir.test_space == "TensorProductElement(Q2,Q2)"
+
+
+def test_parse_form_rejects_vector_labels_in_weakform_ir_without_shape() -> None:
+    form_ir = WeakFormIR(
+        trial_space="Vector(P1)",
+        test_space="Vector(P1)",
+        terms=(Term(kind="diffusion", coefficient=1.0),),
+    )
+
+    with pytest.raises(ValueError, match="must declare value_shape"):
+        parse_form(form_ir, backend="dgsem")
 
 
 def test_parse_form_accepts_vector_space_labels_in_weakform_ir() -> None:
