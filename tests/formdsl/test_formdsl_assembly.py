@@ -483,6 +483,8 @@ def test_backend_parity_payload_uses_shared_ir_terms() -> None:
         overlay_payload=_overlay_contract(),
         strict=True,
     )
+
+    assert iga.ir == dgsem.ir
     dgsem_payload = cast(DGSEMLoweringResult, dgsem.payload)
 
     assert not iga.diagnostics
