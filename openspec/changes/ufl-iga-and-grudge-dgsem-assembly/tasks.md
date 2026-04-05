@@ -17,9 +17,9 @@
 ## 3. Phase 2: meshmode+grudge DG-SEM Backend
 
 - [x] 3.1 Confirm prerequisite: `meshmode-cut-overlay` contract is landed.
-- [ ] 3.2 Implement IR-to-DG-SEM lowering using meshmode+grudge building blocks.
+- [x] 3.2 Implement IR-to-DG-SEM lowering using meshmode+grudge building blocks.
 - [x] 3.3 Integrate meshmode cut-overlay payloads into DG assembly path.
-- [ ] 3.4 Add initial flux/trace lowering for same scalar subset.
+- [x] 3.4 Add initial flux/trace lowering for same scalar subset.
 - [x] 3.5 Add deterministic mapping/orientation validation diagnostics.
 
 ## 4. Phase 2 Exit Gate

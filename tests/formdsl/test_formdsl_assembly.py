@@ -18,7 +18,11 @@ from cutkit.formdsl import (
     assemble_form,
     parse_form,
 )
-from cutkit.formdsl.dgsem_backend import DGSEMLoweringResult
+from cutkit.formdsl.dgsem_backend import (
+    DGSEMLoweringResult,
+    DGSEMTraceLowering,
+    DGSEMVolumeLowering,
+)
 from cutkit.formdsl.iga_backend import IGAAssemblyResult
 
 
@@ -387,6 +391,20 @@ def test_unknown_backend_reports_capability_error() -> None:
     assert error.value.diagnostic.code == "unsupported_backend"
 
 
+def test_dgsem_permissive_omits_unsupported_terms_from_lowering() -> None:
+    result = assemble_form(
+        {"terms": [{"kind": "convection", "coefficient": 1.0}]},
+        backend="dgsem",
+        overlay_payload=_overlay_contract(),
+        strict=False,
+    )
+    payload = cast(DGSEMLoweringResult, result.payload)
+
+    assert payload.volume_terms == ()
+    assert payload.volume_lowering == ()
+    assert any(d.code == "unsupported_term" for d in payload.lowering_diagnostics)
+
+
 def test_dgsem_overlay_contract_version_must_be_supported() -> None:
     with pytest.raises(ValueError, match="contract_version must be >= 1"):
         _overlay_contract(contract_version=0)
@@ -478,6 +496,56 @@ def test_backend_parity_payload_uses_shared_ir_terms() -> None:
     assert dgsem_payload.trace_terms == ("dirichlet:all:0", "neumann:top:1")
     assert dgsem_payload.overlay_statuses == ("ok",)
     assert not dgsem_payload.overlay_diagnostics
+    assert not dgsem_payload.lowering_diagnostics
+    assert dgsem_payload.volume_lowering == (
+        DGSEMVolumeLowering(
+            kind="diffusion",
+            coefficient=1.0,
+            operator_chain=(
+                "grudge.op.weak_local_grad",
+                "grudge.op.weak_local_div",
+                "grudge.op.inverse_mass",
+            ),
+            source_signature=None,
+        ),
+        DGSEMVolumeLowering(
+            kind="mass",
+            coefficient=0.1,
+            operator_chain=("grudge.op.mass", "grudge.op.inverse_mass"),
+            source_signature=None,
+        ),
+        DGSEMVolumeLowering(
+            kind="reaction",
+            coefficient=0.2,
+            operator_chain=("grudge.op.mass", "grudge.op.inverse_mass"),
+            source_signature=None,
+        ),
+        DGSEMVolumeLowering(
+            kind="source",
+            coefficient=1.0,
+            operator_chain=("grudge.op.mass", "grudge.op.inverse_mass"),
+            source_signature="const:1",
+        ),
+    )
+    assert dgsem_payload.trace_lowering == (
+        DGSEMTraceLowering(
+            kind="dirichlet",
+            boundary="all",
+            value=0.0,
+            operator_chain=("grudge.op.project", "grudge.op.face_mass"),
+        ),
+        DGSEMTraceLowering(
+            kind="neumann",
+            boundary="top",
+            value=1.0,
+            operator_chain=("grudge.op.project", "grudge.op.face_mass"),
+        ),
+    )
+    assert dgsem_payload.flux_terms == (
+        "sipg:boundary_dirichlet:all:1:0:1",
+        "sipg:boundary_neumann:top:1:1:1",
+        "sipg:interior:interior:1:none:1",
+    )
 
 
 def test_dgsem_lowering_distinguishes_term_coefficients() -> None:
@@ -522,6 +590,107 @@ def test_dgsem_lowering_distinguishes_boundary_values() -> None:
     assert unit_payload.trace_terms == ("neumann:all:1",)
     assert double_payload.trace_terms == ("neumann:all:2",)
     assert unit_payload.trace_terms != double_payload.trace_terms
+
+
+def test_dgsem_flux_lowering_uses_configured_penalty() -> None:
+    result = assemble_form(
+        {
+            "terms": [{"kind": "diffusion", "coefficient": 2.0}],
+            "boundary_conditions": [{"kind": "essential", "value": 1.0}],
+            "metadata": {"dg_flux": "sipg", "dg_penalty": 3.5},
+        },
+        backend="dgsem",
+        overlay_payload=_overlay_contract(),
+    )
+    payload = cast(DGSEMLoweringResult, result.payload)
+
+    assert payload.flux_family == "sipg"
+    for entry in payload.flux_lowering:
+        assert isclose(entry.penalty if entry.penalty is not None else -1.0, 3.5)
+
+
+def test_dgsem_flux_lowering_rejects_unknown_family_in_strict_mode() -> None:
+    with pytest.raises(PrerequisiteError, match="unsupported dg_flux"):
+        assemble_form(
+            {
+                "terms": [{"kind": "diffusion", "coefficient": 1.0}],
+                "metadata": {"dg_flux": "roe"},
+            },
+            backend="dgsem",
+            overlay_payload=_overlay_contract(),
+            strict=True,
+        )
+
+
+def test_dgsem_non_diffusion_form_skips_flux_metadata_validation() -> None:
+    result = assemble_form(
+        {
+            "terms": [{"kind": "mass", "coefficient": 2.0}],
+            "metadata": {"dg_flux": "roe", "dg_penalty": "bad"},
+        },
+        backend="dgsem",
+        overlay_payload=_overlay_contract(),
+        strict=True,
+    )
+    payload = cast(DGSEMLoweringResult, result.payload)
+
+    assert payload.flux_lowering == ()
+    assert payload.flux_terms == ()
+    assert not payload.lowering_diagnostics
+
+
+def test_dgsem_flux_lowering_fallback_in_permissive_mode() -> None:
+    result = assemble_form(
+        {
+            "terms": [{"kind": "diffusion", "coefficient": 1.0}],
+            "metadata": {"dg_flux": "roe"},
+        },
+        backend="dgsem",
+        overlay_payload=_overlay_contract(),
+        strict=False,
+    )
+    payload = cast(DGSEMLoweringResult, result.payload)
+
+    assert payload.flux_family == "sipg"
+    assert payload.lowering_diagnostics
+    assert payload.lowering_diagnostics[0].code == "unsupported_flux_family"
+
+
+def test_dgsem_flux_lowering_fallback_on_invalid_penalty_permissive() -> None:
+    result = assemble_form(
+        {
+            "terms": [{"kind": "diffusion", "coefficient": 1.0}],
+            "metadata": {"dg_penalty": -4.0},
+        },
+        backend="dgsem",
+        overlay_payload=_overlay_contract(),
+        strict=False,
+    )
+    payload = cast(DGSEMLoweringResult, result.payload)
+
+    assert payload.flux_family == "sipg"
+    assert any(d.code == "invalid_penalty" for d in payload.lowering_diagnostics)
+    assert all(
+        isclose(entry.penalty if entry.penalty is not None else -1.0, 1.0)
+        for entry in payload.flux_lowering
+    )
+
+
+def test_dgsem_non_sipg_ignores_invalid_penalty_metadata() -> None:
+    result = assemble_form(
+        {
+            "terms": [{"kind": "diffusion", "coefficient": 1.0}],
+            "metadata": {"dg_flux": "central", "dg_penalty": "bad"},
+        },
+        backend="dgsem",
+        overlay_payload=_overlay_contract(),
+        strict=True,
+    )
+    payload = cast(DGSEMLoweringResult, result.payload)
+
+    assert payload.flux_family == "central"
+    assert not payload.lowering_diagnostics
+    assert all(entry.penalty is None for entry in payload.flux_lowering)
 
 
 def test_dgsem_lowering_distinguishes_callable_source_closures() -> None:

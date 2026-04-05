@@ -42,7 +42,7 @@ MVP sequencing:
 
 - [x] Add UFL adapter entrypoint + IR.
 - [x] Add IGA lowering for supported scalar terms.
-- [ ] Add DG-SEM lowering via meshmode+grudge adapters.
+- [x] Add DG-SEM lowering via meshmode+grudge adapters.
 - [x] Add strict/permissive validation behavior.
 - [ ] Add shared-form backend parity tests.
 - [x] Update docs and support matrix.
