@@ -695,6 +695,97 @@ def test_dgsem_non_sipg_ignores_invalid_penalty_metadata() -> None:
     assert all(entry.penalty is None for entry in payload.flux_lowering)
 
 
+@pytest.mark.parametrize(
+    ("family", "expected_boundary_chain", "expected_interior_chain", "uses_penalty"),
+    [
+        (
+            "sipg",
+            (
+                "grudge.op.bdry_trace_pair",
+                "grudge.op.project",
+                "grudge.op.face_mass",
+                "grudge.op.inverse_mass",
+            ),
+            (
+                "grudge.op.interior_trace_pairs",
+                "grudge.op.project",
+                "grudge.op.face_mass",
+                "grudge.op.inverse_mass",
+            ),
+            True,
+        ),
+        (
+            "central",
+            (
+                "grudge.op.bdry_trace_pair",
+                "grudge.op.project",
+                "grudge.op.face_mass",
+            ),
+            (
+                "grudge.op.interior_trace_pairs",
+                "grudge.op.project",
+                "grudge.op.face_mass",
+            ),
+            False,
+        ),
+        (
+            "upwind",
+            (
+                "grudge.op.bdry_trace_pair",
+                "grudge.op.project",
+                "grudge.op.face_mass",
+            ),
+            (
+                "grudge.op.interior_trace_pairs",
+                "grudge.op.project",
+                "grudge.op.face_mass",
+            ),
+            False,
+        ),
+    ],
+)
+def test_dgsem_flux_lowering_uses_family_specific_operator_chains(
+    family: str,
+    expected_boundary_chain: tuple[str, ...],
+    expected_interior_chain: tuple[str, ...],
+    uses_penalty: bool,
+) -> None:
+    result = assemble_form(
+        {
+            "terms": [{"kind": "diffusion", "coefficient": 1.0}],
+            "boundary_conditions": [{"kind": "essential", "value": 0.0}],
+            "metadata": {"dg_flux": family, "dg_penalty": 2.5},
+        },
+        backend="dgsem",
+        overlay_payload=_overlay_contract(),
+        strict=True,
+    )
+    payload = cast(DGSEMLoweringResult, result.payload)
+
+    boundary_entries = [
+        entry for entry in payload.flux_lowering if entry.role == "boundary_dirichlet"
+    ]
+    interior_entries = [
+        entry for entry in payload.flux_lowering if entry.role == "interior"
+    ]
+    assert boundary_entries
+    assert interior_entries
+    assert all(
+        entry.operator_chain == expected_boundary_chain for entry in boundary_entries
+    )
+    assert all(
+        entry.operator_chain == expected_interior_chain for entry in interior_entries
+    )
+
+    if uses_penalty:
+        assert all(
+            isclose(entry.penalty if entry.penalty is not None else -1.0, 2.5)
+            for entry in payload.flux_lowering
+        )
+    else:
+        assert all(entry.penalty is None for entry in payload.flux_lowering)
+
+
 def test_dgsem_lowering_distinguishes_callable_source_closures() -> None:
     def make_source(scale: float):
         return lambda x, y: scale * (x + y)

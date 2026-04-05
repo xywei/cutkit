@@ -73,6 +73,14 @@ In strict mode, unsupported flux families or invalid penalties raise
 `PrerequisiteError`. In permissive mode, lowering falls back to deterministic
 defaults and records structured lowering diagnostics in the DG payload.
 
+Current family operator behavior in lowering payloads:
+
+| `dg_flux` family | Boundary operator chain | Interior operator chain | Penalty behavior |
+| --- | --- | --- | --- |
+| `sipg` | `bdry_trace_pair -> project -> face_mass -> inverse_mass` | `interior_trace_pairs -> project -> face_mass -> inverse_mass` | uses validated `dg_penalty` |
+| `central` | `bdry_trace_pair -> project -> face_mass` | `interior_trace_pairs -> project -> face_mass` | ignores `dg_penalty` |
+| `upwind` | `bdry_trace_pair -> project -> face_mass` | `interior_trace_pairs -> project -> face_mass` | ignores `dg_penalty` |
+
 ## Backend Parity Benchmark Example
 
 Use the formdsl parity benchmark runner for a shared IGA + DG-SEM example:
@@ -90,7 +98,8 @@ These are tracked outcomes from the Phase 3 backlog tasks:
 
 - Vector-valued forms: defer until scalar parity metrics stabilize; extend IR
   with explicit component shape and tensor contraction metadata.
-- Additional DG flux families: prioritize `central` and `upwind` as next
-  add-ons after SIPG parity checks.
+- Additional DG flux families: `central` and `upwind` are now evaluated with
+  deterministic lowering coverage; future work should refine physically richer
+  upwind variants once full DG operator execution lands.
 - NURBS and multipatch mapping: postpone until B-spline single-patch parity is
   stable; add geometry-map diagnostics before enabling rational terms.

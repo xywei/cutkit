@@ -55,6 +55,12 @@ MVP sequencing:
 - Phase 1 gate: deterministic UFL->IR + IGA correctness on manufactured tests.
 - Phase 2 gate: DG-SEM lowering parity + deterministic diagnostics.
 
+## Phase 3 Follow-up
+
+- [ ] Evaluate expansion to vector-valued forms.
+- [x] Evaluate additional DG flux families.
+- [ ] Evaluate NURBS geometry mapping and multipatch support.
+
 ## OpenSpec Link
 
 - `openspec/changes/ufl-iga-and-grudge-dgsem-assembly/`
