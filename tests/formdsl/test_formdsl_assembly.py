@@ -608,6 +608,23 @@ def test_dgsem_flux_lowering_rejects_unknown_family_in_strict_mode() -> None:
         )
 
 
+def test_dgsem_non_diffusion_form_skips_flux_metadata_validation() -> None:
+    result = assemble_form(
+        {
+            "terms": [{"kind": "mass", "coefficient": 2.0}],
+            "metadata": {"dg_flux": "roe", "dg_penalty": "bad"},
+        },
+        backend="dgsem",
+        overlay_payload=_overlay_contract(),
+        strict=True,
+    )
+    payload = cast(DGSEMLoweringResult, result.payload)
+
+    assert payload.flux_lowering == ()
+    assert payload.flux_terms == ()
+    assert not payload.lowering_diagnostics
+
+
 def test_dgsem_flux_lowering_fallback_in_permissive_mode() -> None:
     result = assemble_form(
         {

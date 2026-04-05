@@ -288,14 +288,6 @@ def lower_dgsem(
         for diagnostic in overlay_payload.diagnostics
     )
 
-    flux_family, flux_family_diagnostics = _parse_flux_family(form_ir, strict=strict)
-    if flux_family == "sipg":
-        penalty, penalty_diagnostics = _parse_penalty(form_ir, strict=strict)
-    else:
-        penalty = 1.0
-        penalty_diagnostics = ()
-    lowering_diagnostics = flux_family_diagnostics + penalty_diagnostics
-
     if strict and overlay_diagnostics:
         first = overlay_diagnostics[0]
         raise PrerequisiteError(
@@ -350,6 +342,25 @@ def lower_dgsem(
                     operator_chain=_MASS_OPERATOR_CHAIN,
                 )
             )
+
+    if diffusion_coefficients:
+        flux_family, flux_family_diagnostics = _parse_flux_family(
+            form_ir, strict=strict
+        )
+        if flux_family == "sipg":
+            penalty, penalty_diagnostics = _parse_penalty(form_ir, strict=strict)
+        else:
+            penalty = 1.0
+            penalty_diagnostics = ()
+        lowering_diagnostics = flux_family_diagnostics + penalty_diagnostics
+    else:
+        raw_flux_family = str(form_ir.metadata.get("dg_flux", "sipg")).strip().lower()
+        if raw_flux_family in _SUPPORTED_FLUX_FAMILIES:
+            flux_family = cast(DGSEMFluxFamily, raw_flux_family)
+        else:
+            flux_family = "sipg"
+        penalty = 1.0
+        lowering_diagnostics = ()
 
     trace_terms: list[str] = []
     trace_lowering: list[DGSEMTraceLowering] = []
