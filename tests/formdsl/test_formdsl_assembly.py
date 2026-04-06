@@ -638,6 +638,27 @@ def test_dgsem_vector_source_lowering_is_component_aware() -> None:
     )
 
 
+def test_dgsem_vector_term_signatures_use_numeric_component_order() -> None:
+    result = assemble_form(
+        {
+            "trial_space": "Vector(P2)",
+            "test_space": "Vector(P2)",
+            "value_shape": [12],
+            "terms": [{"kind": "diffusion", "coefficient": 1.0}],
+            "boundary_conditions": [{"kind": "essential", "value": 0.0}],
+        },
+        backend="dgsem",
+        overlay_payload=_overlay_contract(),
+    )
+    payload = cast(DGSEMLoweringResult, result.payload)
+
+    component_indices = [
+        int(signature.split("]:", maxsplit=1)[0].removeprefix("component["))
+        for signature in payload.volume_terms
+    ]
+    assert component_indices == list(range(12))
+
+
 def test_dgsem_rejects_rank2_value_shape() -> None:
     with pytest.raises(CapabilityError) as error:
         assemble_form(

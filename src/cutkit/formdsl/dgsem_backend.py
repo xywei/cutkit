@@ -242,6 +242,50 @@ def _source_component(
     return source
 
 
+def _component_order(component: int | None) -> int:
+    return component if component is not None else -1
+
+
+def _volume_sort_key(entry: DGSEMVolumeLowering) -> tuple[int, str, str, str]:
+    return (
+        _component_order(entry.component),
+        entry.kind,
+        _format_float(entry.coefficient),
+        entry.source_signature or "",
+    )
+
+
+def _trace_sort_key(entry: DGSEMTraceLowering) -> tuple[int, str, str, str]:
+    return (
+        _component_order(entry.component),
+        entry.kind,
+        entry.boundary,
+        _format_float(entry.value),
+    )
+
+
+def _flux_sort_key(
+    entry: DGSEMFluxLowering,
+) -> tuple[int, str, str, str, str]:
+    return (
+        _component_order(entry.component),
+        entry.role,
+        entry.boundary or "",
+        _format_float(entry.diffusion_coefficient),
+        _format_float(entry.boundary_value) if entry.boundary_value is not None else "",
+    )
+
+
+def _flux_term(entry: DGSEMFluxLowering) -> str:
+    return (
+        f"{_component_prefix(entry.component)}"
+        f"{entry.family}:{entry.role}:{entry.boundary or 'interior'}:"
+        f"{_format_float(entry.diffusion_coefficient)}:"
+        f"{_format_float(entry.boundary_value) if entry.boundary_value is not None else 'none'}:"
+        f"{_format_float(entry.penalty) if entry.penalty is not None else 'none'}"
+    )
+
+
 def _parse_flux_family(
     form_ir: WeakFormIR,
     *,
@@ -351,7 +395,7 @@ def lower_dgsem(
                 f"target {target!r} has status {status!r}"
             )
 
-    volume_terms: list[str] = []
+    volume_terms: list[tuple[int | None, str]] = []
     volume_lowering: list[DGSEMVolumeLowering] = []
     diffusion_coefficients: list[tuple[float, int | None]] = []
     term_diagnostics: list[DGSEMLoweringDiagnostic] = []
@@ -363,8 +407,11 @@ def lower_dgsem(
                 source_component = _source_component(term.source, component=component)
                 source_signature = _source_signature(source_component)
                 volume_terms.append(
-                    f"{_component_prefix(component)}"
-                    f"source:{_format_float(coefficient)}:{source_signature}"
+                    (
+                        component,
+                        f"{_component_prefix(component)}"
+                        f"source:{_format_float(coefficient)}:{source_signature}",
+                    )
                 )
                 volume_lowering.append(
                     DGSEMVolumeLowering(
@@ -379,8 +426,11 @@ def lower_dgsem(
         if term.kind == "diffusion":
             for component in component_indices:
                 volume_terms.append(
-                    f"{_component_prefix(component)}"
-                    f"{term.kind}:{_format_float(coefficient)}"
+                    (
+                        component,
+                        f"{_component_prefix(component)}"
+                        f"{term.kind}:{_format_float(coefficient)}",
+                    )
                 )
                 diffusion_coefficients.append((coefficient, component))
                 volume_lowering.append(
@@ -394,8 +444,11 @@ def lower_dgsem(
         elif term.kind in {"mass", "reaction"}:
             for component in component_indices:
                 volume_terms.append(
-                    f"{_component_prefix(component)}"
-                    f"{term.kind}:{_format_float(coefficient)}"
+                    (
+                        component,
+                        f"{_component_prefix(component)}"
+                        f"{term.kind}:{_format_float(coefficient)}",
+                    )
                 )
                 volume_lowering.append(
                     DGSEMVolumeLowering(
@@ -435,7 +488,7 @@ def lower_dgsem(
 
     lowering_diagnostics_list.extend(term_diagnostics)
 
-    trace_terms: list[str] = []
+    trace_terms: list[tuple[int | None, str]] = []
     trace_lowering: list[DGSEMTraceLowering] = []
     flux_lowering: list[DGSEMFluxLowering] = []
     for bc in form_ir.boundary_conditions:
@@ -443,8 +496,11 @@ def lower_dgsem(
             value = float(bc.value)
             for component in component_indices:
                 trace_terms.append(
-                    f"{_component_prefix(component)}"
-                    f"neumann:{bc.boundary}:{_format_float(value)}"
+                    (
+                        component,
+                        f"{_component_prefix(component)}"
+                        f"neumann:{bc.boundary}:{_format_float(value)}",
+                    )
                 )
                 trace_lowering.append(
                     DGSEMTraceLowering(
@@ -472,8 +528,11 @@ def lower_dgsem(
             value = float(bc.value)
             for component in component_indices:
                 trace_terms.append(
-                    f"{_component_prefix(component)}"
-                    f"dirichlet:{bc.boundary}:{_format_float(value)}"
+                    (
+                        component,
+                        f"{_component_prefix(component)}"
+                        f"dirichlet:{bc.boundary}:{_format_float(value)}",
+                    )
                 )
                 trace_lowering.append(
                     DGSEMTraceLowering(
@@ -512,61 +571,32 @@ def lower_dgsem(
             )
         )
 
-    flux_terms = tuple(
-        sorted(
-            f"{_component_prefix(entry.component)}"
-            f"{entry.family}:{entry.role}:{entry.boundary or 'interior'}:"
-            f"{_format_float(entry.diffusion_coefficient)}:"
-            f"{_format_float(entry.boundary_value) if entry.boundary_value is not None else 'none'}:"
-            f"{_format_float(entry.penalty) if entry.penalty is not None else 'none'}"
-            for entry in flux_lowering
-        )
-    )
+    flux_lowering_sorted = tuple(sorted(flux_lowering, key=_flux_sort_key))
+    flux_terms = tuple(_flux_term(entry) for entry in flux_lowering_sorted)
 
     return DGSEMLoweringResult(
-        volume_terms=tuple(sorted(volume_terms)),
-        trace_terms=tuple(sorted(trace_terms)),
+        volume_terms=tuple(
+            label
+            for _component, label in sorted(
+                volume_terms,
+                key=lambda entry: (_component_order(entry[0]), entry[1]),
+            )
+        ),
+        trace_terms=tuple(
+            label
+            for _component, label in sorted(
+                trace_terms,
+                key=lambda entry: (_component_order(entry[0]), entry[1]),
+            )
+        ),
         flux_family=flux_family,
         value_shape=form_ir.value_shape,
         overlay_version=version,
         overlay_statuses=overlay_statuses,
         overlay_diagnostics=overlay_diagnostics,
         lowering_diagnostics=tuple(lowering_diagnostics_list),
-        volume_lowering=tuple(
-            sorted(
-                volume_lowering,
-                key=lambda entry: (
-                    entry.component if entry.component is not None else -1,
-                    entry.kind,
-                    _format_float(entry.coefficient),
-                    entry.source_signature or "",
-                ),
-            )
-        ),
-        trace_lowering=tuple(
-            sorted(
-                trace_lowering,
-                key=lambda entry: (
-                    entry.component if entry.component is not None else -1,
-                    entry.kind,
-                    entry.boundary,
-                    _format_float(entry.value),
-                ),
-            )
-        ),
-        flux_lowering=tuple(
-            sorted(
-                flux_lowering,
-                key=lambda entry: (
-                    entry.component if entry.component is not None else -1,
-                    entry.role,
-                    entry.boundary or "",
-                    _format_float(entry.diffusion_coefficient),
-                    _format_float(entry.boundary_value)
-                    if entry.boundary_value is not None
-                    else "",
-                ),
-            )
-        ),
+        volume_lowering=tuple(sorted(volume_lowering, key=_volume_sort_key)),
+        trace_lowering=tuple(sorted(trace_lowering, key=_trace_sort_key)),
+        flux_lowering=flux_lowering_sorted,
         flux_terms=flux_terms,
     )
