@@ -9,6 +9,8 @@ from typing import Any
 from .ir import (
     BackendName,
     BoundaryCondition,
+    MultipatchDescriptor,
+    MultipatchInterfaceDescriptor,
     SourceComponent,
     SourceValue,
     Term,
@@ -24,6 +26,7 @@ _VECTOR_SPACE_PATTERNS = (
     "tensorelement(",
     "tensor element",
 )
+_VALID_INTERFACE_ORIENTATIONS = {"aligned", "reversed"}
 
 
 def _is_valid_boundary_selector(boundary: str) -> bool:
@@ -54,6 +57,194 @@ def _validate_ir_boundaries(boundary_conditions: tuple[BoundaryCondition, ...]) 
             continue
         raise ValueError(
             f"boundary condition at index {index} has unsupported boundary {condition.boundary!r}"
+        )
+
+
+def _normalize_patch_id(raw_patch_id: object, *, context: str) -> str:
+    patch_id = str(raw_patch_id).strip()
+    if not patch_id:
+        raise ValueError(f"{context} patch id must be non-empty")
+    return patch_id
+
+
+def _normalize_interface_boundary(raw_boundary: object, *, context: str) -> str:
+    boundary = str(raw_boundary).strip()
+    if not _is_valid_boundary_selector(boundary):
+        raise ValueError(f"{context} boundary selector {boundary!r} is unsupported")
+    return boundary
+
+
+def _multipatch_interface_sort_key(
+    descriptor: MultipatchInterfaceDescriptor,
+) -> tuple[str, str, str, str, str]:
+    return (
+        descriptor.plus_patch,
+        descriptor.minus_patch,
+        descriptor.plus_boundary,
+        descriptor.minus_boundary,
+        descriptor.orientation,
+    )
+
+
+def _parse_multipatch_descriptor(
+    raw_descriptor: object,
+    *,
+    context: str,
+) -> MultipatchDescriptor:
+    if not isinstance(raw_descriptor, Mapping):
+        raise ValueError(f"{context} multipatch must be a mapping")
+
+    raw_patch_ids = raw_descriptor.get("patch_ids")
+    if not isinstance(raw_patch_ids, list) or not raw_patch_ids:
+        raise ValueError(f"{context} multipatch patch_ids must be a non-empty list")
+
+    patch_ids: list[str] = []
+    for index, raw_patch_id in enumerate(raw_patch_ids):
+        patch_id = _normalize_patch_id(
+            raw_patch_id,
+            context=f"{context} multipatch patch_ids[{index}]",
+        )
+        if patch_id in patch_ids:
+            raise ValueError(f"{context} multipatch patch_ids must be unique")
+        patch_ids.append(patch_id)
+
+    if len(patch_ids) < 2:
+        raise ValueError(
+            f"{context} multipatch patch_ids must include at least two patches"
+        )
+
+    patch_id_set = set(patch_ids)
+    raw_interfaces = raw_descriptor.get("interfaces")
+    if not isinstance(raw_interfaces, list) or not raw_interfaces:
+        raise ValueError(f"{context} multipatch interfaces must be a non-empty list")
+
+    interfaces: list[MultipatchInterfaceDescriptor] = []
+    required_keys = (
+        "plus_patch",
+        "minus_patch",
+        "plus_boundary",
+        "minus_boundary",
+        "orientation",
+    )
+    for index, raw_interface in enumerate(raw_interfaces):
+        if not isinstance(raw_interface, Mapping):
+            raise ValueError(
+                f"{context} multipatch interfaces[{index}] must be a mapping"
+            )
+
+        for key in required_keys:
+            if key not in raw_interface:
+                raise ValueError(
+                    f"{context} multipatch interfaces[{index}] is missing required key {key!r}"
+                )
+
+        plus_patch = _normalize_patch_id(
+            raw_interface["plus_patch"],
+            context=f"{context} multipatch interfaces[{index}] plus_patch",
+        )
+        minus_patch = _normalize_patch_id(
+            raw_interface["minus_patch"],
+            context=f"{context} multipatch interfaces[{index}] minus_patch",
+        )
+        if plus_patch == minus_patch:
+            raise ValueError(
+                f"{context} multipatch interfaces[{index}] must reference two distinct patches"
+            )
+        if plus_patch not in patch_id_set or minus_patch not in patch_id_set:
+            raise ValueError(
+                f"{context} multipatch interfaces[{index}] references unknown patch id"
+            )
+
+        plus_boundary = _normalize_interface_boundary(
+            raw_interface["plus_boundary"],
+            context=f"{context} multipatch interfaces[{index}] plus_boundary",
+        )
+        minus_boundary = _normalize_interface_boundary(
+            raw_interface["minus_boundary"],
+            context=f"{context} multipatch interfaces[{index}] minus_boundary",
+        )
+        orientation = str(raw_interface["orientation"]).strip().lower()
+        if orientation not in _VALID_INTERFACE_ORIENTATIONS:
+            raise ValueError(
+                f"{context} multipatch interfaces[{index}] orientation {orientation!r} is unsupported"
+            )
+
+        interfaces.append(
+            MultipatchInterfaceDescriptor(
+                plus_patch=plus_patch,
+                minus_patch=minus_patch,
+                plus_boundary=plus_boundary,
+                minus_boundary=minus_boundary,
+                orientation=orientation,
+            )
+        )
+
+    return MultipatchDescriptor(
+        patch_ids=tuple(sorted(patch_ids)),
+        interfaces=tuple(sorted(interfaces, key=_multipatch_interface_sort_key)),
+    )
+
+
+def _validate_multipatch_descriptor(
+    multipatch: MultipatchDescriptor,
+    *,
+    context: str,
+) -> None:
+    if len(multipatch.patch_ids) < 2:
+        raise ValueError(f"{context} patch_ids must include at least two patches")
+
+    normalized_patch_ids: list[str] = []
+    for index, patch_id in enumerate(multipatch.patch_ids):
+        normalized_patch_ids.append(
+            _normalize_patch_id(
+                patch_id,
+                context=f"{context} patch_ids[{index}]",
+            )
+        )
+
+    if len(set(normalized_patch_ids)) != len(normalized_patch_ids):
+        raise ValueError(f"{context} patch_ids must be unique")
+    canonical_patch_ids = tuple(sorted(normalized_patch_ids))
+    if canonical_patch_ids != multipatch.patch_ids:
+        raise ValueError(
+            f"{context} patch_ids must be sorted for deterministic ordering"
+        )
+
+    if not multipatch.interfaces:
+        raise ValueError(f"{context} interfaces must be non-empty")
+
+    patch_id_set = set(canonical_patch_ids)
+    for index, interface in enumerate(multipatch.interfaces):
+        if interface.plus_patch == interface.minus_patch:
+            raise ValueError(
+                f"{context} interfaces[{index}] must reference two distinct patches"
+            )
+        if (
+            interface.plus_patch not in patch_id_set
+            or interface.minus_patch not in patch_id_set
+        ):
+            raise ValueError(
+                f"{context} interfaces[{index}] references unknown patch id"
+            )
+        _normalize_interface_boundary(
+            interface.plus_boundary,
+            context=f"{context} interfaces[{index}] plus_boundary",
+        )
+        _normalize_interface_boundary(
+            interface.minus_boundary,
+            context=f"{context} interfaces[{index}] minus_boundary",
+        )
+        if interface.orientation not in _VALID_INTERFACE_ORIENTATIONS:
+            raise ValueError(
+                f"{context} interfaces[{index}] orientation {interface.orientation!r} is unsupported"
+            )
+
+    canonical_interfaces = tuple(
+        sorted(multipatch.interfaces, key=_multipatch_interface_sort_key)
+    )
+    if canonical_interfaces != multipatch.interfaces:
+        raise ValueError(
+            f"{context} interfaces must be sorted for deterministic ordering"
         )
 
 
@@ -215,6 +406,11 @@ def _validate_form_ir(form_ir: WeakFormIR) -> None:
 
     _validate_ir_boundaries(form_ir.boundary_conditions)
     _validate_boundary_marker_metadata(form_ir.metadata)
+    if form_ir.multipatch is not None:
+        _validate_multipatch_descriptor(
+            form_ir.multipatch,
+            context="WeakFormIR multipatch",
+        )
 
 
 def _integral_subdomain_id(integral: object) -> object | None:
@@ -255,6 +451,13 @@ def _extract_ufl_boundary_marker_metadata(form: Any) -> dict[str, str]:
 
     _validate_boundary_marker_metadata(metadata)
     return metadata
+
+
+def _extract_ufl_multipatch_descriptor(form: Any) -> MultipatchDescriptor | None:
+    raw_descriptor = getattr(form, "multipatch_descriptor", None)
+    if raw_descriptor is None:
+        return None
+    return _parse_multipatch_descriptor(raw_descriptor, context="UFL form")
 
 
 def _ufl_operands(node: object) -> tuple[object, ...]:
@@ -505,6 +708,7 @@ def _parse_ufl_form(form: Any) -> WeakFormIR:
     terms: list[Term] = []
     boundary_conditions: list[BoundaryCondition] = []
     metadata = _extract_ufl_boundary_marker_metadata(form)
+    multipatch = _extract_ufl_multipatch_descriptor(form)
 
     for integral in integrals:
         integral_type_fn = getattr(integral, "integral_type", None)
@@ -581,6 +785,7 @@ def _parse_ufl_form(form: Any) -> WeakFormIR:
         boundary_conditions=tuple(boundary_conditions),
         metadata=metadata,
         value_shape=value_shape,
+        multipatch=multipatch,
     )
     _validate_form_ir(form_ir)
     return form_ir
@@ -666,6 +871,14 @@ def parse_form(
         metadata = {str(key): str(value) for key, value in raw_meta.items()}
     _validate_boundary_marker_metadata(metadata)
 
+    multipatch: MultipatchDescriptor | None = None
+    raw_multipatch = form.get("multipatch")
+    if raw_multipatch is not None:
+        multipatch = _parse_multipatch_descriptor(
+            raw_multipatch,
+            context="form payload",
+        )
+
     form_ir = WeakFormIR(
         trial_space=trial_space,
         test_space=test_space,
@@ -673,6 +886,7 @@ def parse_form(
         boundary_conditions=tuple(boundary_conditions),
         metadata=metadata,
         value_shape=value_shape,
+        multipatch=multipatch,
     )
     _validate_form_ir(form_ir)
     return form_ir

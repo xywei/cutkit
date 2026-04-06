@@ -5,9 +5,9 @@
 
 ## 2. IR + Parser Descriptor Support
 
-- [ ] 2.1 Add deterministic multipatch patch/interface descriptor parsing and IR
+- [x] 2.1 Add deterministic multipatch patch/interface descriptor parsing and IR
   metadata threading.
-- [ ] 2.2 Add payload-validation diagnostics for missing or malformed
+- [x] 2.2 Add payload-validation diagnostics for missing or malformed
   multipatch descriptor keys.
 
 ## 3. IGA Interface Lowering

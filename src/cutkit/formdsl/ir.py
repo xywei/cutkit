@@ -30,6 +30,25 @@ class BoundaryCondition:
 
 
 @dataclass(frozen=True)
+class MultipatchInterfaceDescriptor:
+    """One directed interface descriptor between two patches."""
+
+    plus_patch: str
+    minus_patch: str
+    plus_boundary: str
+    minus_boundary: str
+    orientation: str
+
+
+@dataclass(frozen=True)
+class MultipatchDescriptor:
+    """Deterministic multipatch descriptor payload."""
+
+    patch_ids: tuple[str, ...]
+    interfaces: tuple[MultipatchInterfaceDescriptor, ...]
+
+
+@dataclass(frozen=True)
 class WeakFormIR:
     """Canonical weak form used by CUTKIT backend lowerers."""
 
@@ -39,3 +58,4 @@ class WeakFormIR:
     boundary_conditions: tuple[BoundaryCondition, ...] = field(default_factory=tuple)
     metadata: dict[str, str] = field(default_factory=dict)
     value_shape: tuple[int, ...] = field(default_factory=tuple)
+    multipatch: MultipatchDescriptor | None = None
