@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from math import hypot, isclose
+from math import hypot, isclose, isfinite
 from typing import Callable
 
 from cutkit.evals import antolin_wei_buffa_2022_2d as awb2d
@@ -23,6 +23,7 @@ class IGAAssemblyResult:
     rhs: tuple[float, ...]
     bounds: tuple[float, float, float, float]
     geometry_map: str
+    execution_path: str
 
 
 def _term_scalar(form_ir: WeakFormIR, kind: str) -> float:
@@ -44,6 +45,137 @@ def _normalized_geometry_map(form_ir: WeakFormIR) -> str:
     if not raw_geometry_map:
         return "bspline"
     return raw_geometry_map.lower()
+
+
+def _parse_nurbs_weights(
+    metadata: dict[str, str], *, dof_count: int
+) -> tuple[float, ...]:
+    raw_weights = metadata.get("nurbs_weights")
+    if raw_weights is None:
+        return tuple(1.0 for _ in range(dof_count))
+
+    cleaned = raw_weights.strip().replace("[", "").replace("]", "")
+    if not cleaned:
+        raise ValueError("nurbs_weights metadata is empty")
+
+    values: list[float] = []
+    for token in cleaned.split(","):
+        token = token.strip()
+        if not token:
+            continue
+        try:
+            value = float(token)
+        except ValueError as error:
+            raise ValueError(f"nurbs_weights entry {token!r} is not numeric") from error
+        if not isfinite(value):
+            raise ValueError("nurbs_weights entries must be finite")
+        if value <= 0.0:
+            raise ValueError("nurbs_weights entries must be positive")
+        values.append(value)
+
+    if len(values) != dof_count:
+        raise ValueError(
+            f"nurbs_weights length {len(values)} does not match dof count {dof_count}"
+        )
+    return tuple(values)
+
+
+def _basis_terms_at_point_rational(
+    *,
+    x: float,
+    y: float,
+    resolution: int,
+    spline_degree: int,
+    n_basis_axis: int,
+    knots_x: tuple[float, ...],
+    knots_y: tuple[float, ...],
+    bounds: tuple[float, float, float, float],
+    weights: tuple[float, ...],
+) -> tuple[tuple[int, float, float, float], ...]:
+    bspline_terms = pg._basis_terms_at_point(
+        x=x,
+        y=y,
+        resolution=resolution,
+        spline_degree=spline_degree,
+        n_basis_axis=n_basis_axis,
+        knots_x=knots_x,
+        knots_y=knots_y,
+        bounds=bounds,
+    )
+    basis_terms: list[tuple[int, float, float, float]] = []
+    weight_scale = 0.0
+    for index, value, grad_x, grad_y in bspline_terms:
+        basis_terms.append((index, value, grad_x, grad_y))
+        weight_scale = max(weight_scale, abs(weights[index] * value))
+
+    if weight_scale <= 0.0 or not isfinite(weight_scale):
+        raise ValueError("nurbs basis weights are invalid")
+
+    inv_weight_scale = 1.0 / weight_scale
+    if not isfinite(inv_weight_scale):
+        raise ValueError("nurbs basis weights are invalid")
+
+    weighted_terms: list[tuple[int, float, float, float]] = []
+    for index, value, grad_x, grad_y in basis_terms:
+        scaled_weighted_value = (weights[index] * value) * inv_weight_scale
+        if value != 0.0:
+            scaled_weighted_grad_x = scaled_weighted_value * (grad_x / value)
+            scaled_weighted_grad_y = scaled_weighted_value * (grad_y / value)
+        else:
+            scaled_weighted_grad_x = (weights[index] * grad_x) * inv_weight_scale
+            scaled_weighted_grad_y = (weights[index] * grad_y) * inv_weight_scale
+        weighted_terms.append(
+            (
+                index,
+                scaled_weighted_value,
+                scaled_weighted_grad_x,
+                scaled_weighted_grad_y,
+            )
+        )
+
+    denominator = 0.0
+    grad_denominator_x = 0.0
+    grad_denominator_y = 0.0
+    for (
+        _index,
+        scaled_weighted_value,
+        scaled_weighted_grad_x,
+        scaled_weighted_grad_y,
+    ) in weighted_terms:
+        denominator += scaled_weighted_value
+        grad_denominator_x += scaled_weighted_grad_x
+        grad_denominator_y += scaled_weighted_grad_y
+
+    if denominator <= 0.0 or not isfinite(denominator):
+        raise ValueError("nurbs basis denominator is numerically zero")
+
+    inv_denominator = 1.0 / denominator
+    if not isfinite(inv_denominator):
+        raise ValueError("nurbs basis denominator is numerically zero")
+
+    rational_terms: list[tuple[int, float, float, float]] = []
+    for (
+        index,
+        scaled_weighted_value,
+        scaled_weighted_grad_x,
+        scaled_weighted_grad_y,
+    ) in weighted_terms:
+        rational_value = scaled_weighted_value * inv_denominator
+        rational_grad_x = (
+            scaled_weighted_grad_x - rational_value * grad_denominator_x
+        ) * inv_denominator
+        rational_grad_y = (
+            scaled_weighted_grad_y - rational_value * grad_denominator_y
+        ) * inv_denominator
+        if not (
+            isfinite(rational_value)
+            and isfinite(rational_grad_x)
+            and isfinite(rational_grad_y)
+        ):
+            raise ValueError("nurbs rational basis terms are numerically unstable")
+        rational_terms.append((index, rational_value, rational_grad_x, rational_grad_y))
+
+    return tuple(rational_terms)
 
 
 def _source_fn(form_ir: WeakFormIR) -> Callable[[float, float], float]:
@@ -197,6 +329,8 @@ def _add_natural_rhs(
     knots_x: tuple[float, ...],
     knots_y: tuple[float, ...],
     bounds: tuple[float, float, float, float],
+    geometry_map: str,
+    nurbs_weights: tuple[float, ...],
 ) -> None:
     nodes_1d, weights_1d = pg.gauss_legendre_01(max(2, spline_degree + 1))
 
@@ -224,16 +358,29 @@ def _add_natural_rhs(
             for t, w in zip(nodes_1d, weights_1d, strict=True):
                 sample_x = start[0] + t * dx
                 sample_y = start[1] + t * dy
-                terms = pg._basis_terms_at_point(
-                    x=sample_x,
-                    y=sample_y,
-                    resolution=resolution,
-                    spline_degree=spline_degree,
-                    n_basis_axis=n_basis_axis,
-                    knots_x=knots_x,
-                    knots_y=knots_y,
-                    bounds=bounds,
-                )
+                if geometry_map == "nurbs":
+                    terms = _basis_terms_at_point_rational(
+                        x=sample_x,
+                        y=sample_y,
+                        resolution=resolution,
+                        spline_degree=spline_degree,
+                        n_basis_axis=n_basis_axis,
+                        knots_x=knots_x,
+                        knots_y=knots_y,
+                        bounds=bounds,
+                        weights=nurbs_weights,
+                    )
+                else:
+                    terms = pg._basis_terms_at_point(
+                        x=sample_x,
+                        y=sample_y,
+                        resolution=resolution,
+                        spline_degree=spline_degree,
+                        n_basis_axis=n_basis_axis,
+                        knots_x=knots_x,
+                        knots_y=knots_y,
+                        bounds=bounds,
+                    )
                 edge_weight = w * segment_length
                 for index, value, _gx, _gy in terms:
                     rhs[index] += edge_weight * condition.value * value
@@ -279,6 +426,14 @@ def assemble_iga(
 
     knots_x = pg._open_uniform_knots(num_elements=resolution, degree=spline_degree)
     knots_y = pg._open_uniform_knots(num_elements=resolution, degree=spline_degree)
+    geometry_map = _normalized_geometry_map(form_ir)
+    if geometry_map == "nurbs":
+        nurbs_weights = _parse_nurbs_weights(form_ir.metadata, dof_count=dof_count)
+    else:
+        nurbs_weights = ()
+    execution_path = (
+        "nurbs_rational_single_patch" if geometry_map == "nurbs" else "bspline"
+    )
 
     for clip in clipped:
         if clip.kind == "outside":
@@ -303,16 +458,29 @@ def assemble_iga(
             order=quadrature_order,
         )
         for x, y, weight in samples:
-            terms = pg._basis_terms_at_point(
-                x=x,
-                y=y,
-                resolution=resolution,
-                spline_degree=spline_degree,
-                n_basis_axis=n_basis_axis,
-                knots_x=knots_x,
-                knots_y=knots_y,
-                bounds=effective_bounds,
-            )
+            if geometry_map == "nurbs":
+                terms = _basis_terms_at_point_rational(
+                    x=x,
+                    y=y,
+                    resolution=resolution,
+                    spline_degree=spline_degree,
+                    n_basis_axis=n_basis_axis,
+                    knots_x=knots_x,
+                    knots_y=knots_y,
+                    bounds=effective_bounds,
+                    weights=nurbs_weights,
+                )
+            else:
+                terms = pg._basis_terms_at_point(
+                    x=x,
+                    y=y,
+                    resolution=resolution,
+                    spline_degree=spline_degree,
+                    n_basis_axis=n_basis_axis,
+                    knots_x=knots_x,
+                    knots_y=knots_y,
+                    bounds=effective_bounds,
+                )
             source_value = source(x, y)
 
             for global_a, value_a, grad_ax, grad_ay in terms:
@@ -341,6 +509,8 @@ def assemble_iga(
         knots_x=knots_x,
         knots_y=knots_y,
         bounds=effective_bounds,
+        geometry_map=geometry_map,
+        nurbs_weights=nurbs_weights,
     )
 
     fixed_values: dict[int, float] = {}
@@ -362,10 +532,10 @@ def assemble_iga(
                 fixed_values[index] = condition.value
 
     _apply_essential_values(matrix_rows, rhs, fixed_values=fixed_values)
-    geometry_map = _normalized_geometry_map(form_ir)
     return IGAAssemblyResult(
         matrix_rows=tuple(matrix_rows),
         rhs=tuple(rhs),
         bounds=effective_bounds,
         geometry_map=geometry_map,
+        execution_path=execution_path,
     )

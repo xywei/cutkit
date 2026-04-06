@@ -33,9 +33,9 @@ acceptance.
 ## Implementation Checklist
 
 - [x] Add OpenSpec proposal/design/spec/tasks artifacts for this phase.
-- [ ] Implement rational execution internals and payload metadata threading.
-- [ ] Add regression tests for NURBS rational path and B-spline stability.
-- [ ] Update docs and finalize OpenSpec task tracking.
+- [x] Implement rational execution internals and payload metadata threading.
+- [x] Add regression tests for NURBS rational path and B-spline stability.
+- [x] Update docs and finalize OpenSpec task tracking.
 
 ## Risks / Open Questions
 

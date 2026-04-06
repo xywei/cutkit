@@ -5,11 +5,11 @@
 
 ## 2. IGA Rational Execution Internals
 
-- [ ] 2.1 Add deterministic NURBS rational execution path for IGA lowering.
-- [ ] 2.2 Thread stable execution-path metadata into IGA payloads.
+- [x] 2.1 Add deterministic NURBS rational execution path for IGA lowering.
+- [x] 2.2 Thread stable execution-path metadata into IGA payloads.
 
 ## 3. Validation + Docs
 
-- [ ] 3.1 Add regression tests covering NURBS rational path and B-spline
+- [x] 3.1 Add regression tests covering NURBS rational path and B-spline
   stability.
-- [ ] 3.2 Update docs and execution-plan checklist with implemented behavior.
+- [x] 3.2 Update docs and execution-plan checklist with implemented behavior.

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from math import isclose
+from math import isclose, isfinite
 from typing import Any, cast
 
 import pytest
@@ -16,6 +16,7 @@ from cutkit.formdsl import (
     Term,
     WeakFormIR,
     assemble_form,
+    iga_backend as iga_backend_module,
     parse_form,
 )
 from cutkit.formdsl.dgsem_backend import (
@@ -544,6 +545,314 @@ def test_iga_accepts_nurbs_geometry_map_metadata() -> None:
 
     assert not result.diagnostics
     assert payload.geometry_map == "nurbs"
+    assert payload.execution_path == "nurbs_rational_single_patch"
+
+
+def test_iga_bspline_execution_path_default_is_stable() -> None:
+    panel = awb2d.build_section_6_1_1_bspline_panel(sample_count=128)
+    result = assemble_form(
+        _base_form(),
+        backend="iga",
+        panel=panel,
+        resolution=8,
+        spline_degree=2,
+        quadrature_order=4,
+    )
+    payload = cast(IGAAssemblyResult, result.payload)
+
+    assert payload.geometry_map == "bspline"
+    assert payload.execution_path == "bspline"
+
+
+def test_iga_bspline_ignores_nurbs_weight_metadata() -> None:
+    panel = awb2d.build_section_6_1_1_bspline_panel(sample_count=128)
+    form = _base_form()
+    form["metadata"] = {
+        "geometry_map": "bspline",
+        "nurbs_weights": "nan",
+    }
+
+    result = assemble_form(
+        form,
+        backend="iga",
+        panel=panel,
+        resolution=8,
+        spline_degree=2,
+        quadrature_order=4,
+    )
+    payload = cast(IGAAssemblyResult, result.payload)
+
+    assert not result.diagnostics
+    assert payload.execution_path == "bspline"
+
+
+def test_iga_nurbs_weights_length_mismatch_rejected() -> None:
+    panel = awb2d.build_section_6_1_1_bspline_panel(sample_count=128)
+    form = _base_form()
+    form["metadata"] = {
+        "geometry_map": "nurbs",
+        "nurbs_weights": "1, 1, 1",
+    }
+
+    with pytest.raises(ValueError, match="does not match dof count"):
+        assemble_form(
+            form,
+            backend="iga",
+            panel=panel,
+            resolution=2,
+            spline_degree=1,
+            quadrature_order=2,
+        )
+
+
+@pytest.mark.parametrize("bad_weight", ["nan", "inf", "-inf"])
+def test_iga_nurbs_weights_nonfinite_rejected(bad_weight: str) -> None:
+    panel = awb2d.build_section_6_1_1_bspline_panel(sample_count=128)
+    form = _base_form()
+    form["metadata"] = {
+        "geometry_map": "nurbs",
+        "nurbs_weights": f"1,1,1,1,{bad_weight},1,1,1,1",
+    }
+
+    with pytest.raises(ValueError, match="must be finite"):
+        assemble_form(
+            form,
+            backend="iga",
+            panel=panel,
+            resolution=2,
+            spline_degree=1,
+            quadrature_order=2,
+        )
+
+
+def test_iga_nurbs_uniform_tiny_weights_are_scale_invariant() -> None:
+    panel = awb2d.build_section_6_1_1_bspline_panel(sample_count=128)
+    bspline = _base_form()
+    tiny_nurbs = _base_form()
+    tiny_nurbs["metadata"] = {
+        "geometry_map": "nurbs",
+        "nurbs_weights": "1e-40,1e-40,1e-40,1e-40,1e-40,1e-40,1e-40,1e-40,1e-40",
+    }
+
+    bspline_result = assemble_form(
+        bspline,
+        backend="iga",
+        panel=panel,
+        resolution=2,
+        spline_degree=1,
+        quadrature_order=2,
+    )
+    tiny_nurbs_result = assemble_form(
+        tiny_nurbs,
+        backend="iga",
+        panel=panel,
+        resolution=2,
+        spline_degree=1,
+        quadrature_order=2,
+    )
+
+    bspline_payload = cast(IGAAssemblyResult, bspline_result.payload)
+    tiny_nurbs_payload = cast(IGAAssemblyResult, tiny_nurbs_result.payload)
+
+    assert tiny_nurbs_payload.execution_path == "nurbs_rational_single_patch"
+    assert all(
+        isfinite(value)
+        for row in tiny_nurbs_payload.matrix_rows
+        for value in row.values()
+    )
+    assert all(isfinite(value) for value in tiny_nurbs_payload.rhs)
+    _assert_sparse_close(
+        tiny_nurbs_payload.matrix_rows,
+        [dict(row) for row in bspline_payload.matrix_rows],
+        tolerance=1.0e-12,
+    )
+    for bspline_value, tiny_nurbs_value in zip(
+        bspline_payload.rhs,
+        tiny_nurbs_payload.rhs,
+        strict=True,
+    ):
+        assert isclose(bspline_value, tiny_nurbs_value, rel_tol=0.0, abs_tol=1.0e-12)
+
+
+def test_iga_nurbs_uniform_huge_weights_are_scale_invariant() -> None:
+    panel = awb2d.build_section_6_1_1_bspline_panel(sample_count=128)
+    bspline = _base_form()
+    huge_nurbs = _base_form()
+    huge_nurbs["metadata"] = {
+        "geometry_map": "nurbs",
+        "nurbs_weights": "1e308,1e308,1e308,1e308,1e308,1e308,1e308,1e308,1e308",
+    }
+
+    bspline_result = assemble_form(
+        bspline,
+        backend="iga",
+        panel=panel,
+        resolution=2,
+        spline_degree=1,
+        quadrature_order=2,
+    )
+    huge_nurbs_result = assemble_form(
+        huge_nurbs,
+        backend="iga",
+        panel=panel,
+        resolution=2,
+        spline_degree=1,
+        quadrature_order=2,
+    )
+
+    bspline_payload = cast(IGAAssemblyResult, bspline_result.payload)
+    huge_nurbs_payload = cast(IGAAssemblyResult, huge_nurbs_result.payload)
+
+    assert huge_nurbs_payload.execution_path == "nurbs_rational_single_patch"
+    assert all(
+        isfinite(value)
+        for row in huge_nurbs_payload.matrix_rows
+        for value in row.values()
+    )
+    assert all(isfinite(value) for value in huge_nurbs_payload.rhs)
+    _assert_sparse_close(
+        huge_nurbs_payload.matrix_rows,
+        [dict(row) for row in bspline_payload.matrix_rows],
+        tolerance=1.0e-12,
+    )
+    for bspline_value, huge_nurbs_value in zip(
+        bspline_payload.rhs,
+        huge_nurbs_payload.rhs,
+        strict=True,
+    ):
+        assert isclose(bspline_value, huge_nurbs_value, rel_tol=0.0, abs_tol=1.0e-12)
+
+
+def test_iga_rational_terms_avoid_denominator_square_underflow(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def _fake_basis_terms_at_point(
+        **_kwargs: object,
+    ) -> tuple[tuple[int, float, float, float], ...]:
+        return (
+            (0, 0.0, 0.0, 0.0),
+            (1, 1.0, 1.0, 1.0),
+        )
+
+    monkeypatch.setattr(pg, "_basis_terms_at_point", _fake_basis_terms_at_point)
+
+    terms = iga_backend_module._basis_terms_at_point_rational(
+        x=0.25,
+        y=0.75,
+        resolution=2,
+        spline_degree=1,
+        n_basis_axis=2,
+        knots_x=(0.0, 0.0, 1.0, 1.0),
+        knots_y=(0.0, 0.0, 1.0, 1.0),
+        bounds=(0.0, 0.0, 1.0, 1.0),
+        weights=(1.0, 1.0e-300),
+    )
+
+    assert len(terms) == 2
+    assert isclose(terms[1][1], 1.0, rel_tol=0.0, abs_tol=1.0e-12)
+    for _index, value, grad_x, grad_y in terms:
+        assert isfinite(value)
+        assert isfinite(grad_x)
+        assert isfinite(grad_y)
+
+
+def test_iga_rational_terms_scale_by_contributing_values(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def _fake_basis_terms_at_point(
+        **_kwargs: object,
+    ) -> tuple[tuple[int, float, float, float], ...]:
+        return (
+            (0, 0.0, 0.0, 0.0),
+            (1, 1.0, 1.0, 0.0),
+        )
+
+    monkeypatch.setattr(pg, "_basis_terms_at_point", _fake_basis_terms_at_point)
+
+    terms = iga_backend_module._basis_terms_at_point_rational(
+        x=0.25,
+        y=0.75,
+        resolution=2,
+        spline_degree=1,
+        n_basis_axis=2,
+        knots_x=(0.0, 0.0, 1.0, 1.0),
+        knots_y=(0.0, 0.0, 1.0, 1.0),
+        bounds=(0.0, 0.0, 1.0, 1.0),
+        weights=(1.0e308, 1.0e-100),
+    )
+
+    assert len(terms) == 2
+    assert isclose(terms[1][1], 1.0, rel_tol=0.0, abs_tol=1.0e-12)
+    for _index, value, grad_x, grad_y in terms:
+        assert isfinite(value)
+        assert isfinite(grad_x)
+        assert isfinite(grad_y)
+
+
+def test_iga_rational_terms_reject_nonfinite_gradients(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def _fake_basis_terms_at_point(
+        **_kwargs: object,
+    ) -> tuple[tuple[int, float, float, float], ...]:
+        return (
+            (0, 1.0e-308, 1.0e200, 0.0),
+            (1, 1.0, 0.0, 0.0),
+        )
+
+    monkeypatch.setattr(pg, "_basis_terms_at_point", _fake_basis_terms_at_point)
+
+    with pytest.raises(ValueError, match="numerically unstable"):
+        iga_backend_module._basis_terms_at_point_rational(
+            x=0.25,
+            y=0.75,
+            resolution=2,
+            spline_degree=1,
+            n_basis_axis=2,
+            knots_x=(0.0, 0.0, 1.0, 1.0),
+            knots_y=(0.0, 0.0, 1.0, 1.0),
+            bounds=(0.0, 0.0, 1.0, 1.0),
+            weights=(1.0, 1.0e-308),
+        )
+
+
+def test_iga_nurbs_weights_modify_rational_lowering() -> None:
+    panel = awb2d.build_section_6_1_1_bspline_panel(sample_count=128)
+    bspline = _base_form()
+    nurbs = _base_form()
+    nurbs["metadata"] = {
+        "geometry_map": "nurbs",
+        "nurbs_weights": "1,1,1,1,2,1,1,1,1",
+    }
+
+    bspline_result = assemble_form(
+        bspline,
+        backend="iga",
+        panel=panel,
+        resolution=2,
+        spline_degree=1,
+        quadrature_order=2,
+    )
+    nurbs_result = assemble_form(
+        nurbs,
+        backend="iga",
+        panel=panel,
+        resolution=2,
+        spline_degree=1,
+        quadrature_order=2,
+    )
+
+    bspline_payload = cast(IGAAssemblyResult, bspline_result.payload)
+    nurbs_payload = cast(IGAAssemblyResult, nurbs_result.payload)
+
+    assert bspline_payload.execution_path == "bspline"
+    assert nurbs_payload.execution_path == "nurbs_rational_single_patch"
+    assert not isclose(
+        bspline_payload.matrix_rows[4][4],
+        nurbs_payload.matrix_rows[4][4],
+        rel_tol=0.0,
+        abs_tol=1.0e-12,
+    )
 
 
 def test_iga_rejects_unknown_geometry_map() -> None:
