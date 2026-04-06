@@ -674,6 +674,55 @@ def test_iga_nurbs_uniform_tiny_weights_are_scale_invariant() -> None:
         assert isclose(bspline_value, tiny_nurbs_value, rel_tol=0.0, abs_tol=1.0e-12)
 
 
+def test_iga_nurbs_uniform_huge_weights_are_scale_invariant() -> None:
+    panel = awb2d.build_section_6_1_1_bspline_panel(sample_count=128)
+    bspline = _base_form()
+    huge_nurbs = _base_form()
+    huge_nurbs["metadata"] = {
+        "geometry_map": "nurbs",
+        "nurbs_weights": "1e308,1e308,1e308,1e308,1e308,1e308,1e308,1e308,1e308",
+    }
+
+    bspline_result = assemble_form(
+        bspline,
+        backend="iga",
+        panel=panel,
+        resolution=2,
+        spline_degree=1,
+        quadrature_order=2,
+    )
+    huge_nurbs_result = assemble_form(
+        huge_nurbs,
+        backend="iga",
+        panel=panel,
+        resolution=2,
+        spline_degree=1,
+        quadrature_order=2,
+    )
+
+    bspline_payload = cast(IGAAssemblyResult, bspline_result.payload)
+    huge_nurbs_payload = cast(IGAAssemblyResult, huge_nurbs_result.payload)
+
+    assert huge_nurbs_payload.execution_path == "nurbs_rational_single_patch"
+    assert all(
+        isfinite(value)
+        for row in huge_nurbs_payload.matrix_rows
+        for value in row.values()
+    )
+    assert all(isfinite(value) for value in huge_nurbs_payload.rhs)
+    _assert_sparse_close(
+        huge_nurbs_payload.matrix_rows,
+        [dict(row) for row in bspline_payload.matrix_rows],
+        tolerance=1.0e-12,
+    )
+    for bspline_value, huge_nurbs_value in zip(
+        bspline_payload.rhs,
+        huge_nurbs_payload.rhs,
+        strict=True,
+    ):
+        assert isclose(bspline_value, huge_nurbs_value, rel_tol=0.0, abs_tol=1.0e-12)
+
+
 def test_iga_rational_terms_avoid_denominator_square_underflow(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

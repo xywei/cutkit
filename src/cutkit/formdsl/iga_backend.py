@@ -102,25 +102,46 @@ def _basis_terms_at_point_rational(
         knots_y=knots_y,
         bounds=bounds,
     )
-    weighted_terms: list[tuple[int, float, float, float]] = []
+    basis_terms: list[tuple[int, float, float, float]] = []
     weight_scale = 0.0
     for index, value, grad_x, grad_y in bspline_terms:
-        weighted_value = weights[index] * value
-        weighted_grad_x = weights[index] * grad_x
-        weighted_grad_y = weights[index] * grad_y
-        weighted_terms.append((index, weighted_value, weighted_grad_x, weighted_grad_y))
-        weight_scale = max(weight_scale, abs(weighted_value))
+        basis_terms.append((index, value, grad_x, grad_y))
+        weight_scale = max(weight_scale, abs(weights[index] * value))
 
     if weight_scale <= 0.0 or not isfinite(weight_scale):
         raise ValueError("nurbs basis weights are invalid")
 
+    inv_weight_scale = 1.0 / weight_scale
+    if not isfinite(inv_weight_scale):
+        raise ValueError("nurbs basis weights are invalid")
+
+    weighted_terms: list[tuple[int, float, float, float]] = []
+    for index, value, grad_x, grad_y in basis_terms:
+        scaled_weighted_value = (weights[index] * value) * inv_weight_scale
+        if value != 0.0:
+            scaled_weighted_grad_x = scaled_weighted_value * (grad_x / value)
+            scaled_weighted_grad_y = scaled_weighted_value * (grad_y / value)
+        else:
+            scaled_weighted_grad_x = (weights[index] * grad_x) * inv_weight_scale
+            scaled_weighted_grad_y = (weights[index] * grad_y) * inv_weight_scale
+        weighted_terms.append(
+            (
+                index,
+                scaled_weighted_value,
+                scaled_weighted_grad_x,
+                scaled_weighted_grad_y,
+            )
+        )
+
     denominator = 0.0
     grad_denominator_x = 0.0
     grad_denominator_y = 0.0
-    for _index, weighted_value, weighted_grad_x, weighted_grad_y in weighted_terms:
-        scaled_weighted_value = weighted_value / weight_scale
-        scaled_weighted_grad_x = weighted_grad_x / weight_scale
-        scaled_weighted_grad_y = weighted_grad_y / weight_scale
+    for (
+        _index,
+        scaled_weighted_value,
+        scaled_weighted_grad_x,
+        scaled_weighted_grad_y,
+    ) in weighted_terms:
         denominator += scaled_weighted_value
         grad_denominator_x += scaled_weighted_grad_x
         grad_denominator_y += scaled_weighted_grad_y
@@ -133,10 +154,12 @@ def _basis_terms_at_point_rational(
         raise ValueError("nurbs basis denominator is numerically zero")
 
     rational_terms: list[tuple[int, float, float, float]] = []
-    for index, weighted_value, weighted_grad_x, weighted_grad_y in weighted_terms:
-        scaled_weighted_value = weighted_value / weight_scale
-        scaled_weighted_grad_x = weighted_grad_x / weight_scale
-        scaled_weighted_grad_y = weighted_grad_y / weight_scale
+    for (
+        index,
+        scaled_weighted_value,
+        scaled_weighted_grad_x,
+        scaled_weighted_grad_y,
+    ) in weighted_terms:
         rational_value = scaled_weighted_value * inv_denominator
         rational_grad_x = (
             scaled_weighted_grad_x - rational_value * grad_denominator_x
