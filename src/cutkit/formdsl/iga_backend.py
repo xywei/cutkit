@@ -120,20 +120,23 @@ def _basis_terms_at_point_rational(
     if denominator <= 0.0 or not isfinite(denominator):
         raise ValueError("nurbs basis denominator is numerically zero")
 
-    denominator_sq = denominator * denominator
+    inv_denominator = 1.0 / denominator
+    if not isfinite(inv_denominator):
+        raise ValueError("nurbs basis denominator is numerically zero")
+
     rational_terms: list[tuple[int, float, float, float]] = []
     for index, value, grad_x, grad_y in bspline_terms:
         weight = weights[index] / weight_scale
         weighted_value = weight * value
         weighted_grad_x = weight * grad_x
         weighted_grad_y = weight * grad_y
-        rational_value = weighted_value / denominator
+        rational_value = weighted_value * inv_denominator
         rational_grad_x = (
-            weighted_grad_x * denominator - weighted_value * grad_denominator_x
-        ) / denominator_sq
+            weighted_grad_x - rational_value * grad_denominator_x
+        ) * inv_denominator
         rational_grad_y = (
-            weighted_grad_y * denominator - weighted_value * grad_denominator_y
-        ) / denominator_sq
+            weighted_grad_y - rational_value * grad_denominator_y
+        ) * inv_denominator
         rational_terms.append((index, rational_value, rational_grad_x, rational_grad_y))
 
     return tuple(rational_terms)
