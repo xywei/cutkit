@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from math import isclose
+from math import isclose, isfinite
 from typing import Any, cast
 
 import pytest
@@ -580,6 +580,75 @@ def test_iga_nurbs_weights_length_mismatch_rejected() -> None:
             spline_degree=1,
             quadrature_order=2,
         )
+
+
+@pytest.mark.parametrize("bad_weight", ["nan", "inf", "-inf"])
+def test_iga_nurbs_weights_nonfinite_rejected(bad_weight: str) -> None:
+    panel = awb2d.build_section_6_1_1_bspline_panel(sample_count=128)
+    form = _base_form()
+    form["metadata"] = {
+        "geometry_map": "nurbs",
+        "nurbs_weights": f"1,1,1,1,{bad_weight},1,1,1,1",
+    }
+
+    with pytest.raises(ValueError, match="must be finite"):
+        assemble_form(
+            form,
+            backend="iga",
+            panel=panel,
+            resolution=2,
+            spline_degree=1,
+            quadrature_order=2,
+        )
+
+
+def test_iga_nurbs_uniform_tiny_weights_are_scale_invariant() -> None:
+    panel = awb2d.build_section_6_1_1_bspline_panel(sample_count=128)
+    bspline = _base_form()
+    tiny_nurbs = _base_form()
+    tiny_nurbs["metadata"] = {
+        "geometry_map": "nurbs",
+        "nurbs_weights": "1e-40,1e-40,1e-40,1e-40,1e-40,1e-40,1e-40,1e-40,1e-40",
+    }
+
+    bspline_result = assemble_form(
+        bspline,
+        backend="iga",
+        panel=panel,
+        resolution=2,
+        spline_degree=1,
+        quadrature_order=2,
+    )
+    tiny_nurbs_result = assemble_form(
+        tiny_nurbs,
+        backend="iga",
+        panel=panel,
+        resolution=2,
+        spline_degree=1,
+        quadrature_order=2,
+    )
+
+    bspline_payload = cast(IGAAssemblyResult, bspline_result.payload)
+    tiny_nurbs_payload = cast(IGAAssemblyResult, tiny_nurbs_result.payload)
+
+    assert tiny_nurbs_payload.execution_path == "nurbs_rational_single_patch"
+    assert all(
+        isfinite(value)
+        for row in tiny_nurbs_payload.matrix_rows
+        for value in row.values()
+    )
+    assert all(isfinite(value) for value in tiny_nurbs_payload.rhs)
+    _assert_sparse_close(
+        tiny_nurbs_payload.matrix_rows,
+        [dict(row) for row in bspline_payload.matrix_rows],
+        tolerance=1.0e-12,
+    )
+    for bspline_value, tiny_nurbs_value in zip(
+        bspline_payload.rhs,
+        tiny_nurbs_payload.rhs,
+        strict=True,
+    ):
+        assert isclose(bspline_value, tiny_nurbs_value, rel_tol=0.0, abs_tol=1.0e-12)
 
 
 def test_iga_nurbs_weights_modify_rational_lowering() -> None:

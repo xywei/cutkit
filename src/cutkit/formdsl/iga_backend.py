@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from math import hypot, isclose
+from math import hypot, isclose, isfinite
 from typing import Callable
 
 from cutkit.evals import antolin_wei_buffa_2022_2d as awb2d
@@ -67,6 +67,8 @@ def _parse_nurbs_weights(
             value = float(token)
         except ValueError as error:
             raise ValueError(f"nurbs_weights entry {token!r} is not numeric") from error
+        if not isfinite(value):
+            raise ValueError("nurbs_weights entries must be finite")
         if value <= 0.0:
             raise ValueError("nurbs_weights entries must be positive")
         values.append(value)
@@ -100,22 +102,28 @@ def _basis_terms_at_point_rational(
         knots_y=knots_y,
         bounds=bounds,
     )
+    weight_scale = max(
+        weights[index] for index, _value, _grad_x, _grad_y in bspline_terms
+    )
+    if weight_scale <= 0.0 or not isfinite(weight_scale):
+        raise ValueError("nurbs basis weights are invalid")
+
     denominator = 0.0
     grad_denominator_x = 0.0
     grad_denominator_y = 0.0
     for index, value, grad_x, grad_y in bspline_terms:
-        weight = weights[index]
+        weight = weights[index] / weight_scale
         denominator += weight * value
         grad_denominator_x += weight * grad_x
         grad_denominator_y += weight * grad_y
 
-    if abs(denominator) <= 1.0e-18:
+    if denominator <= 0.0 or not isfinite(denominator):
         raise ValueError("nurbs basis denominator is numerically zero")
 
     denominator_sq = denominator * denominator
     rational_terms: list[tuple[int, float, float, float]] = []
     for index, value, grad_x, grad_y in bspline_terms:
-        weight = weights[index]
+        weight = weights[index] / weight_scale
         weighted_value = weight * value
         weighted_grad_x = weight * grad_x
         weighted_grad_y = weight * grad_y

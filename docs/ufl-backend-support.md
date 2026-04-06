@@ -29,9 +29,10 @@ Mapping payloads that use vector/tensor space labels must declare
 For `iga` + `geometry_map=nurbs`, formdsl now uses a deterministic
 `nurbs_rational_single_patch` lowering path and records that execution mode in
 the IGA payload metadata. Optional metadata key `nurbs_weights` can be provided
-as a comma-separated positive weight vector with length equal to the IGA dof
-count for the chosen `resolution` and `spline_degree`; otherwise unit weights
-are used.
+as a comma-separated finite positive weight vector with length equal to the IGA
+dof count for the chosen `resolution` and `spline_degree`; otherwise unit
+weights are used. Uniform global scaling of `nurbs_weights` is treated as
+numerically equivalent.
 
 For rank-1 vector forms, mapping payload `source` terms support two
 deterministic conventions:
