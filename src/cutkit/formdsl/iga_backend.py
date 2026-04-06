@@ -137,6 +137,12 @@ def _basis_terms_at_point_rational(
         rational_grad_y = (
             weighted_grad_y - rational_value * grad_denominator_y
         ) * inv_denominator
+        if not (
+            isfinite(rational_value)
+            and isfinite(rational_grad_x)
+            and isfinite(rational_grad_y)
+        ):
+            raise ValueError("nurbs rational basis terms are numerically unstable")
         rational_terms.append((index, rational_value, rational_grad_x, rational_grad_y))
 
     return tuple(rational_terms)
