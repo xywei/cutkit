@@ -7,12 +7,20 @@ from .diagnostics import (
     CapabilityError,
     PrerequisiteError,
 )
-from .ir import BoundaryCondition, Term, WeakFormIR
+from .ir import (
+    BoundaryCondition,
+    MultipatchDescriptor,
+    MultipatchInterfaceDescriptor,
+    Term,
+    WeakFormIR,
+)
 
 __all__ = [
     "BoundaryCondition",
     "CapabilityDiagnostic",
     "CapabilityError",
+    "MultipatchDescriptor",
+    "MultipatchInterfaceDescriptor",
     "PrerequisiteError",
     "Term",
     "WeakFormIR",

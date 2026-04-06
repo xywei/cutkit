@@ -35,7 +35,7 @@ rational execution support.
 ## Implementation Checklist
 
 - [x] Add OpenSpec proposal/design/spec/tasks artifacts for this phase.
-- [ ] Implement multipatch descriptor parsing and IR threading.
+- [x] Implement multipatch descriptor parsing and IR threading.
 - [ ] Implement IGA multipatch interface lowering with deterministic
   orientation handling.
 - [ ] Add regression tests and update docs with completed semantics.

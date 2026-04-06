@@ -21,6 +21,10 @@ _SUPPORTED_VALUE_SHAPES: dict[str, tuple[str, ...]] = {
     "iga": ("()",),
     "dgsem": ("()", "(N,)"),
 }
+_SUPPORTED_MULTIPATCH_INTERFACE: dict[str, bool] = {
+    "iga": False,
+    "dgsem": False,
+}
 
 
 def _is_supported_value_shape(value_shape: tuple[int, ...], *, backend: str) -> bool:
@@ -126,6 +130,26 @@ def check_support(
                     f"for backend {backend!r}"
                 ),
                 alternatives=supported_value_shapes,
+            )
+        )
+
+    if form_ir.multipatch is not None and not _SUPPORTED_MULTIPATCH_INTERFACE[backend]:
+        alternatives = tuple(
+            sorted(
+                supported_backend
+                for supported_backend, supports_multipatch in _SUPPORTED_MULTIPATCH_INTERFACE.items()
+                if supports_multipatch
+            )
+        )
+        diagnostics.append(
+            CapabilityDiagnostic(
+                code="unsupported_multipatch_interface",
+                backend=backend,
+                detail=(
+                    "multipatch interface descriptors are not supported "
+                    f"for backend {backend!r}"
+                ),
+                alternatives=alternatives,
             )
         )
 

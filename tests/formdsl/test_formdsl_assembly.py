@@ -12,6 +12,8 @@ from cutkit.io import MeshmodeCutOverlay, MeshmodeOverlayDiagnostic, OverlayStat
 from cutkit.formdsl import (
     BoundaryCondition,
     CapabilityError,
+    MultipatchDescriptor,
+    MultipatchInterfaceDescriptor,
     PrerequisiteError,
     Term,
     WeakFormIR,
@@ -36,6 +38,21 @@ def _base_form() -> dict[str, object]:
             {"kind": "source", "source": pg.default_poisson_source},
         ],
         "boundary_conditions": [{"kind": "essential", "value": 0.0}],
+    }
+
+
+def _base_multipatch_descriptor() -> dict[str, object]:
+    return {
+        "patch_ids": ["patch-b", "patch-a"],
+        "interfaces": [
+            {
+                "plus_patch": "patch-b",
+                "minus_patch": "patch-a",
+                "plus_boundary": "right",
+                "minus_boundary": "left",
+                "orientation": "aligned",
+            }
+        ],
     }
 
 
@@ -514,6 +531,83 @@ def test_parse_form_weakformir_rejects_invalid_marker_metadata() -> None:
         parse_form(form_ir, backend="iga")
 
 
+def test_parse_form_accepts_multipatch_descriptor_payload() -> None:
+    ir = parse_form(
+        {
+            "terms": [{"kind": "diffusion", "coefficient": 1.0}],
+            "multipatch": {
+                "patch_ids": ["patch-b", "patch-a"],
+                "interfaces": [
+                    {
+                        "plus_patch": "patch-b",
+                        "minus_patch": "patch-a",
+                        "plus_boundary": "marker:plus-edge",
+                        "minus_boundary": "left",
+                        "orientation": "Aligned",
+                    }
+                ],
+            },
+        },
+        backend="iga",
+    )
+
+    assert ir.multipatch is not None
+    assert ir.multipatch.patch_ids == ("patch-a", "patch-b")
+    assert ir.multipatch.interfaces == (
+        MultipatchInterfaceDescriptor(
+            plus_patch="patch-b",
+            minus_patch="patch-a",
+            plus_boundary="marker:plus-edge",
+            minus_boundary="left",
+            orientation="aligned",
+        ),
+    )
+
+
+def test_parse_form_rejects_multipatch_descriptor_missing_required_key() -> None:
+    with pytest.raises(ValueError, match="missing required key 'orientation'"):
+        parse_form(
+            {
+                "terms": [{"kind": "diffusion", "coefficient": 1.0}],
+                "multipatch": {
+                    "patch_ids": ["patch-a", "patch-b"],
+                    "interfaces": [
+                        {
+                            "plus_patch": "patch-a",
+                            "minus_patch": "patch-b",
+                            "plus_boundary": "right",
+                            "minus_boundary": "left",
+                        }
+                    ],
+                },
+            },
+            backend="iga",
+        )
+
+
+def test_parse_form_weakformir_rejects_unsorted_multipatch_patch_ids() -> None:
+    form_ir = WeakFormIR(
+        trial_space="P1",
+        test_space="P1",
+        terms=(Term(kind="diffusion", coefficient=1.0),),
+        multipatch=MultipatchDescriptor(
+            patch_ids=("patch-b", "patch-a"),
+            interfaces=(
+                MultipatchInterfaceDescriptor(
+                    plus_patch="patch-b",
+                    minus_patch="patch-a",
+                    plus_boundary="right",
+                    minus_boundary="left",
+                    orientation="aligned",
+                ),
+            ),
+        ),
+    )
+
+    with pytest.raises(ValueError, match="patch_ids must be sorted"):
+        parse_form(form_ir, backend="iga")
+
+
 def test_capability_check_strict_vs_permissive() -> None:
     panel = awb2d.build_section_6_1_1_bspline_panel(sample_count=128)
     unsupported: dict[str, object] = {
@@ -904,6 +998,68 @@ def test_dgsem_permissive_reports_nurbs_geometry_map_diagnostic() -> None:
 
     assert any(d.code == "unsupported_geometry_map" for d in result.diagnostics)
     assert payload.geometry_map == "nurbs"
+
+
+def test_iga_strict_rejects_multipatch_interface_descriptor() -> None:
+    panel = awb2d.build_section_6_1_1_bspline_panel(sample_count=128)
+    form = _base_form()
+    form["multipatch"] = _base_multipatch_descriptor()
+
+    with pytest.raises(CapabilityError) as error:
+        assemble_form(
+            form,
+            backend="iga",
+            panel=panel,
+            strict=True,
+        )
+
+    assert error.value.diagnostic.code == "unsupported_multipatch_interface"
+
+
+def test_iga_permissive_reports_multipatch_interface_diagnostic() -> None:
+    panel = awb2d.build_section_6_1_1_bspline_panel(sample_count=128)
+    form = _base_form()
+    form["multipatch"] = _base_multipatch_descriptor()
+
+    result = assemble_form(
+        form,
+        backend="iga",
+        panel=panel,
+        strict=False,
+    )
+    payload = cast(IGAAssemblyResult, result.payload)
+
+    assert any(d.code == "unsupported_multipatch_interface" for d in result.diagnostics)
+    assert payload.execution_path == "bspline"
+
+
+def test_dgsem_strict_rejects_multipatch_interface_descriptor() -> None:
+    form = _base_form()
+    form["multipatch"] = _base_multipatch_descriptor()
+
+    with pytest.raises(CapabilityError) as error:
+        assemble_form(
+            form,
+            backend="dgsem",
+            overlay_payload=_overlay_contract(),
+            strict=True,
+        )
+
+    assert error.value.diagnostic.code == "unsupported_multipatch_interface"
+
+
+def test_dgsem_permissive_reports_multipatch_interface_diagnostic() -> None:
+    form = _base_form()
+    form["multipatch"] = _base_multipatch_descriptor()
+
+    result = assemble_form(
+        form,
+        backend="dgsem",
+        overlay_payload=_overlay_contract(),
+        strict=False,
+    )
+
+    assert any(d.code == "unsupported_multipatch_interface" for d in result.diagnostics)
 
 
 def test_iga_rejects_vector_value_shape() -> None:
