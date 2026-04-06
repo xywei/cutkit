@@ -53,7 +53,20 @@ This plan is a prerequisite for DG-SEM backend work documented in
 
 ## OpenSpec Link
 
-- `openspec/changes/meshmode-cut-overlay-integration/`
+- `openspec/changes/archive/2026-04-06-meshmode-cut-overlay-integration/`
+
+## Final Outcome
+
+- Status: completed and archived.
+- Validation: merged PR CI suites were green across quality, tests, and eval
+  gates.
+- Key merged PRs:
+  - `https://github.com/xywei/cutkit/pull/24`
+  - `https://github.com/xywei/cutkit/pull/25`
+  - `https://github.com/xywei/cutkit/pull/26`
+- Follow-up items left open:
+  - No direct open items in this change; downstream DG-SEM execution moved into
+    the archived UFL + DG-SEM assembly plan.
 
 ## Risks / Open Questions
 
