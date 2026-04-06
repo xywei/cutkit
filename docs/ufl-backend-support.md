@@ -24,7 +24,14 @@ Mapping payloads that use vector/tensor space labels must declare
 | `geometry_map` | iga | dgsem |
 | --- | --- | --- |
 | `bspline` | yes | yes |
-| `nurbs` | yes (single-patch MVP semantics) | no (`unsupported_geometry_map`) |
+| `nurbs` | yes (single-patch rational execution path) | no (`unsupported_geometry_map`) |
+
+For `iga` + `geometry_map=nurbs`, formdsl now uses a deterministic
+`nurbs_rational_single_patch` lowering path and records that execution mode in
+the IGA payload metadata. Optional metadata key `nurbs_weights` can be provided
+as a comma-separated positive weight vector with length equal to the IGA dof
+count for the chosen `resolution` and `spline_degree`; otherwise unit weights
+are used.
 
 For rank-1 vector forms, mapping payload `source` terms support two
 deterministic conventions:

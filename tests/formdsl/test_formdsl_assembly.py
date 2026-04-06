@@ -544,6 +544,81 @@ def test_iga_accepts_nurbs_geometry_map_metadata() -> None:
 
     assert not result.diagnostics
     assert payload.geometry_map == "nurbs"
+    assert payload.execution_path == "nurbs_rational_single_patch"
+
+
+def test_iga_bspline_execution_path_default_is_stable() -> None:
+    panel = awb2d.build_section_6_1_1_bspline_panel(sample_count=128)
+    result = assemble_form(
+        _base_form(),
+        backend="iga",
+        panel=panel,
+        resolution=8,
+        spline_degree=2,
+        quadrature_order=4,
+    )
+    payload = cast(IGAAssemblyResult, result.payload)
+
+    assert payload.geometry_map == "bspline"
+    assert payload.execution_path == "bspline"
+
+
+def test_iga_nurbs_weights_length_mismatch_rejected() -> None:
+    panel = awb2d.build_section_6_1_1_bspline_panel(sample_count=128)
+    form = _base_form()
+    form["metadata"] = {
+        "geometry_map": "nurbs",
+        "nurbs_weights": "1, 1, 1",
+    }
+
+    with pytest.raises(ValueError, match="does not match dof count"):
+        assemble_form(
+            form,
+            backend="iga",
+            panel=panel,
+            resolution=2,
+            spline_degree=1,
+            quadrature_order=2,
+        )
+
+
+def test_iga_nurbs_weights_modify_rational_lowering() -> None:
+    panel = awb2d.build_section_6_1_1_bspline_panel(sample_count=128)
+    bspline = _base_form()
+    nurbs = _base_form()
+    nurbs["metadata"] = {
+        "geometry_map": "nurbs",
+        "nurbs_weights": "1,1,1,1,2,1,1,1,1",
+    }
+
+    bspline_result = assemble_form(
+        bspline,
+        backend="iga",
+        panel=panel,
+        resolution=2,
+        spline_degree=1,
+        quadrature_order=2,
+    )
+    nurbs_result = assemble_form(
+        nurbs,
+        backend="iga",
+        panel=panel,
+        resolution=2,
+        spline_degree=1,
+        quadrature_order=2,
+    )
+
+    bspline_payload = cast(IGAAssemblyResult, bspline_result.payload)
+    nurbs_payload = cast(IGAAssemblyResult, nurbs_result.payload)
+
+    assert bspline_payload.execution_path == "bspline"
+    assert nurbs_payload.execution_path == "nurbs_rational_single_patch"
+    assert not isclose(
+        bspline_payload.matrix_rows[4][4],
+        nurbs_payload.matrix_rows[4][4],
+        rel_tol=0.0,
+        abs_tol=1.0e-12,
+    )
 
 
 def test_iga_rejects_unknown_geometry_map() -> None:
