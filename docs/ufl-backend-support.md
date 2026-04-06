@@ -142,5 +142,6 @@ These are tracked outcomes from the Phase 3 backlog tasks:
   deterministic lowering coverage; future work should refine physically richer
   upwind variants once full DG operator execution lands.
 - NURBS and multipatch mapping: evaluation completed and tracked in
-  `docs/formdsl-nurbs-multipatch-evaluation.md`; implementation remains staged
-  behind explicit geometry-map and interface diagnostics.
+  `docs/formdsl-nurbs-multipatch-evaluation.md`; implementation is staged under
+  `openspec/changes/formdsl-nurbs-multipatch-interface-coupling/` with active
+  plan `docs/exec-plans/active/20260406-formdsl-nurbs-multipatch-interface-coupling.md`.
