@@ -82,5 +82,6 @@ MVP sequencing:
   - Expand vector-valued form support beyond the MVP in
     `docs/exec-plans/completed/20260405-formdsl-vector-valued-mvp.md`
     (for example, rank-2 tensors and backend execution semantics).
-  - Stage NURBS geometry-map and multipatch interface implementation following
-    `docs/formdsl-nurbs-multipatch-evaluation.md`.
+  - Continue NURBS geometry-map and multipatch interface work after
+    `docs/exec-plans/completed/20260406-formdsl-nurbs-geometry-map-mvp.md`,
+    following `docs/formdsl-nurbs-multipatch-evaluation.md`.

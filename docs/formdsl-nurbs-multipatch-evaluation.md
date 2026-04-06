@@ -11,6 +11,9 @@ beyond the current scalar B-spline single-patch slice.
   deterministic flux-family behavior for SIPG, central, and upwind.
 - Form parsing now carries explicit `value_shape` metadata and supports a
   constrained vector MVP (`dgsem`: rank-1 vectors; `iga`: scalar-only gated).
+- Geometry-map capability semantics are explicit with `geometry_map` metadata:
+  `iga` accepts `bspline` and single-patch `nurbs`, while `dgsem` remains
+  `bspline`-only with deterministic `unsupported_geometry_map` diagnostics.
 
 ## Gap Assessment
 
@@ -18,10 +21,10 @@ beyond the current scalar B-spline single-patch slice.
 
 Main gaps:
 
-- No IR-level representation for rational weights or geometry-map metadata.
-- IGA backend currently assumes polynomial/B-spline-style basis and geometry
-  evaluation in assembly loops.
-- No deterministic diagnostics yet for unsupported rational mapping requests.
+- No IR-level representation for rational weights beyond metadata selection.
+- IGA backend still uses the existing numerical path for the NURBS MVP and does
+  not yet add dedicated rational basis execution internals.
+- DG-SEM NURBS geometry-map support is intentionally deferred.
 
 Implication:
 
@@ -44,13 +47,11 @@ Implication:
 
 ## Recommended Rollout
 
-1. Add geometry-map metadata to IR with deterministic parse/lowering diagnostics
-   for unsupported map types (start with `bspline`, then add `nurbs`).
-2. Land single-patch NURBS IGA lowering first, with manufactured-solution
-   regression coverage and parity thresholds.
-3. Add multipatch identifiers and interface descriptors in IR, then introduce
+1. Add dedicated rational basis execution internals for single-patch NURBS in
+   IGA beyond metadata-level capability semantics.
+2. Add multipatch identifiers and interface descriptors in IR, then introduce
    backend lowering for interface terms with orientation diagnostics.
-4. Add shared parity fixtures for multipatch forms and keep strict/permissive
+3. Add shared parity fixtures for multipatch forms and keep strict/permissive
    behavior deterministic at each stage.
 
 ## Tracking
@@ -59,3 +60,7 @@ Implication:
   `openspec/changes/archive/2026-04-05-ufl-iga-and-grudge-dgsem-assembly/`
 - Completed plan:
   `docs/exec-plans/completed/20260402-ufl-iga-and-grudge-dgsem-assembly.md`
+- NURBS geometry-map MVP archive:
+  `openspec/changes/archive/2026-04-06-formdsl-nurbs-geometry-map-mvp/`
+- NURBS geometry-map completed plan:
+  `docs/exec-plans/completed/20260406-formdsl-nurbs-geometry-map-mvp.md`
