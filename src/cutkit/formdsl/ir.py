@@ -6,6 +6,9 @@ from dataclasses import dataclass, field
 from typing import Callable, Literal
 
 BackendName = Literal["iga", "dgsem"]
+SourceComponent = float | Callable[[float, float], float] | None
+SourceVector = tuple[SourceComponent, ...]
+SourceValue = SourceComponent | SourceVector
 
 
 @dataclass(frozen=True)
@@ -14,7 +17,7 @@ class Term:
 
     kind: str
     coefficient: float = 1.0
-    source: float | Callable[[float, float], float] | None = None
+    source: SourceValue = None
 
 
 @dataclass(frozen=True)

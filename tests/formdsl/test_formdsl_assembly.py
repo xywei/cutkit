@@ -293,6 +293,61 @@ def test_parse_form_rejects_invalid_value_shape_entries() -> None:
         )
 
 
+def test_parse_form_accepts_vector_source_sequence() -> None:
+    ir = parse_form(
+        {
+            "trial_space": "Vector(P2)",
+            "test_space": "Vector(P2)",
+            "value_shape": [2],
+            "terms": [
+                {
+                    "kind": "source",
+                    "coefficient": 1.0,
+                    "source": [1.0, 2.0],
+                }
+            ],
+        },
+        backend="dgsem",
+    )
+
+    assert ir.terms[0].source == (1.0, 2.0)
+
+
+def test_parse_form_rejects_vector_source_sequence_length_mismatch() -> None:
+    with pytest.raises(ValueError, match="vector source length"):
+        parse_form(
+            {
+                "trial_space": "Vector(P2)",
+                "test_space": "Vector(P2)",
+                "value_shape": [2],
+                "terms": [
+                    {
+                        "kind": "source",
+                        "coefficient": 1.0,
+                        "source": [1.0, 2.0, 3.0],
+                    }
+                ],
+            },
+            backend="dgsem",
+        )
+
+
+def test_parse_form_rejects_vector_source_sequence_for_scalar_shape() -> None:
+    with pytest.raises(ValueError, match="vector source for scalar value_shape"):
+        parse_form(
+            {
+                "terms": [
+                    {
+                        "kind": "source",
+                        "coefficient": 1.0,
+                        "source": [1.0, 2.0],
+                    }
+                ],
+            },
+            backend="iga",
+        )
+
+
 def test_parse_form_accepts_scalar_tensor_product_space_labels() -> None:
     ir = parse_form(
         {
@@ -530,6 +585,57 @@ def test_dgsem_accepts_vector_value_shape() -> None:
     assert result.ir.value_shape == (2,)
     assert payload.value_shape == (2,)
     assert payload.volume_terms
+    assert {entry.component for entry in payload.volume_lowering} == {0, 1}
+    assert {entry.component for entry in payload.trace_lowering} == {0, 1}
+    assert {entry.component for entry in payload.flux_lowering} == {0, 1}
+
+
+def test_dgsem_vector_source_lowering_is_component_aware() -> None:
+    result = assemble_form(
+        {
+            "trial_space": "Vector(P2)",
+            "test_space": "Vector(P2)",
+            "value_shape": [2],
+            "terms": [
+                {
+                    "kind": "source",
+                    "coefficient": 1.0,
+                    "source": [1.0, 2.0],
+                }
+            ],
+            "boundary_conditions": [{"kind": "essential", "value": 0.0}],
+        },
+        backend="dgsem",
+        overlay_payload=_overlay_contract(),
+    )
+    payload = cast(DGSEMLoweringResult, result.payload)
+
+    assert payload.volume_terms == (
+        "component[0]:source:1:const:1",
+        "component[1]:source:1:const:2",
+    )
+    assert payload.volume_lowering == (
+        DGSEMVolumeLowering(
+            kind="source",
+            coefficient=1.0,
+            operator_chain=(
+                "grudge.op.mass",
+                "grudge.op.inverse_mass",
+            ),
+            source_signature="const:1",
+            component=0,
+        ),
+        DGSEMVolumeLowering(
+            kind="source",
+            coefficient=1.0,
+            operator_chain=(
+                "grudge.op.mass",
+                "grudge.op.inverse_mass",
+            ),
+            source_signature="const:2",
+            component=1,
+        ),
+    )
 
 
 def test_dgsem_rejects_rank2_value_shape() -> None:

@@ -6,7 +6,14 @@ from collections.abc import Mapping
 from numbers import Integral as IntegralNumber
 from typing import Any
 
-from .ir import BackendName, BoundaryCondition, Term, WeakFormIR
+from .ir import (
+    BackendName,
+    BoundaryCondition,
+    SourceComponent,
+    SourceValue,
+    Term,
+    WeakFormIR,
+)
 
 _VALID_BOUNDARIES = {"all", "left", "right", "bottom", "top"}
 _VECTOR_SPACE_PATTERNS = (
@@ -115,6 +122,49 @@ def _mapping_value_shape(
     return ()
 
 
+def _normalize_source_component(
+    raw_source: object,
+    *,
+    context: str,
+    component_index: int | None = None,
+) -> SourceComponent:
+    component_suffix = (
+        f" component {component_index}" if component_index is not None else ""
+    )
+    if raw_source is None or callable(raw_source):
+        return raw_source
+    if isinstance(raw_source, bool):
+        raise ValueError(
+            f"{context}{component_suffix} source must be float, callable, or null"
+        )
+    if isinstance(raw_source, (int, float, str)):
+        try:
+            return float(raw_source)
+        except ValueError as exc:
+            raise ValueError(
+                f"{context}{component_suffix} source must be float, callable, or null"
+            ) from exc
+    raise ValueError(
+        f"{context}{component_suffix} source must be float, callable, or null"
+    )
+
+
+def _normalize_source_value(raw_source: object, *, context: str) -> SourceValue:
+    if isinstance(raw_source, tuple) or isinstance(raw_source, list):
+        components: list[SourceComponent] = []
+        for component_index, component_source in enumerate(raw_source):
+            components.append(
+                _normalize_source_component(
+                    component_source,
+                    context=context,
+                    component_index=component_index,
+                )
+            )
+        return tuple(components)
+
+    return _normalize_source_component(raw_source, context=context)
+
+
 def _validate_form_ir(form_ir: WeakFormIR) -> None:
     if not form_ir.terms:
         raise ValueError("form payload must provide a non-empty 'terms' list")
@@ -131,6 +181,38 @@ def _validate_form_ir(form_ir: WeakFormIR) -> None:
         raise ValueError(
             "WeakFormIR with vector/tensor space labels must declare value_shape"
         )
+
+    if len(normalized_shape) > 1:
+        for index, term in enumerate(form_ir.terms):
+            if term.kind == "source" and isinstance(term.source, tuple):
+                raise ValueError(
+                    f"source term at index {index} does not support vector source "
+                    "tuples for rank-2+ value_shape"
+                )
+
+    if len(normalized_shape) == 1:
+        component_count = normalized_shape[0]
+        for index, term in enumerate(form_ir.terms):
+            if term.kind != "source":
+                continue
+            if not isinstance(term.source, tuple):
+                continue
+            if len(term.source) != component_count:
+                raise ValueError(
+                    f"source term at index {index} vector source length "
+                    f"{len(term.source)} does not match value_shape[0]={component_count}"
+                )
+
+    if normalized_shape == ():
+        for index, term in enumerate(form_ir.terms):
+            if term.kind != "source":
+                continue
+            if isinstance(term.source, tuple):
+                raise ValueError(
+                    f"source term at index {index} provides vector source "
+                    "for scalar value_shape"
+                )
+
     _validate_ir_boundaries(form_ir.boundary_conditions)
     _validate_boundary_marker_metadata(form_ir.metadata)
 
@@ -549,9 +631,10 @@ def parse_form(
             raise ValueError(f"term at index {index} is missing 'kind'")
 
         coefficient = float(raw_term.get("coefficient", 1.0))
-        source = raw_term.get("source")
-        if source is not None and not callable(source):
-            source = float(source)
+        source = _normalize_source_value(
+            raw_term.get("source"),
+            context=f"term at index {index}",
+        )
         terms.append(Term(kind=kind, coefficient=coefficient, source=source))
 
     raw_bcs = form.get("boundary_conditions", [])
