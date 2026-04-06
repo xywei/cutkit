@@ -22,6 +22,7 @@ class IGAAssemblyResult:
     matrix_rows: tuple[dict[int, float], ...]
     rhs: tuple[float, ...]
     bounds: tuple[float, float, float, float]
+    geometry_map: str
 
 
 def _term_scalar(form_ir: WeakFormIR, kind: str) -> float:
@@ -36,6 +37,13 @@ def _scalar_source_component(term_source: SourceValue) -> SourceComponent:
     if isinstance(term_source, tuple):
         return term_source[0] if term_source else None
     return term_source
+
+
+def _normalized_geometry_map(form_ir: WeakFormIR) -> str:
+    raw_geometry_map = str(form_ir.metadata.get("geometry_map", "bspline")).strip()
+    if not raw_geometry_map:
+        return "bspline"
+    return raw_geometry_map.lower()
 
 
 def _source_fn(form_ir: WeakFormIR) -> Callable[[float, float], float]:
@@ -354,8 +362,10 @@ def assemble_iga(
                 fixed_values[index] = condition.value
 
     _apply_essential_values(matrix_rows, rhs, fixed_values=fixed_values)
+    geometry_map = _normalized_geometry_map(form_ir)
     return IGAAssemblyResult(
         matrix_rows=tuple(matrix_rows),
         rhs=tuple(rhs),
         bounds=effective_bounds,
+        geometry_map=geometry_map,
     )

@@ -17,6 +17,15 @@ mapping payloads. Current backend support is:
 Mapping payloads that use vector/tensor space labels must declare
 `value_shape`; otherwise parsing fails with a deterministic payload diagnostic.
 
+## Geometry Map Support
+
+`geometry_map` metadata defaults to `bspline` when omitted.
+
+| `geometry_map` | iga | dgsem |
+| --- | --- | --- |
+| `bspline` | yes | yes |
+| `nurbs` | yes (single-patch MVP semantics) | no (`unsupported_geometry_map`) |
+
 For rank-1 vector forms, mapping payload `source` terms support two
 deterministic conventions:
 
@@ -62,6 +71,7 @@ Common diagnostic codes:
 
 - `unsupported_term`
 - `unsupported_boundary_condition`
+- `unsupported_geometry_map`
 - `unsupported_value_shape`
 
 ## DG-SEM Prerequisite
