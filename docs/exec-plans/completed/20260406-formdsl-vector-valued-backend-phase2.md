@@ -34,6 +34,16 @@ backend semantics for rank-1 vector forms, primarily in DG-SEM lowering.
 - [x] Add vector source lowering semantics and tests.
 - [x] Update docs/support matrix and close checklist.
 
+## Final Outcome
+
+- Status: completed and archived.
+- Validation: pre-commit quality/test hooks and PR CI checks passed before merge.
+- Key PRs:
+  - `https://github.com/xywei/cutkit/pull/38`
+  - `https://github.com/xywei/cutkit/pull/39`
+- OpenSpec archive:
+  - `openspec/changes/archive/2026-04-06-formdsl-vector-valued-backend-phase2/`
+
 ## Risks / Open Questions
 
 - Component-order conventions must be explicit to avoid parity drift.

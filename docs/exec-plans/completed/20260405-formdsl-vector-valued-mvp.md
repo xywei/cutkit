@@ -49,6 +49,7 @@ form slice in the shared formdsl path without regressing deterministic behavior.
   - `uv run pytest -q tests/formdsl/test_formdsl_assembly.py -k "value_shape or vector_space or vector_valued_ufl_arguments"`
   - `openspec validate formdsl-vector-valued-mvp`
 - Key PR: `https://github.com/xywei/cutkit/pull/35`
+- Follow-up phase: `docs/exec-plans/completed/20260406-formdsl-vector-valued-backend-phase2.md`
 - OpenSpec archive:
   - `openspec/changes/archive/2026-04-05-formdsl-vector-valued-mvp/`
 
