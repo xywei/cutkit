@@ -29,10 +29,10 @@ backend semantics for rank-1 vector forms, primarily in DG-SEM lowering.
 ## Implementation Checklist
 
 - [x] Create OpenSpec proposal `formdsl-vector-valued-backend-phase2`.
-- [ ] Add design/spec/tasks artifacts for the new change.
-- [ ] Implement component-aware DG-SEM vector lowering.
-- [ ] Add vector source lowering semantics and tests.
-- [ ] Update docs/support matrix and close checklist.
+- [x] Add design/spec/tasks artifacts for the new change.
+- [x] Implement component-aware DG-SEM vector lowering.
+- [x] Add vector source lowering semantics and tests.
+- [x] Update docs/support matrix and close checklist.
 
 ## Risks / Open Questions
 

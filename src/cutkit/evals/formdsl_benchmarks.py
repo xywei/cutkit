@@ -9,6 +9,7 @@ from cutkit.evals import antolin_wei_buffa_2022_2d as awb2d
 from cutkit.evals import poisson_galerkin as pg
 from cutkit.formdsl import BoundaryCondition, Term, assemble_form
 from cutkit.formdsl.dgsem_backend import DGSEMLoweringResult
+from cutkit.formdsl.ir import SourceComponent
 from cutkit.formdsl.iga_backend import IGAAssemblyResult
 from cutkit.io import MeshmodeCutOverlay
 
@@ -60,9 +61,27 @@ def _term_signature(term: Term) -> str:
         source_signature = (
             f"callable:{module}.{qualname}" if module else f"callable:{qualname}"
         )
+    elif isinstance(term.source, tuple):
+        source_signature = (
+            "vector:("
+            + ",".join(
+                _term_source_component_signature(component) for component in term.source
+            )
+            + ")"
+        )
     else:
         source_signature = f"const:{_format_float(float(term.source))}"
     return f"source:{coefficient}:{source_signature}"
+
+
+def _term_source_component_signature(component: SourceComponent) -> str:
+    if component is None:
+        return "implicit:1"
+    if callable(component):
+        module = getattr(component, "__module__", "")
+        qualname = getattr(component, "__qualname__", type(component).__name__)
+        return f"callable:{module}.{qualname}" if module else f"callable:{qualname}"
+    return f"const:{_format_float(float(component))}"
 
 
 def _boundary_signature(boundary: BoundaryCondition) -> str:

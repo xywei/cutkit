@@ -10,7 +10,7 @@ from cutkit.evals import antolin_wei_buffa_2022_2d as awb2d
 from cutkit.evals import poisson_galerkin as pg
 from cutkit.geometry import Point2D, TrimmedPanel2D
 
-from .ir import WeakFormIR
+from .ir import SourceComponent, SourceValue, WeakFormIR
 
 _BOUNDARY_SELECTORS = {"all", "left", "right", "bottom", "top"}
 
@@ -32,6 +32,12 @@ def _term_scalar(form_ir: WeakFormIR, kind: str) -> float:
     return value
 
 
+def _scalar_source_component(term_source: SourceValue) -> SourceComponent:
+    if isinstance(term_source, tuple):
+        return term_source[0] if term_source else None
+    return term_source
+
+
 def _source_fn(form_ir: WeakFormIR) -> Callable[[float, float], float]:
     callable_sources: list[tuple[float, Callable[[float, float], float]]] = []
     constant_total = 0.0
@@ -39,13 +45,14 @@ def _source_fn(form_ir: WeakFormIR) -> Callable[[float, float], float]:
     for term in form_ir.terms:
         if term.kind != "source" or isclose(term.coefficient, 0.0):
             continue
-        if callable(term.source):
-            callable_sources.append((term.coefficient, term.source))
+        source_component = _scalar_source_component(term.source)
+        if callable(source_component):
+            callable_sources.append((term.coefficient, source_component))
             continue
-        if term.source is None:
+        if source_component is None:
             constant_total += term.coefficient
             continue
-        constant_total += term.coefficient * float(term.source)
+        constant_total += term.coefficient * float(source_component)
 
     if not callable_sources and isclose(constant_total, 0.0):
         return lambda _x, _y: 0.0

@@ -9,7 +9,7 @@ from typing import Callable, Literal, cast
 from cutkit.io.meshmode_overlay import ElementId, MeshmodeCutOverlay, OverlayStatus
 
 from .diagnostics import PrerequisiteError
-from .ir import WeakFormIR
+from .ir import SourceComponent, SourceValue, WeakFormIR
 
 _BLOCKING_OVERLAY_STATUSES = {
     "invalid_box",
@@ -114,6 +114,7 @@ class DGSEMVolumeLowering:
     coefficient: float
     operator_chain: tuple[DGSEMBuildingBlock, ...]
     source_signature: str | None = None
+    component: int | None = None
 
 
 @dataclass(frozen=True)
@@ -124,6 +125,7 @@ class DGSEMTraceLowering:
     boundary: str
     value: float
     operator_chain: tuple[DGSEMBuildingBlock, ...]
+    component: int | None = None
 
 
 @dataclass(frozen=True)
@@ -137,6 +139,7 @@ class DGSEMFluxLowering:
     boundary_value: float | None
     penalty: float | None
     operator_chain: tuple[DGSEMBuildingBlock, ...]
+    component: int | None = None
 
 
 @dataclass(frozen=True)
@@ -197,9 +200,7 @@ def _callable_closure_signature(func: Callable[[float, float], float]) -> str:
     return "|".join(parts)
 
 
-def _source_signature(
-    term_source: float | Callable[[float, float], float] | None,
-) -> str:
+def _source_signature(term_source: SourceComponent) -> str:
     if callable(term_source):
         module = getattr(term_source, "__module__", "")
         qualname = getattr(term_source, "__qualname__", type(term_source).__name__)
@@ -211,6 +212,78 @@ def _source_signature(
     if term_source is None:
         return "implicit:1"
     return f"const:{_format_float(float(term_source))}"
+
+
+def _component_indices(value_shape: tuple[int, ...]) -> tuple[int | None, ...]:
+    if value_shape == ():
+        return (None,)
+    if len(value_shape) != 1:
+        return (None,)
+    return tuple(range(value_shape[0]))
+
+
+def _component_prefix(component: int | None) -> str:
+    if component is None:
+        return ""
+    return f"component[{component}]:"
+
+
+def _source_component(
+    source: SourceValue,
+    *,
+    component: int | None,
+) -> SourceComponent:
+    if isinstance(source, tuple):
+        if component is None:
+            return source[0] if source else None
+        if component < len(source):
+            return source[component]
+        return None
+    return source
+
+
+def _component_order(component: int | None) -> int:
+    return component if component is not None else -1
+
+
+def _volume_sort_key(entry: DGSEMVolumeLowering) -> tuple[int, str, str, str]:
+    return (
+        _component_order(entry.component),
+        entry.kind,
+        _format_float(entry.coefficient),
+        entry.source_signature or "",
+    )
+
+
+def _trace_sort_key(entry: DGSEMTraceLowering) -> tuple[int, str, str, str]:
+    return (
+        _component_order(entry.component),
+        entry.kind,
+        entry.boundary,
+        _format_float(entry.value),
+    )
+
+
+def _flux_sort_key(
+    entry: DGSEMFluxLowering,
+) -> tuple[int, str, str, str, str]:
+    return (
+        _component_order(entry.component),
+        entry.role,
+        entry.boundary or "",
+        _format_float(entry.diffusion_coefficient),
+        _format_float(entry.boundary_value) if entry.boundary_value is not None else "",
+    )
+
+
+def _flux_term(entry: DGSEMFluxLowering) -> str:
+    return (
+        f"{_component_prefix(entry.component)}"
+        f"{entry.family}:{entry.role}:{entry.boundary or 'interior'}:"
+        f"{_format_float(entry.diffusion_coefficient)}:"
+        f"{_format_float(entry.boundary_value) if entry.boundary_value is not None else 'none'}:"
+        f"{_format_float(entry.penalty) if entry.penalty is not None else 'none'}"
+    )
 
 
 def _parse_flux_family(
@@ -322,45 +395,69 @@ def lower_dgsem(
                 f"target {target!r} has status {status!r}"
             )
 
-    volume_terms: list[str] = []
+    volume_terms: list[tuple[int | None, str]] = []
     volume_lowering: list[DGSEMVolumeLowering] = []
-    diffusion_coefficients: list[float] = []
+    diffusion_coefficients: list[tuple[float, int | None]] = []
     term_diagnostics: list[DGSEMLoweringDiagnostic] = []
+    component_indices = _component_indices(form_ir.value_shape)
     for term in form_ir.terms:
         coefficient = float(term.coefficient)
         if term.kind == "source":
-            source_signature = _source_signature(term.source)
-            volume_terms.append(
-                f"source:{_format_float(coefficient)}:{source_signature}"
-            )
-            volume_lowering.append(
-                DGSEMVolumeLowering(
-                    kind="source",
-                    coefficient=coefficient,
-                    operator_chain=_MASS_OPERATOR_CHAIN,
-                    source_signature=source_signature,
+            for component in component_indices:
+                source_component = _source_component(term.source, component=component)
+                source_signature = _source_signature(source_component)
+                volume_terms.append(
+                    (
+                        component,
+                        f"{_component_prefix(component)}"
+                        f"source:{_format_float(coefficient)}:{source_signature}",
+                    )
                 )
-            )
+                volume_lowering.append(
+                    DGSEMVolumeLowering(
+                        kind="source",
+                        coefficient=coefficient,
+                        operator_chain=_MASS_OPERATOR_CHAIN,
+                        source_signature=source_signature,
+                        component=component,
+                    )
+                )
             continue
         if term.kind == "diffusion":
-            volume_terms.append(f"{term.kind}:{_format_float(coefficient)}")
-            diffusion_coefficients.append(coefficient)
-            volume_lowering.append(
-                DGSEMVolumeLowering(
-                    kind=term.kind,
-                    coefficient=coefficient,
-                    operator_chain=_DIFFUSION_OPERATOR_CHAIN,
+            for component in component_indices:
+                volume_terms.append(
+                    (
+                        component,
+                        f"{_component_prefix(component)}"
+                        f"{term.kind}:{_format_float(coefficient)}",
+                    )
                 )
-            )
+                diffusion_coefficients.append((coefficient, component))
+                volume_lowering.append(
+                    DGSEMVolumeLowering(
+                        kind=term.kind,
+                        coefficient=coefficient,
+                        operator_chain=_DIFFUSION_OPERATOR_CHAIN,
+                        component=component,
+                    )
+                )
         elif term.kind in {"mass", "reaction"}:
-            volume_terms.append(f"{term.kind}:{_format_float(coefficient)}")
-            volume_lowering.append(
-                DGSEMVolumeLowering(
-                    kind=term.kind,
-                    coefficient=coefficient,
-                    operator_chain=_MASS_OPERATOR_CHAIN,
+            for component in component_indices:
+                volume_terms.append(
+                    (
+                        component,
+                        f"{_component_prefix(component)}"
+                        f"{term.kind}:{_format_float(coefficient)}",
+                    )
                 )
-            )
+                volume_lowering.append(
+                    DGSEMVolumeLowering(
+                        kind=term.kind,
+                        coefficient=coefficient,
+                        operator_chain=_MASS_OPERATOR_CHAIN,
+                        component=component,
+                    )
+                )
         else:
             diagnostic = DGSEMLoweringDiagnostic(
                 code="unsupported_term",
@@ -391,22 +488,30 @@ def lower_dgsem(
 
     lowering_diagnostics_list.extend(term_diagnostics)
 
-    trace_terms: list[str] = []
+    trace_terms: list[tuple[int | None, str]] = []
     trace_lowering: list[DGSEMTraceLowering] = []
     flux_lowering: list[DGSEMFluxLowering] = []
     for bc in form_ir.boundary_conditions:
         if bc.kind == "natural":
             value = float(bc.value)
-            trace_terms.append(f"neumann:{bc.boundary}:{_format_float(value)}")
-            trace_lowering.append(
-                DGSEMTraceLowering(
-                    kind="neumann",
-                    boundary=bc.boundary,
-                    value=value,
-                    operator_chain=_TRACE_OPERATOR_CHAIN,
+            for component in component_indices:
+                trace_terms.append(
+                    (
+                        component,
+                        f"{_component_prefix(component)}"
+                        f"neumann:{bc.boundary}:{_format_float(value)}",
+                    )
                 )
-            )
-            for coefficient in diffusion_coefficients:
+                trace_lowering.append(
+                    DGSEMTraceLowering(
+                        kind="neumann",
+                        boundary=bc.boundary,
+                        value=value,
+                        operator_chain=_TRACE_OPERATOR_CHAIN,
+                        component=component,
+                    )
+                )
+            for coefficient, component in diffusion_coefficients:
                 flux_lowering.append(
                     DGSEMFluxLowering(
                         family=flux_family,
@@ -416,20 +521,29 @@ def lower_dgsem(
                         boundary_value=value,
                         penalty=penalty if flux_family == "sipg" else None,
                         operator_chain=_BOUNDARY_FLUX_OPERATOR_CHAIN[flux_family],
+                        component=component,
                     )
                 )
         elif bc.kind == "essential":
             value = float(bc.value)
-            trace_terms.append(f"dirichlet:{bc.boundary}:{_format_float(value)}")
-            trace_lowering.append(
-                DGSEMTraceLowering(
-                    kind="dirichlet",
-                    boundary=bc.boundary,
-                    value=value,
-                    operator_chain=_TRACE_OPERATOR_CHAIN,
+            for component in component_indices:
+                trace_terms.append(
+                    (
+                        component,
+                        f"{_component_prefix(component)}"
+                        f"dirichlet:{bc.boundary}:{_format_float(value)}",
+                    )
                 )
-            )
-            for coefficient in diffusion_coefficients:
+                trace_lowering.append(
+                    DGSEMTraceLowering(
+                        kind="dirichlet",
+                        boundary=bc.boundary,
+                        value=value,
+                        operator_chain=_TRACE_OPERATOR_CHAIN,
+                        component=component,
+                    )
+                )
+            for coefficient, component in diffusion_coefficients:
                 flux_lowering.append(
                     DGSEMFluxLowering(
                         family=flux_family,
@@ -439,10 +553,11 @@ def lower_dgsem(
                         boundary_value=value,
                         penalty=penalty if flux_family == "sipg" else None,
                         operator_chain=_BOUNDARY_FLUX_OPERATOR_CHAIN[flux_family],
+                        component=component,
                     )
                 )
 
-    for coefficient in diffusion_coefficients:
+    for coefficient, component in diffusion_coefficients:
         flux_lowering.append(
             DGSEMFluxLowering(
                 family=flux_family,
@@ -452,60 +567,36 @@ def lower_dgsem(
                 boundary_value=None,
                 penalty=penalty if flux_family == "sipg" else None,
                 operator_chain=_INTERIOR_FLUX_OPERATOR_CHAIN[flux_family],
+                component=component,
             )
         )
 
-    flux_terms = tuple(
-        sorted(
-            f"{entry.family}:{entry.role}:{entry.boundary or 'interior'}:"
-            f"{_format_float(entry.diffusion_coefficient)}:"
-            f"{_format_float(entry.boundary_value) if entry.boundary_value is not None else 'none'}:"
-            f"{_format_float(entry.penalty) if entry.penalty is not None else 'none'}"
-            for entry in flux_lowering
-        )
-    )
+    flux_lowering_sorted = tuple(sorted(flux_lowering, key=_flux_sort_key))
+    flux_terms = tuple(_flux_term(entry) for entry in flux_lowering_sorted)
 
     return DGSEMLoweringResult(
-        volume_terms=tuple(sorted(volume_terms)),
-        trace_terms=tuple(sorted(trace_terms)),
+        volume_terms=tuple(
+            label
+            for _component, label in sorted(
+                volume_terms,
+                key=lambda entry: (_component_order(entry[0]), entry[1]),
+            )
+        ),
+        trace_terms=tuple(
+            label
+            for _component, label in sorted(
+                trace_terms,
+                key=lambda entry: (_component_order(entry[0]), entry[1]),
+            )
+        ),
         flux_family=flux_family,
         value_shape=form_ir.value_shape,
         overlay_version=version,
         overlay_statuses=overlay_statuses,
         overlay_diagnostics=overlay_diagnostics,
         lowering_diagnostics=tuple(lowering_diagnostics_list),
-        volume_lowering=tuple(
-            sorted(
-                volume_lowering,
-                key=lambda entry: (
-                    entry.kind,
-                    _format_float(entry.coefficient),
-                    entry.source_signature or "",
-                ),
-            )
-        ),
-        trace_lowering=tuple(
-            sorted(
-                trace_lowering,
-                key=lambda entry: (
-                    entry.kind,
-                    entry.boundary,
-                    _format_float(entry.value),
-                ),
-            )
-        ),
-        flux_lowering=tuple(
-            sorted(
-                flux_lowering,
-                key=lambda entry: (
-                    entry.role,
-                    entry.boundary or "",
-                    _format_float(entry.diffusion_coefficient),
-                    _format_float(entry.boundary_value)
-                    if entry.boundary_value is not None
-                    else "",
-                ),
-            )
-        ),
+        volume_lowering=tuple(sorted(volume_lowering, key=_volume_sort_key)),
+        trace_lowering=tuple(sorted(trace_lowering, key=_trace_sort_key)),
+        flux_lowering=flux_lowering_sorted,
         flux_terms=flux_terms,
     )

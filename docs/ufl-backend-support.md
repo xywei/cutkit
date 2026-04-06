@@ -17,6 +17,13 @@ mapping payloads. Current backend support is:
 Mapping payloads that use vector/tensor space labels must declare
 `value_shape`; otherwise parsing fails with a deterministic payload diagnostic.
 
+For rank-1 vector forms, mapping payload `source` terms support two
+deterministic conventions:
+
+- scalar source (`float`/callable/`null`): broadcast to each component,
+- component tuple/list source: component-wise source values with length equal to
+  `value_shape[0]`.
+
 ## Supported Term Subset
 
 | Term kind | iga | dgsem |
@@ -75,6 +82,10 @@ Overlay viability is also mode-sensitive:
 For the scalar subset, DG lowering emits deterministic operator-building payloads
 based on grudge API blocks (for example `grudge.op.mass`,
 `grudge.op.weak_local_grad`, `grudge.op.face_mass`, `grudge.op.project`).
+
+For rank-1 vector forms on `dgsem`, lowering emits component-aware payload
+entries (`component[i]:...` signatures and `component` metadata on lowering
+entries) in stable component order.
 
 - supported `dg_flux` families: `sipg` (default), `central`, `upwind`
 - optional `dg_penalty`: positive float (used by `sipg`, defaults to `1.0`)
