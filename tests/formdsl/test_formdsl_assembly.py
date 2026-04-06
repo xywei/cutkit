@@ -563,6 +563,28 @@ def test_iga_bspline_execution_path_default_is_stable() -> None:
     assert payload.execution_path == "bspline"
 
 
+def test_iga_bspline_ignores_nurbs_weight_metadata() -> None:
+    panel = awb2d.build_section_6_1_1_bspline_panel(sample_count=128)
+    form = _base_form()
+    form["metadata"] = {
+        "geometry_map": "bspline",
+        "nurbs_weights": "nan",
+    }
+
+    result = assemble_form(
+        form,
+        backend="iga",
+        panel=panel,
+        resolution=8,
+        spline_degree=2,
+        quadrature_order=4,
+    )
+    payload = cast(IGAAssemblyResult, result.payload)
+
+    assert not result.diagnostics
+    assert payload.execution_path == "bspline"
+
+
 def test_iga_nurbs_weights_length_mismatch_rejected() -> None:
     panel = awb2d.build_section_6_1_1_bspline_panel(sample_count=128)
     form = _base_form()

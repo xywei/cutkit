@@ -391,7 +391,7 @@ def assemble_iga(
     if geometry_map == "nurbs":
         nurbs_weights = _parse_nurbs_weights(form_ir.metadata, dof_count=dof_count)
     else:
-        nurbs_weights = tuple(1.0 for _ in range(dof_count))
+        nurbs_weights = ()
     execution_path = (
         "nurbs_rational_single_patch" if geometry_map == "nurbs" else "bspline"
     )
