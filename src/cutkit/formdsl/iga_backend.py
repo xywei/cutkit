@@ -102,20 +102,28 @@ def _basis_terms_at_point_rational(
         knots_y=knots_y,
         bounds=bounds,
     )
-    weight_scale = max(
-        weights[index] for index, _value, _grad_x, _grad_y in bspline_terms
-    )
+    weighted_terms: list[tuple[int, float, float, float]] = []
+    weight_scale = 0.0
+    for index, value, grad_x, grad_y in bspline_terms:
+        weighted_value = weights[index] * value
+        weighted_grad_x = weights[index] * grad_x
+        weighted_grad_y = weights[index] * grad_y
+        weighted_terms.append((index, weighted_value, weighted_grad_x, weighted_grad_y))
+        weight_scale = max(weight_scale, abs(weighted_value))
+
     if weight_scale <= 0.0 or not isfinite(weight_scale):
         raise ValueError("nurbs basis weights are invalid")
 
     denominator = 0.0
     grad_denominator_x = 0.0
     grad_denominator_y = 0.0
-    for index, value, grad_x, grad_y in bspline_terms:
-        weight = weights[index] / weight_scale
-        denominator += weight * value
-        grad_denominator_x += weight * grad_x
-        grad_denominator_y += weight * grad_y
+    for _index, weighted_value, weighted_grad_x, weighted_grad_y in weighted_terms:
+        scaled_weighted_value = weighted_value / weight_scale
+        scaled_weighted_grad_x = weighted_grad_x / weight_scale
+        scaled_weighted_grad_y = weighted_grad_y / weight_scale
+        denominator += scaled_weighted_value
+        grad_denominator_x += scaled_weighted_grad_x
+        grad_denominator_y += scaled_weighted_grad_y
 
     if denominator <= 0.0 or not isfinite(denominator):
         raise ValueError("nurbs basis denominator is numerically zero")
@@ -125,17 +133,16 @@ def _basis_terms_at_point_rational(
         raise ValueError("nurbs basis denominator is numerically zero")
 
     rational_terms: list[tuple[int, float, float, float]] = []
-    for index, value, grad_x, grad_y in bspline_terms:
-        weight = weights[index] / weight_scale
-        weighted_value = weight * value
-        weighted_grad_x = weight * grad_x
-        weighted_grad_y = weight * grad_y
-        rational_value = weighted_value * inv_denominator
+    for index, weighted_value, weighted_grad_x, weighted_grad_y in weighted_terms:
+        scaled_weighted_value = weighted_value / weight_scale
+        scaled_weighted_grad_x = weighted_grad_x / weight_scale
+        scaled_weighted_grad_y = weighted_grad_y / weight_scale
+        rational_value = scaled_weighted_value * inv_denominator
         rational_grad_x = (
-            weighted_grad_x - rational_value * grad_denominator_x
+            scaled_weighted_grad_x - rational_value * grad_denominator_x
         ) * inv_denominator
         rational_grad_y = (
-            weighted_grad_y - rational_value * grad_denominator_y
+            scaled_weighted_grad_y - rational_value * grad_denominator_y
         ) * inv_denominator
         if not (
             isfinite(rational_value)

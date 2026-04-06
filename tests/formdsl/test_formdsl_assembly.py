@@ -707,6 +707,39 @@ def test_iga_rational_terms_avoid_denominator_square_underflow(
         assert isfinite(grad_y)
 
 
+def test_iga_rational_terms_scale_by_contributing_values(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def _fake_basis_terms_at_point(
+        **_kwargs: object,
+    ) -> tuple[tuple[int, float, float, float], ...]:
+        return (
+            (0, 0.0, 0.0, 0.0),
+            (1, 1.0, 1.0, 0.0),
+        )
+
+    monkeypatch.setattr(pg, "_basis_terms_at_point", _fake_basis_terms_at_point)
+
+    terms = iga_backend_module._basis_terms_at_point_rational(
+        x=0.25,
+        y=0.75,
+        resolution=2,
+        spline_degree=1,
+        n_basis_axis=2,
+        knots_x=(0.0, 0.0, 1.0, 1.0),
+        knots_y=(0.0, 0.0, 1.0, 1.0),
+        bounds=(0.0, 0.0, 1.0, 1.0),
+        weights=(1.0e308, 1.0e-100),
+    )
+
+    assert len(terms) == 2
+    assert isclose(terms[1][1], 1.0, rel_tol=0.0, abs_tol=1.0e-12)
+    for _index, value, grad_x, grad_y in terms:
+        assert isfinite(value)
+        assert isfinite(grad_x)
+        assert isfinite(grad_y)
+
+
 def test_iga_rational_terms_reject_nonfinite_gradients(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
