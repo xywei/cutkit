@@ -149,6 +149,7 @@ class DGSEMLoweringResult:
     volume_terms: tuple[str, ...]
     trace_terms: tuple[str, ...]
     flux_family: str
+    geometry_map: str
     value_shape: tuple[int, ...]
     overlay_version: int
     overlay_statuses: tuple[OverlayStatus, ...]
@@ -240,6 +241,13 @@ def _source_component(
             return source[component]
         return None
     return source
+
+
+def _normalized_geometry_map(form_ir: WeakFormIR) -> str:
+    raw_geometry_map = str(form_ir.metadata.get("geometry_map", "bspline")).strip()
+    if not raw_geometry_map:
+        return "bspline"
+    return raw_geometry_map.lower()
 
 
 def _component_order(component: int | None) -> int:
@@ -573,6 +581,7 @@ def lower_dgsem(
 
     flux_lowering_sorted = tuple(sorted(flux_lowering, key=_flux_sort_key))
     flux_terms = tuple(_flux_term(entry) for entry in flux_lowering_sorted)
+    geometry_map = _normalized_geometry_map(form_ir)
 
     return DGSEMLoweringResult(
         volume_terms=tuple(
@@ -590,6 +599,7 @@ def lower_dgsem(
             )
         ),
         flux_family=flux_family,
+        geometry_map=geometry_map,
         value_shape=form_ir.value_shape,
         overlay_version=version,
         overlay_statuses=overlay_statuses,

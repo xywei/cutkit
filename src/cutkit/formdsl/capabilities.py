@@ -13,6 +13,10 @@ _SUPPORTED_BCS: dict[str, tuple[str, ...]] = {
     "iga": ("essential", "natural"),
     "dgsem": ("essential", "natural"),
 }
+_SUPPORTED_GEOMETRY_MAPS: dict[str, tuple[str, ...]] = {
+    "iga": ("bspline", "nurbs"),
+    "dgsem": ("bspline",),
+}
 _SUPPORTED_VALUE_SHAPES: dict[str, tuple[str, ...]] = {
     "iga": ("()",),
     "dgsem": ("()", "(N,)"),
@@ -25,6 +29,13 @@ def _is_supported_value_shape(value_shape: tuple[int, ...], *, backend: str) -> 
     return backend == "dgsem" and len(value_shape) == 1
 
 
+def _normalized_geometry_map(form_ir: WeakFormIR) -> str:
+    raw_geometry_map = str(form_ir.metadata.get("geometry_map", "bspline")).strip()
+    if not raw_geometry_map:
+        return "bspline"
+    return raw_geometry_map.lower()
+
+
 def capability_matrix() -> dict[str, dict[str, tuple[str, ...]]]:
     """Return the supported form subset by backend."""
 
@@ -32,6 +43,7 @@ def capability_matrix() -> dict[str, dict[str, tuple[str, ...]]]:
         backend: {
             "terms": terms,
             "boundary_conditions": _SUPPORTED_BCS[backend],
+            "geometry_maps": _SUPPORTED_GEOMETRY_MAPS[backend],
             "value_shapes": _SUPPORTED_VALUE_SHAPES[backend],
         }
         for backend, terms in _SUPPORTED_TERM_KINDS.items()
@@ -49,10 +61,12 @@ def check_support(
     diagnostics: list[CapabilityDiagnostic] = []
     supported_terms = _SUPPORTED_TERM_KINDS.get(backend)
     supported_bcs = _SUPPORTED_BCS.get(backend)
+    supported_geometry_maps = _SUPPORTED_GEOMETRY_MAPS.get(backend)
     supported_value_shapes = _SUPPORTED_VALUE_SHAPES.get(backend)
     if (
         supported_terms is None
         or supported_bcs is None
+        or supported_geometry_maps is None
         or supported_value_shapes is None
     ):
         raise CapabilityError(
@@ -85,6 +99,20 @@ def check_support(
                 backend=backend,
                 detail=f"boundary condition '{condition.kind}' is not supported",
                 alternatives=supported_bcs,
+            )
+        )
+
+    geometry_map = _normalized_geometry_map(form_ir)
+    if geometry_map not in supported_geometry_maps:
+        diagnostics.append(
+            CapabilityDiagnostic(
+                code="unsupported_geometry_map",
+                backend=backend,
+                detail=(
+                    f"geometry_map {geometry_map!r} is not supported "
+                    f"for backend {backend!r}"
+                ),
+                alternatives=supported_geometry_maps,
             )
         )
 

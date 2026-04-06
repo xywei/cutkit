@@ -527,6 +527,76 @@ def test_capability_check_strict_vs_permissive() -> None:
     assert permissive.diagnostics[0].code == "unsupported_term"
 
 
+def test_iga_accepts_nurbs_geometry_map_metadata() -> None:
+    panel = awb2d.build_section_6_1_1_bspline_panel(sample_count=128)
+    form = _base_form()
+    form["metadata"] = {"geometry_map": "nurbs"}
+
+    result = assemble_form(
+        form,
+        backend="iga",
+        panel=panel,
+        resolution=8,
+        spline_degree=2,
+        quadrature_order=4,
+    )
+    payload = cast(IGAAssemblyResult, result.payload)
+
+    assert not result.diagnostics
+    assert payload.geometry_map == "nurbs"
+
+
+def test_iga_rejects_unknown_geometry_map() -> None:
+    panel = awb2d.build_section_6_1_1_bspline_panel(sample_count=128)
+    form = _base_form()
+    form["metadata"] = {"geometry_map": "foo"}
+
+    with pytest.raises(CapabilityError) as error:
+        assemble_form(
+            form,
+            backend="iga",
+            panel=panel,
+            resolution=8,
+            spline_degree=2,
+            quadrature_order=4,
+        )
+
+    assert error.value.diagnostic.code == "unsupported_geometry_map"
+    assert error.value.diagnostic.alternatives == ("bspline", "nurbs")
+
+
+def test_dgsem_strict_rejects_nurbs_geometry_map() -> None:
+    form = _base_form()
+    form["metadata"] = {"geometry_map": "nurbs", "dg_flux": "sipg"}
+
+    with pytest.raises(CapabilityError) as error:
+        assemble_form(
+            form,
+            backend="dgsem",
+            overlay_payload=_overlay_contract(),
+            strict=True,
+        )
+
+    assert error.value.diagnostic.code == "unsupported_geometry_map"
+    assert error.value.diagnostic.alternatives == ("bspline",)
+
+
+def test_dgsem_permissive_reports_nurbs_geometry_map_diagnostic() -> None:
+    form = _base_form()
+    form["metadata"] = {"geometry_map": "nurbs", "dg_flux": "sipg"}
+
+    result = assemble_form(
+        form,
+        backend="dgsem",
+        overlay_payload=_overlay_contract(),
+        strict=False,
+    )
+    payload = cast(DGSEMLoweringResult, result.payload)
+
+    assert any(d.code == "unsupported_geometry_map" for d in result.diagnostics)
+    assert payload.geometry_map == "nurbs"
+
+
 def test_iga_rejects_vector_value_shape() -> None:
     panel = awb2d.build_section_6_1_1_bspline_panel(sample_count=128)
 
@@ -636,6 +706,7 @@ def test_dgsem_vector_source_lowering_is_component_aware() -> None:
             component=1,
         ),
     )
+    assert payload.geometry_map == "bspline"
 
 
 def test_dgsem_vector_term_signatures_use_numeric_component_order() -> None:
@@ -862,6 +933,7 @@ def test_backend_parity_payload_uses_shared_ir_terms() -> None:
         strict=True,
     )
 
+    iga_payload = cast(IGAAssemblyResult, iga.payload)
     assert iga.ir == dgsem.ir
     dgsem_payload = cast(DGSEMLoweringResult, dgsem.payload)
 
@@ -875,6 +947,8 @@ def test_backend_parity_payload_uses_shared_ir_terms() -> None:
     )
     assert dgsem_payload.trace_terms == ("dirichlet:all:0", "neumann:top:1")
     assert dgsem_payload.overlay_statuses == ("ok",)
+    assert iga_payload.geometry_map == "bspline"
+    assert dgsem_payload.geometry_map == "bspline"
     assert not dgsem_payload.overlay_diagnostics
     assert not dgsem_payload.lowering_diagnostics
     assert dgsem_payload.volume_lowering == (
