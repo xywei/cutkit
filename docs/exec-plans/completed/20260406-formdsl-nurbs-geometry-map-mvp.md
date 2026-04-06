@@ -36,6 +36,16 @@ deterministic backend capability semantics and payload metadata threading for
 - [x] Add tests for strict/permissive geometry-map behavior.
 - [x] Update docs and finalize OpenSpec task tracking.
 
+## Final Outcome
+
+- Status: completed and archived.
+- Validation: targeted regression checks and PR CI passed.
+- Key PRs:
+  - `https://github.com/xywei/cutkit/pull/41`
+  - `https://github.com/xywei/cutkit/pull/40`
+- OpenSpec archive:
+  - `openspec/changes/archive/2026-04-06-formdsl-nurbs-geometry-map-mvp/`
+
 ## Risks / Open Questions
 
 - Users may assume full rational basis implementation from metadata acceptance;
