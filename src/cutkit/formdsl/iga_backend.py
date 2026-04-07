@@ -167,6 +167,56 @@ def _parse_nurbs_weights(
     return tuple(values)
 
 
+def _parse_multipatch_penalty(metadata: dict[str, str]) -> float:
+    raw_penalty = metadata.get("multipatch_penalty")
+    if raw_penalty is None:
+        return 1.0
+    try:
+        penalty = float(raw_penalty)
+    except ValueError as error:
+        raise ValueError("multipatch_penalty metadata must be numeric") from error
+    if not isfinite(penalty) or penalty <= 0.0:
+        raise ValueError("multipatch_penalty metadata must be finite and positive")
+    return penalty
+
+
+def _basis_terms_at_point_for_geometry_map(
+    *,
+    x: float,
+    y: float,
+    resolution: int,
+    spline_degree: int,
+    n_basis_axis: int,
+    knots_x: tuple[float, ...],
+    knots_y: tuple[float, ...],
+    bounds: tuple[float, float, float, float],
+    geometry_map: str,
+    nurbs_weights: tuple[float, ...],
+) -> tuple[tuple[int, float, float, float], ...]:
+    if geometry_map == "nurbs":
+        return _basis_terms_at_point_rational(
+            x=x,
+            y=y,
+            resolution=resolution,
+            spline_degree=spline_degree,
+            n_basis_axis=n_basis_axis,
+            knots_x=knots_x,
+            knots_y=knots_y,
+            bounds=bounds,
+            weights=nurbs_weights,
+        )
+    return pg._basis_terms_at_point(
+        x=x,
+        y=y,
+        resolution=resolution,
+        spline_degree=spline_degree,
+        n_basis_axis=n_basis_axis,
+        knots_x=knots_x,
+        knots_y=knots_y,
+        bounds=bounds,
+    )
+
+
 def _basis_terms_at_point_rational(
     *,
     x: float,
@@ -316,6 +366,25 @@ def _resolve_boundary_selector(boundary: str, *, metadata: dict[str, str]) -> st
     return resolved
 
 
+def _resolve_interface_selector(
+    *,
+    patch_id: str,
+    boundary: str,
+    metadata: dict[str, str],
+) -> str:
+    patch_key = f"multipatch_boundary:{patch_id}:{boundary}"
+    patch_selector = metadata.get(patch_key)
+    if patch_selector is None:
+        return _resolve_boundary_selector(boundary, metadata=metadata)
+
+    normalized_selector = str(patch_selector).strip().lower()
+    if normalized_selector not in _BOUNDARY_SELECTORS:
+        raise ValueError(
+            f"multipatch boundary metadata {patch_key!r} maps to unsupported selector {patch_selector!r}"
+        )
+    return normalized_selector
+
+
 def _segment_matches_selector(
     start: Point2D,
     end: Point2D,
@@ -363,6 +432,193 @@ def _selected_boundary_segments(
             ):
                 selected.append((start, end))
     return tuple(selected)
+
+
+def _paired_interface_segments(
+    *,
+    panel: TrimmedPanel2D,
+    bounds: tuple[float, float, float, float],
+    plus_selector: str,
+    minus_selector: str,
+) -> tuple[tuple[Point2D, Point2D, Point2D, Point2D, float], ...]:
+    plus_segments = _selected_boundary_segments(
+        panel,
+        selector=plus_selector,
+        bounds=bounds,
+    )
+    minus_segments = _selected_boundary_segments(
+        panel,
+        selector=minus_selector,
+        bounds=bounds,
+    )
+    if len(plus_segments) != len(minus_segments):
+        raise ValueError(
+            "multipatch interface segment count mismatch between plus and minus boundaries"
+        )
+
+    paired: list[tuple[Point2D, Point2D, Point2D, Point2D, float]] = []
+    for (plus_start, plus_end), (minus_start, minus_end) in zip(
+        plus_segments,
+        minus_segments,
+        strict=True,
+    ):
+        plus_length = hypot(plus_end[0] - plus_start[0], plus_end[1] - plus_start[1])
+        minus_length = hypot(
+            minus_end[0] - minus_start[0],
+            minus_end[1] - minus_start[1],
+        )
+
+        if plus_length <= 1.0e-18 and minus_length <= 1.0e-18:
+            continue
+        if plus_length <= 1.0e-18 or minus_length <= 1.0e-18:
+            raise ValueError(
+                "multipatch interface segment pairing includes degenerate segment"
+            )
+        scale = max(plus_length, minus_length, 1.0)
+        if abs(plus_length - minus_length) > 1.0e-9 * scale:
+            raise ValueError(
+                "multipatch interface segment length mismatch between plus and minus boundaries"
+            )
+
+        paired.append(
+            (
+                plus_start,
+                plus_end,
+                minus_start,
+                minus_end,
+                0.5 * (plus_length + minus_length),
+            )
+        )
+
+    if not paired:
+        raise ValueError("multipatch interface has no non-degenerate paired segments")
+    return tuple(paired)
+
+
+def _add_multipatch_interface_coupling(
+    matrix_rows: list[dict[int, float]],
+    *,
+    form_ir: WeakFormIR,
+    panel: TrimmedPanel2D,
+    resolution: int,
+    spline_degree: int,
+    quadrature_order: int,
+    n_basis_axis: int,
+    knots_x: tuple[float, ...],
+    knots_y: tuple[float, ...],
+    bounds: tuple[float, float, float, float],
+    geometry_map: str,
+    nurbs_weights: tuple[float, ...],
+    interface_lowering: tuple[IGAInterfaceLowering, ...],
+) -> None:
+    if not interface_lowering:
+        return
+
+    penalty = _parse_multipatch_penalty(form_ir.metadata)
+    nodes_1d, weights_1d = pg.gauss_legendre_01(
+        max(quadrature_order, spline_degree + 1)
+    )
+    used_selector_pairs: set[tuple[str, str]] = set()
+
+    for interface in interface_lowering:
+        plus_selector = _resolve_interface_selector(
+            patch_id=interface.plus_patch,
+            boundary=interface.plus_boundary,
+            metadata=form_ir.metadata,
+        )
+        minus_selector = _resolve_interface_selector(
+            patch_id=interface.minus_patch,
+            boundary=interface.minus_boundary,
+            metadata=form_ir.metadata,
+        )
+        selector_pair = (plus_selector, minus_selector)
+        if selector_pair in used_selector_pairs:
+            raise ValueError(
+                "multipatch interfaces reuse resolved selector pair; provide patch-specific multipatch boundary mappings"
+            )
+        used_selector_pairs.add(selector_pair)
+
+        paired_segments = _paired_interface_segments(
+            panel=panel,
+            bounds=bounds,
+            plus_selector=plus_selector,
+            minus_selector=minus_selector,
+        )
+
+        for (
+            plus_start,
+            plus_end,
+            minus_start,
+            minus_end,
+            segment_length,
+        ) in paired_segments:
+            plus_dx = plus_end[0] - plus_start[0]
+            plus_dy = plus_end[1] - plus_start[1]
+            minus_dx = minus_end[0] - minus_start[0]
+            minus_dy = minus_end[1] - minus_start[1]
+
+            for t, weight_1d in zip(nodes_1d, weights_1d, strict=True):
+                minus_t = t if interface.orientation_sign > 0 else 1.0 - t
+                plus_x = plus_start[0] + t * plus_dx
+                plus_y = plus_start[1] + t * plus_dy
+                minus_x = minus_start[0] + minus_t * minus_dx
+                minus_y = minus_start[1] + minus_t * minus_dy
+
+                plus_terms = _basis_terms_at_point_for_geometry_map(
+                    x=plus_x,
+                    y=plus_y,
+                    resolution=resolution,
+                    spline_degree=spline_degree,
+                    n_basis_axis=n_basis_axis,
+                    knots_x=knots_x,
+                    knots_y=knots_y,
+                    bounds=bounds,
+                    geometry_map=geometry_map,
+                    nurbs_weights=nurbs_weights,
+                )
+                minus_terms = _basis_terms_at_point_for_geometry_map(
+                    x=minus_x,
+                    y=minus_y,
+                    resolution=resolution,
+                    spline_degree=spline_degree,
+                    n_basis_axis=n_basis_axis,
+                    knots_x=knots_x,
+                    knots_y=knots_y,
+                    bounds=bounds,
+                    geometry_map=geometry_map,
+                    nurbs_weights=nurbs_weights,
+                )
+
+                interface_weight = penalty * weight_1d * segment_length
+                for row_index, row_value, _row_gx, _row_gy in plus_terms:
+                    row = matrix_rows[row_index]
+                    for col_index, col_value, _col_gx, _col_gy in plus_terms:
+                        pg._add_to_sparse_row(
+                            row,
+                            col_index,
+                            interface_weight * row_value * col_value,
+                        )
+                    for col_index, col_value, _col_gx, _col_gy in minus_terms:
+                        pg._add_to_sparse_row(
+                            row,
+                            col_index,
+                            -interface_weight * row_value * col_value,
+                        )
+
+                for row_index, row_value, _row_gx, _row_gy in minus_terms:
+                    row = matrix_rows[row_index]
+                    for col_index, col_value, _col_gx, _col_gy in plus_terms:
+                        pg._add_to_sparse_row(
+                            row,
+                            col_index,
+                            -interface_weight * row_value * col_value,
+                        )
+                    for col_index, col_value, _col_gx, _col_gy in minus_terms:
+                        pg._add_to_sparse_row(
+                            row,
+                            col_index,
+                            interface_weight * row_value * col_value,
+                        )
 
 
 def _is_boundary_dof(index: int, *, n_basis_axis: int, boundary: str) -> bool:
@@ -445,29 +701,18 @@ def _add_natural_rhs(
             for t, w in zip(nodes_1d, weights_1d, strict=True):
                 sample_x = start[0] + t * dx
                 sample_y = start[1] + t * dy
-                if geometry_map == "nurbs":
-                    terms = _basis_terms_at_point_rational(
-                        x=sample_x,
-                        y=sample_y,
-                        resolution=resolution,
-                        spline_degree=spline_degree,
-                        n_basis_axis=n_basis_axis,
-                        knots_x=knots_x,
-                        knots_y=knots_y,
-                        bounds=bounds,
-                        weights=nurbs_weights,
-                    )
-                else:
-                    terms = pg._basis_terms_at_point(
-                        x=sample_x,
-                        y=sample_y,
-                        resolution=resolution,
-                        spline_degree=spline_degree,
-                        n_basis_axis=n_basis_axis,
-                        knots_x=knots_x,
-                        knots_y=knots_y,
-                        bounds=bounds,
-                    )
+                terms = _basis_terms_at_point_for_geometry_map(
+                    x=sample_x,
+                    y=sample_y,
+                    resolution=resolution,
+                    spline_degree=spline_degree,
+                    n_basis_axis=n_basis_axis,
+                    knots_x=knots_x,
+                    knots_y=knots_y,
+                    bounds=bounds,
+                    geometry_map=geometry_map,
+                    nurbs_weights=nurbs_weights,
+                )
                 edge_weight = w * segment_length
                 for index, value, _gx, _gy in terms:
                     rhs[index] += edge_weight * condition.value * value
@@ -547,29 +792,18 @@ def assemble_iga(
             order=quadrature_order,
         )
         for x, y, weight in samples:
-            if geometry_map == "nurbs":
-                terms = _basis_terms_at_point_rational(
-                    x=x,
-                    y=y,
-                    resolution=resolution,
-                    spline_degree=spline_degree,
-                    n_basis_axis=n_basis_axis,
-                    knots_x=knots_x,
-                    knots_y=knots_y,
-                    bounds=effective_bounds,
-                    weights=nurbs_weights,
-                )
-            else:
-                terms = pg._basis_terms_at_point(
-                    x=x,
-                    y=y,
-                    resolution=resolution,
-                    spline_degree=spline_degree,
-                    n_basis_axis=n_basis_axis,
-                    knots_x=knots_x,
-                    knots_y=knots_y,
-                    bounds=effective_bounds,
-                )
+            terms = _basis_terms_at_point_for_geometry_map(
+                x=x,
+                y=y,
+                resolution=resolution,
+                spline_degree=spline_degree,
+                n_basis_axis=n_basis_axis,
+                knots_x=knots_x,
+                knots_y=knots_y,
+                bounds=effective_bounds,
+                geometry_map=geometry_map,
+                nurbs_weights=nurbs_weights,
+            )
             source_value = source(x, y)
 
             for global_a, value_a, grad_ax, grad_ay in terms:
@@ -587,6 +821,22 @@ def assemble_iga(
                     if abs(stiffness) <= 1.0e-20:
                         continue
                     pg._add_to_sparse_row(row, global_b, stiffness)
+
+    _add_multipatch_interface_coupling(
+        matrix_rows,
+        form_ir=form_ir,
+        panel=panel,
+        resolution=resolution,
+        spline_degree=spline_degree,
+        quadrature_order=quadrature_order,
+        n_basis_axis=n_basis_axis,
+        knots_x=knots_x,
+        knots_y=knots_y,
+        bounds=effective_bounds,
+        geometry_map=geometry_map,
+        nurbs_weights=nurbs_weights,
+        interface_lowering=interface_lowering,
+    )
 
     _add_natural_rhs(
         rhs,

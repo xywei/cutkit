@@ -41,7 +41,7 @@ directed interface descriptors.
 
 | `multipatch` descriptor | iga | dgsem |
 | --- | --- | --- |
-| present | yes (deterministic lowering metadata) | no (`unsupported_multipatch_interface`) |
+| present | yes (deterministic coupling + lowering metadata) | no (`unsupported_multipatch_interface`) |
 
 For `iga` with `multipatch` metadata present, payload `execution_path` is:
 
@@ -51,6 +51,16 @@ For `iga` with `multipatch` metadata present, payload `execution_path` is:
 IGA payload metadata now also includes deterministic `interface_lowering`
 entries containing plus/minus patch+boundary sides and normalized
 `orientation_sign` (`+1` aligned, `-1` reversed).
+
+When multipatch descriptors are present on `iga`, assembly adds deterministic
+penalty-style interface coupling matrix contributions. Optional metadata key
+`multipatch_penalty` may be provided as a finite positive scalar (defaults to
+`1.0`).
+
+If multiple interfaces would otherwise resolve to the same selector pair,
+provide patch-local selector overrides via metadata keys
+`multipatch_boundary:<patch_id>:<boundary>` mapping to one of
+`all|left|right|bottom|top`.
 
 For rank-1 vector forms, mapping payload `source` terms support two
 deterministic conventions:

@@ -32,9 +32,9 @@ IGA assembly when multipatch descriptors are present.
 ## Implementation Checklist
 
 - [x] Add OpenSpec proposal/design/spec/tasks artifacts for this phase.
-- [ ] Implement deterministic interface segment pairing and validation.
-- [ ] Implement numerical interface coupling accumulation in IGA assembly.
-- [ ] Add regression tests and docs updates for numerical coupling semantics.
+- [x] Implement deterministic interface segment pairing and validation.
+- [x] Implement numerical interface coupling accumulation in IGA assembly.
+- [x] Add regression tests and docs updates for numerical coupling semantics.
 
 ## Risks / Open Questions
 

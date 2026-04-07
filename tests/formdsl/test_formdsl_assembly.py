@@ -49,7 +49,7 @@ def _base_multipatch_descriptor() -> dict[str, object]:
                 "plus_patch": "patch-b",
                 "minus_patch": "patch-a",
                 "plus_boundary": "right",
-                "minus_boundary": "left",
+                "minus_boundary": "top",
                 "orientation": "aligned",
             }
         ],
@@ -90,6 +90,21 @@ def _assert_sparse_close(
         assert set(row_l) == set(row_r)
         for key in row_l:
             assert isclose(row_l[key], row_r[key], abs_tol=tolerance, rel_tol=0.0)
+
+
+def _sparse_max_abs_diff(
+    lhs: tuple[dict[int, float], ...],
+    rhs: tuple[dict[int, float], ...],
+) -> float:
+    assert len(lhs) == len(rhs)
+    max_diff = 0.0
+    for row_l, row_r in zip(lhs, rhs, strict=True):
+        keys = set(row_l) | set(row_r)
+        for key in keys:
+            diff = abs(row_l.get(key, 0.0) - row_r.get(key, 0.0))
+            if diff > max_diff:
+                max_diff = diff
+    return max_diff
 
 
 def test_parse_form_mapping_roundtrips() -> None:
@@ -1020,11 +1035,107 @@ def test_iga_accepts_multipatch_interface_descriptor() -> None:
             plus_patch="patch-b",
             minus_patch="patch-a",
             plus_boundary="right",
-            minus_boundary="left",
+            minus_boundary="top",
             orientation="aligned",
             orientation_sign=1,
         ),
     )
+
+
+def test_iga_multipatch_interface_descriptor_changes_operator_entries() -> None:
+    panel = awb2d.build_section_6_1_1_bspline_panel(sample_count=128)
+    base_form = _base_form()
+    base_form["boundary_conditions"] = []
+    base_result = assemble_form(
+        base_form,
+        backend="iga",
+        panel=panel,
+        resolution=2,
+        spline_degree=1,
+        quadrature_order=2,
+    )
+
+    multipatch_form = _base_form()
+    multipatch_form["boundary_conditions"] = []
+    multipatch_form["multipatch"] = _base_multipatch_descriptor()
+    multipatch_result = assemble_form(
+        multipatch_form,
+        backend="iga",
+        panel=panel,
+        resolution=2,
+        spline_degree=1,
+        quadrature_order=2,
+    )
+
+    base_payload = cast(IGAAssemblyResult, base_result.payload)
+    multipatch_payload = cast(IGAAssemblyResult, multipatch_result.payload)
+
+    assert (
+        _sparse_max_abs_diff(base_payload.matrix_rows, multipatch_payload.matrix_rows)
+        > 0.0
+    )
+
+
+def test_iga_multipatch_orientation_changes_operator_entries() -> None:
+    panel = awb2d.build_section_6_1_1_bspline_panel(sample_count=128)
+    aligned_form = _base_form()
+    aligned_form["boundary_conditions"] = []
+    aligned_form["multipatch"] = {
+        "patch_ids": ["patch-a", "patch-b"],
+        "interfaces": [
+            {
+                "plus_patch": "patch-b",
+                "minus_patch": "patch-a",
+                "plus_boundary": "right",
+                "minus_boundary": "top",
+                "orientation": "aligned",
+            }
+        ],
+    }
+    reversed_form = _base_form()
+    reversed_form["boundary_conditions"] = []
+    reversed_form["multipatch"] = {
+        "patch_ids": ["patch-a", "patch-b"],
+        "interfaces": [
+            {
+                "plus_patch": "patch-b",
+                "minus_patch": "patch-a",
+                "plus_boundary": "right",
+                "minus_boundary": "top",
+                "orientation": "reversed",
+            }
+        ],
+    }
+
+    aligned_result = assemble_form(
+        aligned_form,
+        backend="iga",
+        panel=panel,
+        resolution=2,
+        spline_degree=1,
+        quadrature_order=2,
+    )
+    reversed_result = assemble_form(
+        reversed_form,
+        backend="iga",
+        panel=panel,
+        resolution=2,
+        spline_degree=1,
+        quadrature_order=2,
+    )
+
+    aligned_payload = cast(IGAAssemblyResult, aligned_result.payload)
+    reversed_payload = cast(IGAAssemblyResult, reversed_result.payload)
+
+    assert (
+        _sparse_max_abs_diff(
+            aligned_payload.matrix_rows,
+            reversed_payload.matrix_rows,
+        )
+        > 0.0
+    )
+    assert aligned_payload.interface_lowering[0].orientation_sign == 1
+    assert reversed_payload.interface_lowering[0].orientation_sign == -1
 
 
 def test_iga_nurbs_multipatch_execution_path_is_deterministic() -> None:
@@ -1037,8 +1148,8 @@ def test_iga_nurbs_multipatch_execution_path_is_deterministic() -> None:
             {
                 "plus_patch": "patch-b",
                 "minus_patch": "patch-a",
-                "plus_boundary": "top",
-                "minus_boundary": "bottom",
+                "plus_boundary": "right",
+                "minus_boundary": "top",
                 "orientation": "reversed",
             }
         ],
@@ -1082,6 +1193,63 @@ def test_iga_rejects_duplicate_canonical_multipatch_interfaces() -> None:
     }
 
     with pytest.raises(ValueError, match="duplicate canonical descriptors"):
+        assemble_form(
+            form,
+            backend="iga",
+            panel=panel,
+            strict=True,
+        )
+
+
+def test_iga_rejects_multipatch_segment_count_mismatch() -> None:
+    panel = awb2d.build_section_6_1_1_bspline_panel(sample_count=128)
+    form = _base_form()
+    form["multipatch"] = {
+        "patch_ids": ["patch-a", "patch-b"],
+        "interfaces": [
+            {
+                "plus_patch": "patch-b",
+                "minus_patch": "patch-a",
+                "plus_boundary": "all",
+                "minus_boundary": "left",
+                "orientation": "aligned",
+            }
+        ],
+    }
+
+    with pytest.raises(ValueError, match="segment count mismatch"):
+        assemble_form(
+            form,
+            backend="iga",
+            panel=panel,
+            strict=True,
+        )
+
+
+def test_iga_rejects_reused_multipatch_selector_pair() -> None:
+    panel = awb2d.build_section_6_1_1_bspline_panel(sample_count=128)
+    form = _base_form()
+    form["multipatch"] = {
+        "patch_ids": ["patch-a", "patch-b", "patch-c"],
+        "interfaces": [
+            {
+                "plus_patch": "patch-b",
+                "minus_patch": "patch-a",
+                "plus_boundary": "right",
+                "minus_boundary": "top",
+                "orientation": "aligned",
+            },
+            {
+                "plus_patch": "patch-c",
+                "minus_patch": "patch-a",
+                "plus_boundary": "right",
+                "minus_boundary": "top",
+                "orientation": "reversed",
+            },
+        ],
+    }
+
+    with pytest.raises(ValueError, match="reuse resolved selector pair"):
         assemble_form(
             form,
             backend="iga",
