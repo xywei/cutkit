@@ -19,7 +19,8 @@ Common options:
 - `--manifest-path <path>` for machine-readable output
 - `--allow-fail` to return zero regardless of tolerance outcome
 - `--include-multipatch-stress` to run deterministic IGA multipatch stress
-  fixtures (3-patch mixed orientations + patch-local selector overrides)
+  fixtures (3-patch mixed orientations + patch-local selector overrides +
+  per-interface penalty controls)
 
 ## What Is Reported
 

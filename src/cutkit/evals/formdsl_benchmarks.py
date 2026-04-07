@@ -313,6 +313,7 @@ def multipatch_stress_fixtures() -> tuple[FormDslMultipatchStressFixture, ...]:
                             "plus_boundary": "marker:b-right",
                             "minus_boundary": "marker:a-top",
                             "orientation": "aligned",
+                            "penalty": 0.75,
                         },
                         {
                             "plus_patch": "patch-c",
@@ -320,6 +321,7 @@ def multipatch_stress_fixtures() -> tuple[FormDslMultipatchStressFixture, ...]:
                             "plus_boundary": "marker:c-top",
                             "minus_boundary": "marker:a-right",
                             "orientation": "reversed",
+                            "penalty": 1.5,
                         },
                     ],
                 },
@@ -351,6 +353,7 @@ def multipatch_stress_fixtures() -> tuple[FormDslMultipatchStressFixture, ...]:
                             "plus_boundary": "marker:b-right",
                             "minus_boundary": "marker:a-top",
                             "orientation": "aligned",
+                            "penalty": 0.75,
                         },
                         {
                             "plus_patch": "patch-c",
@@ -358,6 +361,7 @@ def multipatch_stress_fixtures() -> tuple[FormDslMultipatchStressFixture, ...]:
                             "plus_boundary": "marker:c-top",
                             "minus_boundary": "marker:a-right",
                             "orientation": "reversed",
+                            "penalty": 1.5,
                         },
                     ],
                 },

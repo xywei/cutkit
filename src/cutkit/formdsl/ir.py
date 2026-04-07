@@ -38,6 +38,7 @@ class MultipatchInterfaceDescriptor:
     plus_boundary: str
     minus_boundary: str
     orientation: str
+    penalty: float | None = None
 
 
 @dataclass(frozen=True)

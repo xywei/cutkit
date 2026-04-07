@@ -30,10 +30,10 @@ while preserving global fallback semantics.
 ## Implementation Checklist
 
 - [x] Add OpenSpec proposal/design/spec/tasks artifacts.
-- [ ] Implement descriptor and validation support for optional interface
+- [x] Implement descriptor and validation support for optional interface
   penalties.
-- [ ] Implement IGA precedence and metadata exposure for effective penalties.
-- [ ] Add regression tests and docs updates.
+- [x] Implement IGA precedence and metadata exposure for effective penalties.
+- [x] Add regression tests and docs updates.
 
 ## Risks / Open Questions
 
