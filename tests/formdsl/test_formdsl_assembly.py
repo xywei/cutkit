@@ -1244,7 +1244,7 @@ def test_iga_rejects_reused_multipatch_selector_pair() -> None:
                 "minus_patch": "patch-a",
                 "plus_boundary": "right",
                 "minus_boundary": "top",
-                "orientation": "aligned",
+                "orientation": "reversed",
             },
         ],
     }

@@ -518,7 +518,7 @@ def _add_multipatch_interface_coupling(
     nodes_1d, weights_1d = pg.gauss_legendre_01(
         max(quadrature_order, spline_degree + 1)
     )
-    used_selector_pairs: set[tuple[str, str, str]] = set()
+    used_selector_pairs: set[tuple[str, str]] = set()
 
     for interface in interface_lowering:
         plus_selector = _resolve_interface_selector(
@@ -531,7 +531,7 @@ def _add_multipatch_interface_coupling(
             boundary=interface.minus_boundary,
             metadata=form_ir.metadata,
         )
-        selector_pair = (plus_selector, minus_selector, interface.orientation)
+        selector_pair = (plus_selector, minus_selector)
         if selector_pair in used_selector_pairs:
             raise ValueError(
                 "multipatch interfaces reuse resolved selector pair; provide patch-specific multipatch boundary mappings"
