@@ -44,6 +44,34 @@ class FormDslParityBenchmark:
     dgsem_flux_signature: tuple[str, ...]
 
 
+@dataclass(frozen=True)
+class FormDslMultipatchStressFixture:
+    name: str
+    form: dict[str, object]
+    resolution: int = 2
+    spline_degree: int = 1
+    quadrature_order: int = 2
+
+
+@dataclass(frozen=True)
+class FormDslMultipatchStressRow:
+    name: str
+    resolution: int
+    execution_path: str
+    interface_count: int
+    matrix_nnz: int
+    matrix_max_abs: float
+    rhs_max_abs: float
+    repeat_matrix_max_abs_diff: float
+    repeat_rhs_max_abs_diff: float
+
+
+@dataclass(frozen=True)
+class FormDslMultipatchStressBenchmark:
+    rows: tuple[FormDslMultipatchStressRow, ...]
+    orientation_delta_max_abs: float
+
+
 def _format_float(value: float) -> str:
     return f"{value:.16g}"
 
@@ -221,4 +249,243 @@ def run_formdsl_parity_benchmark(
         shared_metadata_signature=shared_metadata_signature,
         dgsem_signature=signature,
         dgsem_flux_signature=dgsem_payload.flux_terms,
+    )
+
+
+def _sparse_max_abs_entry(matrix_rows: tuple[dict[int, float], ...]) -> float:
+    return max(
+        (abs(value) for row in matrix_rows for value in row.values()),
+        default=0.0,
+    )
+
+
+def _rhs_max_abs(rhs: tuple[float, ...]) -> float:
+    return max((abs(value) for value in rhs), default=0.0)
+
+
+def _sparse_max_abs_diff(
+    lhs: tuple[dict[int, float], ...],
+    rhs: tuple[dict[int, float], ...],
+) -> float:
+    if len(lhs) != len(rhs):
+        raise ValueError("sparse row counts must match")
+
+    max_diff = 0.0
+    for lhs_row, rhs_row in zip(lhs, rhs, strict=True):
+        keys = set(lhs_row) | set(rhs_row)
+        for key in keys:
+            diff = abs(lhs_row.get(key, 0.0) - rhs_row.get(key, 0.0))
+            if diff > max_diff:
+                max_diff = diff
+    return max_diff
+
+
+def _rhs_max_abs_diff(lhs: tuple[float, ...], rhs: tuple[float, ...]) -> float:
+    if len(lhs) != len(rhs):
+        raise ValueError("rhs lengths must match")
+    return max((abs(a - b) for a, b in zip(lhs, rhs, strict=True)), default=0.0)
+
+
+def multipatch_stress_fixtures() -> tuple[FormDslMultipatchStressFixture, ...]:
+    return (
+        FormDslMultipatchStressFixture(
+            name="three_patch_mixed_orientations_bspline",
+            form={
+                "terms": [
+                    {"kind": "diffusion", "coefficient": 1.0},
+                    {"kind": "source", "source": pg.default_poisson_source},
+                ],
+                "boundary_conditions": [],
+                "metadata": {
+                    "geometry_map": "bspline",
+                    "multipatch_penalty": "1.25",
+                    "multipatch_boundary:patch-b:marker:b-right": "right",
+                    "multipatch_boundary:patch-a:marker:a-top": "top",
+                    "multipatch_boundary:patch-c:marker:c-top": "top",
+                    "multipatch_boundary:patch-a:marker:a-right": "right",
+                },
+                "multipatch": {
+                    "patch_ids": ["patch-a", "patch-b", "patch-c"],
+                    "interfaces": [
+                        {
+                            "plus_patch": "patch-b",
+                            "minus_patch": "patch-a",
+                            "plus_boundary": "marker:b-right",
+                            "minus_boundary": "marker:a-top",
+                            "orientation": "aligned",
+                        },
+                        {
+                            "plus_patch": "patch-c",
+                            "minus_patch": "patch-a",
+                            "plus_boundary": "marker:c-top",
+                            "minus_boundary": "marker:a-right",
+                            "orientation": "reversed",
+                        },
+                    ],
+                },
+            },
+        ),
+        FormDslMultipatchStressFixture(
+            name="three_patch_mixed_orientations_nurbs",
+            form={
+                "terms": [
+                    {"kind": "diffusion", "coefficient": 1.0},
+                    {"kind": "source", "source": pg.default_poisson_source},
+                ],
+                "boundary_conditions": [],
+                "metadata": {
+                    "geometry_map": "nurbs",
+                    "nurbs_weights": "1,2,1,2,3,2,1,2,1",
+                    "multipatch_penalty": "1.25",
+                    "multipatch_boundary:patch-b:marker:b-right": "right",
+                    "multipatch_boundary:patch-a:marker:a-top": "top",
+                    "multipatch_boundary:patch-c:marker:c-top": "top",
+                    "multipatch_boundary:patch-a:marker:a-right": "right",
+                },
+                "multipatch": {
+                    "patch_ids": ["patch-a", "patch-b", "patch-c"],
+                    "interfaces": [
+                        {
+                            "plus_patch": "patch-b",
+                            "minus_patch": "patch-a",
+                            "plus_boundary": "marker:b-right",
+                            "minus_boundary": "marker:a-top",
+                            "orientation": "aligned",
+                        },
+                        {
+                            "plus_patch": "patch-c",
+                            "minus_patch": "patch-a",
+                            "plus_boundary": "marker:c-top",
+                            "minus_boundary": "marker:a-right",
+                            "orientation": "reversed",
+                        },
+                    ],
+                },
+            },
+        ),
+        FormDslMultipatchStressFixture(
+            name="orientation_pair_aligned",
+            form={
+                "terms": [
+                    {"kind": "diffusion", "coefficient": 1.0},
+                    {"kind": "source", "source": pg.default_poisson_source},
+                ],
+                "boundary_conditions": [],
+                "metadata": {
+                    "geometry_map": "bspline",
+                    "multipatch_boundary:patch-b:marker:b-right": "right",
+                    "multipatch_boundary:patch-a:marker:a-top": "top",
+                },
+                "multipatch": {
+                    "patch_ids": ["patch-a", "patch-b"],
+                    "interfaces": [
+                        {
+                            "plus_patch": "patch-b",
+                            "minus_patch": "patch-a",
+                            "plus_boundary": "marker:b-right",
+                            "minus_boundary": "marker:a-top",
+                            "orientation": "aligned",
+                        }
+                    ],
+                },
+            },
+        ),
+        FormDslMultipatchStressFixture(
+            name="orientation_pair_reversed",
+            form={
+                "terms": [
+                    {"kind": "diffusion", "coefficient": 1.0},
+                    {"kind": "source", "source": pg.default_poisson_source},
+                ],
+                "boundary_conditions": [],
+                "metadata": {
+                    "geometry_map": "bspline",
+                    "multipatch_boundary:patch-b:marker:b-right": "right",
+                    "multipatch_boundary:patch-a:marker:a-top": "top",
+                },
+                "multipatch": {
+                    "patch_ids": ["patch-a", "patch-b"],
+                    "interfaces": [
+                        {
+                            "plus_patch": "patch-b",
+                            "minus_patch": "patch-a",
+                            "plus_boundary": "marker:b-right",
+                            "minus_boundary": "marker:a-top",
+                            "orientation": "reversed",
+                        }
+                    ],
+                },
+            },
+        ),
+    )
+
+
+def run_formdsl_multipatch_stress_benchmark() -> FormDslMultipatchStressBenchmark:
+    panel = awb2d.build_section_6_1_1_bspline_panel(sample_count=256)
+    rows: list[FormDslMultipatchStressRow] = []
+    orientation_payloads: dict[str, IGAAssemblyResult] = {}
+
+    for fixture in multipatch_stress_fixtures():
+        first = assemble_form(
+            fixture.form,
+            backend="iga",
+            panel=panel,
+            resolution=fixture.resolution,
+            spline_degree=fixture.spline_degree,
+            quadrature_order=fixture.quadrature_order,
+        )
+        second = assemble_form(
+            fixture.form,
+            backend="iga",
+            panel=panel,
+            resolution=fixture.resolution,
+            spline_degree=fixture.spline_degree,
+            quadrature_order=fixture.quadrature_order,
+        )
+
+        if first.diagnostics or second.diagnostics:
+            raise RuntimeError(
+                "multipatch stress benchmark expects deterministic iga assembly without diagnostics"
+            )
+
+        first_payload = cast(IGAAssemblyResult, first.payload)
+        second_payload = cast(IGAAssemblyResult, second.payload)
+        rows.append(
+            FormDslMultipatchStressRow(
+                name=fixture.name,
+                resolution=fixture.resolution,
+                execution_path=first_payload.execution_path,
+                interface_count=len(first_payload.interface_lowering),
+                matrix_nnz=sum(len(row) for row in first_payload.matrix_rows),
+                matrix_max_abs=_sparse_max_abs_entry(first_payload.matrix_rows),
+                rhs_max_abs=_rhs_max_abs(first_payload.rhs),
+                repeat_matrix_max_abs_diff=_sparse_max_abs_diff(
+                    first_payload.matrix_rows,
+                    second_payload.matrix_rows,
+                ),
+                repeat_rhs_max_abs_diff=_rhs_max_abs_diff(
+                    first_payload.rhs,
+                    second_payload.rhs,
+                ),
+            )
+        )
+
+        if fixture.name in {"orientation_pair_aligned", "orientation_pair_reversed"}:
+            orientation_payloads[fixture.name] = first_payload
+
+    if set(orientation_payloads) != {
+        "orientation_pair_aligned",
+        "orientation_pair_reversed",
+    }:
+        raise RuntimeError(
+            "multipatch stress benchmark requires aligned/reversed orientation fixtures"
+        )
+    orientation_delta_max_abs = _sparse_max_abs_diff(
+        orientation_payloads["orientation_pair_aligned"].matrix_rows,
+        orientation_payloads["orientation_pair_reversed"].matrix_rows,
+    )
+
+    return FormDslMultipatchStressBenchmark(
+        rows=tuple(rows),
+        orientation_delta_max_abs=orientation_delta_max_abs,
     )

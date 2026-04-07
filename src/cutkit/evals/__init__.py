@@ -140,14 +140,24 @@ __all__ = [
     "solve_trimmed_poisson_galerkin",
     "FormDslParityBenchmark",
     "FormDslParityRow",
+    "FormDslMultipatchStressBenchmark",
+    "FormDslMultipatchStressFixture",
+    "FormDslMultipatchStressRow",
+    "multipatch_stress_fixtures",
     "run_formdsl_parity_benchmark",
+    "run_formdsl_multipatch_stress_benchmark",
 ]
 
 
 _LAZY_EXPORTS = {
     "FormDslParityBenchmark",
     "FormDslParityRow",
+    "FormDslMultipatchStressBenchmark",
+    "FormDslMultipatchStressFixture",
+    "FormDslMultipatchStressRow",
+    "multipatch_stress_fixtures",
     "run_formdsl_parity_benchmark",
+    "run_formdsl_multipatch_stress_benchmark",
 }
 
 
