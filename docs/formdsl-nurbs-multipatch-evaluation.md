@@ -56,6 +56,10 @@ Implication:
 
 ## Tracking
 
+- Active OpenSpec change:
+  `openspec/changes/formdsl-dgsem-multipatch-compatibility-semantics/`
+- Active execution plan:
+  `docs/exec-plans/active/20260407-formdsl-dgsem-multipatch-compatibility-semantics.md`
 - Per-interface controls archive:
   `openspec/changes/archive/2026-04-07-formdsl-iga-multipatch-interface-controls/`
 - Per-interface controls completed plan:
