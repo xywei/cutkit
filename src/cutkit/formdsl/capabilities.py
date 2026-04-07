@@ -22,7 +22,7 @@ _SUPPORTED_VALUE_SHAPES: dict[str, tuple[str, ...]] = {
     "dgsem": ("()", "(N,)"),
 }
 _SUPPORTED_MULTIPATCH_INTERFACE: dict[str, bool] = {
-    "iga": False,
+    "iga": True,
     "dgsem": False,
 }
 
@@ -49,6 +49,9 @@ def capability_matrix() -> dict[str, dict[str, tuple[str, ...]]]:
             "boundary_conditions": _SUPPORTED_BCS[backend],
             "geometry_maps": _SUPPORTED_GEOMETRY_MAPS[backend],
             "value_shapes": _SUPPORTED_VALUE_SHAPES[backend],
+            "multipatch_interfaces": (
+                ("descriptor",) if _SUPPORTED_MULTIPATCH_INTERFACE[backend] else ()
+            ),
         }
         for backend, terms in _SUPPORTED_TERM_KINDS.items()
     }

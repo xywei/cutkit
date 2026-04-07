@@ -36,9 +36,9 @@ rational execution support.
 
 - [x] Add OpenSpec proposal/design/spec/tasks artifacts for this phase.
 - [x] Implement multipatch descriptor parsing and IR threading.
-- [ ] Implement IGA multipatch interface lowering with deterministic
+- [x] Implement IGA multipatch interface lowering with deterministic
   orientation handling.
-- [ ] Add regression tests and update docs with completed semantics.
+- [x] Add regression tests and update docs with completed semantics.
 
 ## Risks / Open Questions
 

@@ -34,6 +34,24 @@ dof count for the chosen `resolution` and `spline_degree`; otherwise unit
 weights are used. Uniform global scaling of `nurbs_weights` is treated as
 numerically equivalent.
 
+## Multipatch Interface Descriptor Support
+
+Optional `multipatch` payload metadata carries deterministic patch IDs and
+directed interface descriptors.
+
+| `multipatch` descriptor | iga | dgsem |
+| --- | --- | --- |
+| present | yes (deterministic lowering metadata) | no (`unsupported_multipatch_interface`) |
+
+For `iga` with `multipatch` metadata present, payload `execution_path` is:
+
+- `bspline_multipatch_interface` for `geometry_map=bspline`
+- `nurbs_rational_multipatch_interface` for `geometry_map=nurbs`
+
+IGA payload metadata now also includes deterministic `interface_lowering`
+entries containing plus/minus patch+boundary sides and normalized
+`orientation_sign` (`+1` aligned, `-1` reversed).
+
 For rank-1 vector forms, mapping payload `source` terms support two
 deterministic conventions:
 
@@ -81,6 +99,7 @@ Common diagnostic codes:
 - `unsupported_boundary_condition`
 - `unsupported_geometry_map`
 - `unsupported_value_shape`
+- `unsupported_multipatch_interface`
 
 ## DG-SEM Prerequisite
 

@@ -26,7 +26,7 @@ from cutkit.formdsl.dgsem_backend import (
     DGSEMTraceLowering,
     DGSEMVolumeLowering,
 )
-from cutkit.formdsl.iga_backend import IGAAssemblyResult
+from cutkit.formdsl.iga_backend import IGAAssemblyResult, IGAInterfaceLowering
 
 
 def _base_form() -> dict[str, object]:
@@ -1000,26 +1000,49 @@ def test_dgsem_permissive_reports_nurbs_geometry_map_diagnostic() -> None:
     assert payload.geometry_map == "nurbs"
 
 
-def test_iga_strict_rejects_multipatch_interface_descriptor() -> None:
+def test_iga_accepts_multipatch_interface_descriptor() -> None:
     panel = awb2d.build_section_6_1_1_bspline_panel(sample_count=128)
     form = _base_form()
     form["multipatch"] = _base_multipatch_descriptor()
 
-    with pytest.raises(CapabilityError) as error:
-        assemble_form(
-            form,
-            backend="iga",
-            panel=panel,
-            strict=True,
-        )
+    result = assemble_form(
+        form,
+        backend="iga",
+        panel=panel,
+        strict=True,
+    )
+    payload = cast(IGAAssemblyResult, result.payload)
 
-    assert error.value.diagnostic.code == "unsupported_multipatch_interface"
+    assert not result.diagnostics
+    assert payload.execution_path == "bspline_multipatch_interface"
+    assert payload.interface_lowering == (
+        IGAInterfaceLowering(
+            plus_patch="patch-b",
+            minus_patch="patch-a",
+            plus_boundary="right",
+            minus_boundary="left",
+            orientation="aligned",
+            orientation_sign=1,
+        ),
+    )
 
 
-def test_iga_permissive_reports_multipatch_interface_diagnostic() -> None:
+def test_iga_nurbs_multipatch_execution_path_is_deterministic() -> None:
     panel = awb2d.build_section_6_1_1_bspline_panel(sample_count=128)
     form = _base_form()
-    form["multipatch"] = _base_multipatch_descriptor()
+    form["metadata"] = {"geometry_map": "nurbs"}
+    form["multipatch"] = {
+        "patch_ids": ["patch-a", "patch-b"],
+        "interfaces": [
+            {
+                "plus_patch": "patch-b",
+                "minus_patch": "patch-a",
+                "plus_boundary": "top",
+                "minus_boundary": "bottom",
+                "orientation": "reversed",
+            }
+        ],
+    }
 
     result = assemble_form(
         form,
@@ -1029,8 +1052,42 @@ def test_iga_permissive_reports_multipatch_interface_diagnostic() -> None:
     )
     payload = cast(IGAAssemblyResult, result.payload)
 
-    assert any(d.code == "unsupported_multipatch_interface" for d in result.diagnostics)
-    assert payload.execution_path == "bspline"
+    assert not result.diagnostics
+    assert payload.execution_path == "nurbs_rational_multipatch_interface"
+    assert payload.interface_lowering[0].orientation == "reversed"
+    assert payload.interface_lowering[0].orientation_sign == -1
+
+
+def test_iga_rejects_duplicate_canonical_multipatch_interfaces() -> None:
+    panel = awb2d.build_section_6_1_1_bspline_panel(sample_count=128)
+    form = _base_form()
+    form["multipatch"] = {
+        "patch_ids": ["patch-a", "patch-b"],
+        "interfaces": [
+            {
+                "plus_patch": "patch-b",
+                "minus_patch": "patch-a",
+                "plus_boundary": "right",
+                "minus_boundary": "left",
+                "orientation": "aligned",
+            },
+            {
+                "plus_patch": "patch-a",
+                "minus_patch": "patch-b",
+                "plus_boundary": "left",
+                "minus_boundary": "right",
+                "orientation": "aligned",
+            },
+        ],
+    }
+
+    with pytest.raises(ValueError, match="duplicate canonical descriptors"):
+        assemble_form(
+            form,
+            backend="iga",
+            panel=panel,
+            strict=True,
+        )
 
 
 def test_dgsem_strict_rejects_multipatch_interface_descriptor() -> None:
