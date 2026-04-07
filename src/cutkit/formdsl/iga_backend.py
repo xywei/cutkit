@@ -366,6 +366,25 @@ def _resolve_boundary_selector(boundary: str, *, metadata: dict[str, str]) -> st
     return resolved
 
 
+def _resolve_interface_selector(
+    *,
+    patch_id: str,
+    boundary: str,
+    metadata: dict[str, str],
+) -> str:
+    patch_key = f"multipatch_boundary:{patch_id}:{boundary}"
+    patch_selector = metadata.get(patch_key)
+    if patch_selector is None:
+        return _resolve_boundary_selector(boundary, metadata=metadata)
+
+    normalized_selector = str(patch_selector).strip().lower()
+    if normalized_selector not in _BOUNDARY_SELECTORS:
+        raise ValueError(
+            f"multipatch boundary metadata {patch_key!r} maps to unsupported selector {patch_selector!r}"
+        )
+    return normalized_selector
+
+
 def _segment_matches_selector(
     start: Point2D,
     end: Point2D,
@@ -419,16 +438,9 @@ def _paired_interface_segments(
     *,
     panel: TrimmedPanel2D,
     bounds: tuple[float, float, float, float],
-    interface: IGAInterfaceLowering,
-    metadata: dict[str, str],
+    plus_selector: str,
+    minus_selector: str,
 ) -> tuple[tuple[Point2D, Point2D, Point2D, Point2D, float], ...]:
-    plus_selector = _resolve_boundary_selector(
-        interface.plus_boundary, metadata=metadata
-    )
-    minus_selector = _resolve_boundary_selector(
-        interface.minus_boundary,
-        metadata=metadata,
-    )
     plus_segments = _selected_boundary_segments(
         panel,
         selector=plus_selector,
@@ -506,13 +518,31 @@ def _add_multipatch_interface_coupling(
     nodes_1d, weights_1d = pg.gauss_legendre_01(
         max(quadrature_order, spline_degree + 1)
     )
+    used_selector_pairs: set[tuple[str, str, str]] = set()
 
     for interface in interface_lowering:
+        plus_selector = _resolve_interface_selector(
+            patch_id=interface.plus_patch,
+            boundary=interface.plus_boundary,
+            metadata=form_ir.metadata,
+        )
+        minus_selector = _resolve_interface_selector(
+            patch_id=interface.minus_patch,
+            boundary=interface.minus_boundary,
+            metadata=form_ir.metadata,
+        )
+        selector_pair = (plus_selector, minus_selector, interface.orientation)
+        if selector_pair in used_selector_pairs:
+            raise ValueError(
+                "multipatch interfaces reuse resolved selector pair; provide patch-specific multipatch boundary mappings"
+            )
+        used_selector_pairs.add(selector_pair)
+
         paired_segments = _paired_interface_segments(
             panel=panel,
             bounds=bounds,
-            interface=interface,
-            metadata=form_ir.metadata,
+            plus_selector=plus_selector,
+            minus_selector=minus_selector,
         )
 
         for (

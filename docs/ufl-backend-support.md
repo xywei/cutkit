@@ -57,6 +57,11 @@ penalty-style interface coupling matrix contributions. Optional metadata key
 `multipatch_penalty` may be provided as a finite positive scalar (defaults to
 `1.0`).
 
+If multiple interfaces would otherwise resolve to the same selector pair,
+provide patch-local selector overrides via metadata keys
+`multipatch_boundary:<patch_id>:<boundary>` mapping to one of
+`all|left|right|bottom|top`.
+
 For rank-1 vector forms, mapping payload `source` terms support two
 deterministic conventions:
 

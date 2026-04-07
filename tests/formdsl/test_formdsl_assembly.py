@@ -1226,6 +1226,38 @@ def test_iga_rejects_multipatch_segment_count_mismatch() -> None:
         )
 
 
+def test_iga_rejects_reused_multipatch_selector_pair() -> None:
+    panel = awb2d.build_section_6_1_1_bspline_panel(sample_count=128)
+    form = _base_form()
+    form["multipatch"] = {
+        "patch_ids": ["patch-a", "patch-b", "patch-c"],
+        "interfaces": [
+            {
+                "plus_patch": "patch-b",
+                "minus_patch": "patch-a",
+                "plus_boundary": "right",
+                "minus_boundary": "top",
+                "orientation": "aligned",
+            },
+            {
+                "plus_patch": "patch-c",
+                "minus_patch": "patch-a",
+                "plus_boundary": "right",
+                "minus_boundary": "top",
+                "orientation": "aligned",
+            },
+        ],
+    }
+
+    with pytest.raises(ValueError, match="reuse resolved selector pair"):
+        assemble_form(
+            form,
+            backend="iga",
+            panel=panel,
+            strict=True,
+        )
+
+
 def test_dgsem_strict_rejects_multipatch_interface_descriptor() -> None:
     form = _base_form()
     form["multipatch"] = _base_multipatch_descriptor()
