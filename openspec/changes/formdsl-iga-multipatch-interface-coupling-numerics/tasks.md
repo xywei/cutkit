@@ -5,14 +5,14 @@
 
 ## 2. IGA Numerical Coupling
 
-- [ ] 2.1 Add deterministic interface segment pairing and validation for IGA
+- [x] 2.1 Add deterministic interface segment pairing and validation for IGA
   multipatch descriptors.
-- [ ] 2.2 Assemble deterministic interface coupling contributions using
+- [x] 2.2 Assemble deterministic interface coupling contributions using
   descriptor boundaries and orientation.
 
 ## 3. Validation + Docs
 
-- [ ] 3.1 Add regression tests for operator deltas, orientation-dependent
+- [x] 3.1 Add regression tests for operator deltas, orientation-dependent
   coupling behavior, and deterministic pairing validation errors.
-- [ ] 3.2 Update docs and execution-plan progress with implemented numerical
+- [x] 3.2 Update docs and execution-plan progress with implemented numerical
   coupling semantics.
