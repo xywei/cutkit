@@ -559,6 +559,7 @@ def test_parse_form_accepts_multipatch_descriptor_payload() -> None:
                         "plus_boundary": "marker:plus-edge",
                         "minus_boundary": "left",
                         "orientation": "Aligned",
+                        "penalty": "1.75",
                     }
                 ],
             },
@@ -575,6 +576,7 @@ def test_parse_form_accepts_multipatch_descriptor_payload() -> None:
             plus_boundary="marker:plus-edge",
             minus_boundary="left",
             orientation="aligned",
+            penalty=1.75,
         ),
     )
 
@@ -592,6 +594,29 @@ def test_parse_form_rejects_multipatch_descriptor_missing_required_key() -> None
                             "minus_patch": "patch-b",
                             "plus_boundary": "right",
                             "minus_boundary": "left",
+                        }
+                    ],
+                },
+            },
+            backend="iga",
+        )
+
+
+def test_parse_form_rejects_invalid_multipatch_interface_penalty() -> None:
+    with pytest.raises(ValueError, match="penalty must be finite positive float"):
+        parse_form(
+            {
+                "terms": [{"kind": "diffusion", "coefficient": 1.0}],
+                "multipatch": {
+                    "patch_ids": ["patch-a", "patch-b"],
+                    "interfaces": [
+                        {
+                            "plus_patch": "patch-a",
+                            "minus_patch": "patch-b",
+                            "plus_boundary": "right",
+                            "minus_boundary": "left",
+                            "orientation": "aligned",
+                            "penalty": 0.0,
                         }
                     ],
                 },
@@ -1038,7 +1063,172 @@ def test_iga_accepts_multipatch_interface_descriptor() -> None:
             minus_boundary="top",
             orientation="aligned",
             orientation_sign=1,
+            coupling_penalty=1.0,
         ),
+    )
+
+
+def test_iga_multipatch_interface_penalty_overrides_global_default() -> None:
+    panel = awb2d.build_section_6_1_1_bspline_panel(sample_count=128)
+    override_form = _base_form()
+    override_form["boundary_conditions"] = []
+    override_form["metadata"] = {
+        "multipatch_penalty": "1.0",
+        "multipatch_boundary:patch-b:marker:b-right": "right",
+        "multipatch_boundary:patch-a:marker:a-top": "top",
+    }
+    override_form["multipatch"] = {
+        "patch_ids": ["patch-a", "patch-b"],
+        "interfaces": [
+            {
+                "plus_patch": "patch-b",
+                "minus_patch": "patch-a",
+                "plus_boundary": "marker:b-right",
+                "minus_boundary": "marker:a-top",
+                "orientation": "aligned",
+                "penalty": 2.0,
+            }
+        ],
+    }
+
+    fallback_form = _base_form()
+    fallback_form["boundary_conditions"] = []
+    fallback_form["metadata"] = {
+        "multipatch_penalty": "2.0",
+        "multipatch_boundary:patch-b:marker:b-right": "right",
+        "multipatch_boundary:patch-a:marker:a-top": "top",
+    }
+    fallback_form["multipatch"] = {
+        "patch_ids": ["patch-a", "patch-b"],
+        "interfaces": [
+            {
+                "plus_patch": "patch-b",
+                "minus_patch": "patch-a",
+                "plus_boundary": "marker:b-right",
+                "minus_boundary": "marker:a-top",
+                "orientation": "aligned",
+            }
+        ],
+    }
+
+    override_result = assemble_form(
+        override_form,
+        backend="iga",
+        panel=panel,
+        resolution=2,
+        spline_degree=1,
+        quadrature_order=2,
+    )
+    fallback_result = assemble_form(
+        fallback_form,
+        backend="iga",
+        panel=panel,
+        resolution=2,
+        spline_degree=1,
+        quadrature_order=2,
+    )
+
+    override_payload = cast(IGAAssemblyResult, override_result.payload)
+    fallback_payload = cast(IGAAssemblyResult, fallback_result.payload)
+    assert override_payload.interface_lowering[0].coupling_penalty == 2.0
+    assert (
+        _sparse_max_abs_diff(
+            override_payload.matrix_rows,
+            fallback_payload.matrix_rows,
+        )
+        == 0.0
+    )
+
+
+def test_iga_multipatch_per_interface_penalties_change_operator_entries() -> None:
+    panel = awb2d.build_section_6_1_1_bspline_panel(sample_count=128)
+    uniform_form = _base_form()
+    uniform_form["boundary_conditions"] = []
+    uniform_form["metadata"] = {
+        "multipatch_penalty": "1.0",
+        "multipatch_boundary:patch-b:marker:b-right": "right",
+        "multipatch_boundary:patch-a:marker:a-top": "top",
+        "multipatch_boundary:patch-c:marker:c-top": "top",
+        "multipatch_boundary:patch-a:marker:a-right": "right",
+    }
+    uniform_form["multipatch"] = {
+        "patch_ids": ["patch-a", "patch-b", "patch-c"],
+        "interfaces": [
+            {
+                "plus_patch": "patch-b",
+                "minus_patch": "patch-a",
+                "plus_boundary": "marker:b-right",
+                "minus_boundary": "marker:a-top",
+                "orientation": "aligned",
+            },
+            {
+                "plus_patch": "patch-c",
+                "minus_patch": "patch-a",
+                "plus_boundary": "marker:c-top",
+                "minus_boundary": "marker:a-right",
+                "orientation": "reversed",
+            },
+        ],
+    }
+
+    per_interface_form = _base_form()
+    per_interface_form["boundary_conditions"] = []
+    per_interface_form["metadata"] = dict(
+        cast(dict[str, str], uniform_form["metadata"])
+    )
+    per_interface_form["multipatch"] = {
+        "patch_ids": ["patch-a", "patch-b", "patch-c"],
+        "interfaces": [
+            {
+                "plus_patch": "patch-b",
+                "minus_patch": "patch-a",
+                "plus_boundary": "marker:b-right",
+                "minus_boundary": "marker:a-top",
+                "orientation": "aligned",
+                "penalty": 0.5,
+            },
+            {
+                "plus_patch": "patch-c",
+                "minus_patch": "patch-a",
+                "plus_boundary": "marker:c-top",
+                "minus_boundary": "marker:a-right",
+                "orientation": "reversed",
+                "penalty": 2.0,
+            },
+        ],
+    }
+
+    uniform_result = assemble_form(
+        uniform_form,
+        backend="iga",
+        panel=panel,
+        resolution=2,
+        spline_degree=1,
+        quadrature_order=2,
+    )
+    per_interface_result = assemble_form(
+        per_interface_form,
+        backend="iga",
+        panel=panel,
+        resolution=2,
+        spline_degree=1,
+        quadrature_order=2,
+    )
+
+    uniform_payload = cast(IGAAssemblyResult, uniform_result.payload)
+    per_interface_payload = cast(IGAAssemblyResult, per_interface_result.payload)
+    assert [
+        entry.coupling_penalty for entry in per_interface_payload.interface_lowering
+    ] == [
+        0.5,
+        2.0,
+    ]
+    assert (
+        _sparse_max_abs_diff(
+            uniform_payload.matrix_rows,
+            per_interface_payload.matrix_rows,
+        )
+        > 0.0
     )
 
 

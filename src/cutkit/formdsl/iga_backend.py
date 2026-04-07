@@ -37,6 +37,7 @@ class IGAInterfaceLowering:
     minus_boundary: str
     orientation: str
     orientation_sign: int
+    coupling_penalty: float = 1.0
 
 
 def _term_scalar(form_ir: WeakFormIR, kind: str) -> float:
@@ -88,6 +89,8 @@ def _lower_multipatch_interfaces(
     if multipatch is None:
         return ()
 
+    default_penalty = _parse_multipatch_penalty(form_ir.metadata)
+
     lowered: list[tuple[tuple[str, str, str, str, str], IGAInterfaceLowering]] = []
     for interface in multipatch.interfaces:
         key = _interface_canonical_key(interface)
@@ -101,6 +104,11 @@ def _lower_multipatch_interfaces(
                     minus_boundary=interface.minus_boundary,
                     orientation=interface.orientation,
                     orientation_sign=_orientation_sign(interface.orientation),
+                    coupling_penalty=(
+                        interface.penalty
+                        if interface.penalty is not None
+                        else default_penalty
+                    ),
                 ),
             )
         )
@@ -498,7 +506,7 @@ def _paired_interface_segments(
 def _add_multipatch_interface_coupling(
     matrix_rows: list[dict[int, float]],
     *,
-    form_ir: WeakFormIR,
+    metadata: dict[str, str],
     panel: TrimmedPanel2D,
     resolution: int,
     spline_degree: int,
@@ -514,7 +522,6 @@ def _add_multipatch_interface_coupling(
     if not interface_lowering:
         return
 
-    penalty = _parse_multipatch_penalty(form_ir.metadata)
     nodes_1d, weights_1d = pg.gauss_legendre_01(
         max(quadrature_order, spline_degree + 1)
     )
@@ -524,12 +531,12 @@ def _add_multipatch_interface_coupling(
         plus_selector = _resolve_interface_selector(
             patch_id=interface.plus_patch,
             boundary=interface.plus_boundary,
-            metadata=form_ir.metadata,
+            metadata=metadata,
         )
         minus_selector = _resolve_interface_selector(
             patch_id=interface.minus_patch,
             boundary=interface.minus_boundary,
-            metadata=form_ir.metadata,
+            metadata=metadata,
         )
         selector_pair = (plus_selector, minus_selector)
         if selector_pair in used_selector_pairs:
@@ -589,7 +596,9 @@ def _add_multipatch_interface_coupling(
                     nurbs_weights=nurbs_weights,
                 )
 
-                interface_weight = penalty * weight_1d * segment_length
+                interface_weight = (
+                    interface.coupling_penalty * weight_1d * segment_length
+                )
                 for row_index, row_value, _row_gx, _row_gy in plus_terms:
                     row = matrix_rows[row_index]
                     for col_index, col_value, _col_gx, _col_gy in plus_terms:
@@ -824,7 +833,7 @@ def assemble_iga(
 
     _add_multipatch_interface_coupling(
         matrix_rows,
-        form_ir=form_ir,
+        metadata=form_ir.metadata,
         panel=panel,
         resolution=resolution,
         spline_degree=spline_degree,

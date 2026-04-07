@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from math import isfinite
 from numbers import Integral as IntegralNumber
 from typing import Any
 
@@ -76,14 +77,37 @@ def _normalize_interface_boundary(raw_boundary: object, *, context: str) -> str:
 
 def _multipatch_interface_sort_key(
     descriptor: MultipatchInterfaceDescriptor,
-) -> tuple[str, str, str, str, str]:
+) -> tuple[str, str, str, str, str, bool, float]:
+    penalty = descriptor.penalty if descriptor.penalty is not None else 0.0
     return (
         descriptor.plus_patch,
         descriptor.minus_patch,
         descriptor.plus_boundary,
         descriptor.minus_boundary,
         descriptor.orientation,
+        descriptor.penalty is None,
+        penalty,
     )
+
+
+def _normalize_interface_penalty(raw_penalty: object, *, context: str) -> float | None:
+    if raw_penalty is None:
+        return None
+    if isinstance(raw_penalty, bool):
+        raise ValueError(f"{context} penalty must be finite positive float")
+    if isinstance(raw_penalty, (int, float, str)):
+        try:
+            penalty = float(raw_penalty)
+        except ValueError as exc:
+            raise ValueError(
+                f"{context} penalty must be finite positive float"
+            ) from exc
+    else:
+        raise ValueError(f"{context} penalty must be finite positive float")
+
+    if not isfinite(penalty) or penalty <= 0.0:
+        raise ValueError(f"{context} penalty must be finite positive float")
+    return penalty
 
 
 def _parse_multipatch_descriptor(
@@ -168,6 +192,10 @@ def _parse_multipatch_descriptor(
             raise ValueError(
                 f"{context} multipatch interfaces[{index}] orientation {orientation!r} is unsupported"
             )
+        penalty = _normalize_interface_penalty(
+            raw_interface.get("penalty"),
+            context=f"{context} multipatch interfaces[{index}]",
+        )
 
         interfaces.append(
             MultipatchInterfaceDescriptor(
@@ -176,6 +204,7 @@ def _parse_multipatch_descriptor(
                 plus_boundary=plus_boundary,
                 minus_boundary=minus_boundary,
                 orientation=orientation,
+                penalty=penalty,
             )
         )
 
@@ -238,6 +267,10 @@ def _validate_multipatch_descriptor(
             raise ValueError(
                 f"{context} interfaces[{index}] orientation {interface.orientation!r} is unsupported"
             )
+        _normalize_interface_penalty(
+            interface.penalty,
+            context=f"{context} interfaces[{index}]",
+        )
 
     canonical_interfaces = tuple(
         sorted(multipatch.interfaces, key=_multipatch_interface_sort_key)

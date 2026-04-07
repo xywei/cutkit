@@ -57,6 +57,10 @@ penalty-style interface coupling matrix contributions. Optional metadata key
 `multipatch_penalty` may be provided as a finite positive scalar (defaults to
 `1.0`).
 
+Each interface descriptor may also include optional `penalty` (finite positive
+float). When present, interface `penalty` overrides global `multipatch_penalty`
+for that interface only.
+
 If multiple interfaces would otherwise resolve to the same selector pair,
 provide patch-local selector overrides via metadata keys
 `multipatch_boundary:<patch_id>:<boundary>` mapping to one of
