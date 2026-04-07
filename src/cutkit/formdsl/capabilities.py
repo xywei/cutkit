@@ -27,6 +27,60 @@ _SUPPORTED_MULTIPATCH_INTERFACE: dict[str, bool] = {
 }
 
 
+def _dgsem_multipatch_compatibility_diagnostics(
+    form_ir: WeakFormIR,
+) -> tuple[CapabilityDiagnostic, ...]:
+    multipatch = form_ir.multipatch
+    if multipatch is None:
+        return ()
+
+    diagnostics: list[CapabilityDiagnostic] = [
+        CapabilityDiagnostic(
+            code="dgsem_multipatch_compatibility_profile",
+            backend="dgsem",
+            detail=(
+                "dgsem multipatch compatibility is diagnostics-only "
+                f"(patches={len(multipatch.patch_ids)}, interfaces={len(multipatch.interfaces)})"
+            ),
+        )
+    ]
+
+    reversed_count = sum(
+        1 for interface in multipatch.interfaces if interface.orientation == "reversed"
+    )
+    if reversed_count > 0:
+        diagnostics.append(
+            CapabilityDiagnostic(
+                code="dgsem_unsupported_multipatch_orientation",
+                backend="dgsem",
+                detail=(
+                    "dgsem multipatch compatibility does not support "
+                    f"reversed orientation interfaces (count={reversed_count})"
+                ),
+                alternatives=("aligned",),
+            )
+        )
+
+    controlled_penalties = sum(
+        1 for interface in multipatch.interfaces if interface.penalty is not None
+    )
+    if controlled_penalties > 0:
+        diagnostics.append(
+            CapabilityDiagnostic(
+                code="dgsem_unsupported_multipatch_penalty_control",
+                backend="dgsem",
+                detail=(
+                    "dgsem multipatch compatibility does not support "
+                    "per-interface penalty controls "
+                    f"(count={controlled_penalties})"
+                ),
+                alternatives=("multipatch_penalty",),
+            )
+        )
+
+    return tuple(diagnostics)
+
+
 def _is_supported_value_shape(value_shape: tuple[int, ...], *, backend: str) -> bool:
     if value_shape == ():
         return True
@@ -155,6 +209,8 @@ def check_support(
                 alternatives=alternatives,
             )
         )
+        if backend == "dgsem":
+            diagnostics.extend(_dgsem_multipatch_compatibility_diagnostics(form_ir))
 
     if strict and diagnostics:
         raise CapabilityError(diagnostics[0])

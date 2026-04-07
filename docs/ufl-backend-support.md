@@ -115,6 +115,12 @@ Common diagnostic codes:
 - `unsupported_value_shape`
 - `unsupported_multipatch_interface`
 
+DG-SEM multipatch compatibility-only diagnostics (permissive mode):
+
+- `dgsem_multipatch_compatibility_profile`
+- `dgsem_unsupported_multipatch_orientation`
+- `dgsem_unsupported_multipatch_penalty_control`
+
 ## DG-SEM Prerequisite
 
 The `dgsem` backend requires an explicit `MeshmodeCutOverlay` payload from

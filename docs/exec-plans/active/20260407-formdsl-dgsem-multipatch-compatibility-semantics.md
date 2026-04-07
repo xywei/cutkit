@@ -30,9 +30,9 @@ keeping DG-SEM multipatch execution unsupported.
 ## Implementation Checklist
 
 - [x] Add OpenSpec proposal/design/spec/tasks artifacts.
-- [ ] Implement DG-SEM compatibility diagnostics for multipatch descriptors.
-- [ ] Add strict/permissive regression tests.
-- [ ] Update docs and progress tracking.
+- [x] Implement DG-SEM compatibility diagnostics for multipatch descriptors.
+- [x] Add strict/permissive regression tests.
+- [x] Update docs and progress tracking.
 
 ## Risks / Open Questions
 

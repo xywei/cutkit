@@ -1529,7 +1529,70 @@ def test_dgsem_permissive_reports_multipatch_interface_diagnostic() -> None:
         strict=False,
     )
 
-    assert any(d.code == "unsupported_multipatch_interface" for d in result.diagnostics)
+    codes = {d.code for d in result.diagnostics}
+    assert "unsupported_multipatch_interface" in codes
+    assert "dgsem_multipatch_compatibility_profile" in codes
+
+
+def test_dgsem_permissive_reports_reversed_orientation_compatibility_diagnostic() -> (
+    None
+):
+    form = _base_form()
+    form["multipatch"] = {
+        "patch_ids": ["patch-a", "patch-b"],
+        "interfaces": [
+            {
+                "plus_patch": "patch-b",
+                "minus_patch": "patch-a",
+                "plus_boundary": "right",
+                "minus_boundary": "top",
+                "orientation": "reversed",
+            }
+        ],
+    }
+
+    result = assemble_form(
+        form,
+        backend="dgsem",
+        overlay_payload=_overlay_contract(),
+        strict=False,
+    )
+
+    diagnostics_by_code = {d.code: d for d in result.diagnostics}
+    assert "dgsem_unsupported_multipatch_orientation" in diagnostics_by_code
+    assert diagnostics_by_code[
+        "dgsem_unsupported_multipatch_orientation"
+    ].alternatives == ("aligned",)
+
+
+def test_dgsem_permissive_reports_penalty_control_compatibility_diagnostic() -> None:
+    form = _base_form()
+    form["multipatch"] = {
+        "patch_ids": ["patch-a", "patch-b"],
+        "interfaces": [
+            {
+                "plus_patch": "patch-b",
+                "minus_patch": "patch-a",
+                "plus_boundary": "right",
+                "minus_boundary": "top",
+                "orientation": "aligned",
+                "penalty": 1.5,
+            }
+        ],
+    }
+
+    result = assemble_form(
+        form,
+        backend="dgsem",
+        overlay_payload=_overlay_contract(),
+        strict=False,
+    )
+
+    diagnostics_by_code = {d.code: d for d in result.diagnostics}
+    assert "dgsem_unsupported_multipatch_penalty_control" in diagnostics_by_code
+    assert diagnostics_by_code[
+        "dgsem_unsupported_multipatch_penalty_control"
+    ].alternatives == ("multipatch_penalty",)
 
 
 def test_iga_rejects_vector_value_shape() -> None:
