@@ -18,6 +18,8 @@ Common options:
 - `--max-iga-error 2e-4`
 - `--manifest-path <path>` for machine-readable output
 - `--allow-fail` to return zero regardless of tolerance outcome
+- `--include-multipatch-stress` to run deterministic IGA multipatch stress
+  fixtures (3-patch mixed orientations + patch-local selector overrides)
 
 ## What Is Reported
 
@@ -26,6 +28,13 @@ Common options:
 - shared IR term, boundary, and metadata signatures (must match across
   backends),
 - DG-SEM lowering signatures (volume/trace) and DG flux signatures.
+
+When `--include-multipatch-stress` is enabled, the script also reports:
+
+- multipatch fixture rows with execution-path, interface count, nnz, and
+  repeatability diffs,
+- aligned-vs-reversed orientation matrix delta metric
+  (`orientation_delta_max_abs`).
 
 The benchmark enforces that `iga` and `dgsem` assemble from identical parsed IR
 signatures before returning results.

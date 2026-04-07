@@ -2,7 +2,11 @@ from __future__ import annotations
 
 import pytest
 
-from cutkit.evals.formdsl_benchmarks import run_formdsl_parity_benchmark
+from cutkit.evals.formdsl_benchmarks import (
+    multipatch_stress_fixtures,
+    run_formdsl_multipatch_stress_benchmark,
+    run_formdsl_parity_benchmark,
+)
 
 
 def test_formdsl_parity_benchmark_runs() -> None:
@@ -30,3 +34,26 @@ def test_formdsl_parity_benchmark_runs() -> None:
 def test_formdsl_parity_benchmark_requires_non_empty_resolutions() -> None:
     with pytest.raises(ValueError, match="non-empty"):
         run_formdsl_parity_benchmark(resolutions=())
+
+
+def test_formdsl_multipatch_stress_fixtures_include_expected_shapes() -> None:
+    fixtures = multipatch_stress_fixtures()
+
+    assert len(fixtures) >= 4
+    assert any("three_patch" in fixture.name for fixture in fixtures)
+    assert any("nurbs" in fixture.name for fixture in fixtures)
+    assert any("orientation_pair_aligned" == fixture.name for fixture in fixtures)
+    assert any("orientation_pair_reversed" == fixture.name for fixture in fixtures)
+
+
+def test_formdsl_multipatch_stress_benchmark_runs() -> None:
+    result = run_formdsl_multipatch_stress_benchmark()
+
+    assert len(result.rows) >= 4
+    assert result.orientation_delta_max_abs > 0.0
+    for row in result.rows:
+        assert row.interface_count >= 1
+        assert row.matrix_nnz > 0
+        assert row.matrix_max_abs > 0.0
+        assert row.repeat_matrix_max_abs_diff == 0.0
+        assert row.repeat_rhs_max_abs_diff == 0.0
