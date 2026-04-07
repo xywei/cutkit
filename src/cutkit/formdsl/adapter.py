@@ -90,6 +90,26 @@ def _multipatch_interface_sort_key(
     )
 
 
+def _canonical_interface_descriptor_key(
+    descriptor: MultipatchInterfaceDescriptor,
+) -> tuple[str, str, str, str, str]:
+    if descriptor.plus_patch <= descriptor.minus_patch:
+        return (
+            descriptor.plus_patch,
+            descriptor.minus_patch,
+            descriptor.plus_boundary,
+            descriptor.minus_boundary,
+            descriptor.orientation,
+        )
+    return (
+        descriptor.minus_patch,
+        descriptor.plus_patch,
+        descriptor.minus_boundary,
+        descriptor.plus_boundary,
+        descriptor.orientation,
+    )
+
+
 def _normalize_interface_penalty(raw_penalty: object, *, context: str) -> float | None:
     if raw_penalty is None:
         return None
@@ -243,6 +263,7 @@ def _validate_multipatch_descriptor(
         raise ValueError(f"{context} interfaces must be non-empty")
 
     patch_id_set = set(canonical_patch_ids)
+    canonical_interface_keys: set[tuple[str, str, str, str, str]] = set()
     for index, interface in enumerate(multipatch.interfaces):
         if interface.plus_patch == interface.minus_patch:
             raise ValueError(
@@ -277,6 +298,12 @@ def _validate_multipatch_descriptor(
             interface.penalty,
             context=f"{context} interfaces[{index}]",
         )
+        interface_key = _canonical_interface_descriptor_key(interface)
+        if interface_key in canonical_interface_keys:
+            raise ValueError(
+                f"{context} interfaces contain duplicate canonical descriptors"
+            )
+        canonical_interface_keys.add(interface_key)
 
     canonical_interfaces = tuple(
         sorted(multipatch.interfaces, key=_multipatch_interface_sort_key)

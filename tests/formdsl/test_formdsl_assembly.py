@@ -625,6 +625,37 @@ def test_parse_form_rejects_invalid_multipatch_interface_penalty() -> None:
         )
 
 
+def test_parse_form_rejects_duplicate_canonical_interface_with_penalties() -> None:
+    with pytest.raises(ValueError, match="duplicate canonical descriptors"):
+        parse_form(
+            {
+                "terms": [{"kind": "diffusion", "coefficient": 1.0}],
+                "multipatch": {
+                    "patch_ids": ["patch-a", "patch-b"],
+                    "interfaces": [
+                        {
+                            "plus_patch": "patch-b",
+                            "minus_patch": "patch-a",
+                            "plus_boundary": "right",
+                            "minus_boundary": "left",
+                            "orientation": "aligned",
+                            "penalty": 0.5,
+                        },
+                        {
+                            "plus_patch": "patch-a",
+                            "minus_patch": "patch-b",
+                            "plus_boundary": "left",
+                            "minus_boundary": "right",
+                            "orientation": "aligned",
+                            "penalty": 2.0,
+                        },
+                    ],
+                },
+            },
+            backend="iga",
+        )
+
+
 def test_parse_form_weakformir_rejects_unsorted_multipatch_patch_ids() -> None:
     form_ir = WeakFormIR(
         trial_space="P1",
