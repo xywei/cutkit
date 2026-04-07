@@ -160,7 +160,6 @@ These are tracked outcomes from the Phase 3 backlog tasks:
 - Additional DG flux families: `central` and `upwind` are now evaluated with
   deterministic lowering coverage; future work should refine physically richer
   upwind variants once full DG operator execution lands.
-- NURBS and multipatch mapping: evaluation completed and tracked in
-  `docs/formdsl-nurbs-multipatch-evaluation.md`; implementation is staged under
-  `openspec/changes/formdsl-nurbs-multipatch-interface-coupling/` with active
-  plan `docs/exec-plans/active/20260406-formdsl-nurbs-multipatch-interface-coupling.md`.
+- NURBS and multipatch mapping: deterministic single-patch rational execution
+  and IGA multipatch interface lowering metadata are implemented; details and
+  rollout history are tracked in `docs/formdsl-nurbs-multipatch-evaluation.md`.
