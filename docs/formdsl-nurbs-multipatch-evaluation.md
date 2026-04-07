@@ -56,10 +56,10 @@ Implication:
 
 ## Tracking
 
-- Active OpenSpec change:
-  `openspec/changes/formdsl-iga-multipatch-interface-coupling-numerics/`
-- Active execution plan:
-  `docs/exec-plans/active/20260407-formdsl-iga-multipatch-interface-coupling-numerics.md`
+- Multipatch numerical coupling archive:
+  `openspec/changes/archive/2026-04-07-formdsl-iga-multipatch-interface-coupling-numerics/`
+- Multipatch numerical completed plan:
+  `docs/exec-plans/completed/20260407-formdsl-iga-multipatch-interface-coupling-numerics.md`
 - Multipatch interface coupling archive:
   `openspec/changes/archive/2026-04-07-formdsl-nurbs-multipatch-interface-coupling/`
 - Multipatch interface completed plan:

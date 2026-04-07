@@ -171,7 +171,8 @@ These are tracked outcomes from the Phase 3 backlog tasks:
   deterministic lowering coverage; future work should refine physically richer
   upwind variants once full DG operator execution lands.
 - NURBS and multipatch mapping: deterministic single-patch rational execution
-  and IGA multipatch interface lowering metadata are implemented; numerical
-  interface coupling rollout is tracked under
-  `openspec/changes/formdsl-iga-multipatch-interface-coupling-numerics/` and
-  `docs/exec-plans/active/20260407-formdsl-iga-multipatch-interface-coupling-numerics.md`.
+  and IGA multipatch interface lowering metadata are implemented; deterministic
+  numerical interface coupling is completed and tracked in
+  `openspec/changes/archive/2026-04-07-formdsl-iga-multipatch-interface-coupling-numerics/`
+  and
+  `docs/exec-plans/completed/20260407-formdsl-iga-multipatch-interface-coupling-numerics.md`.
