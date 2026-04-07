@@ -190,7 +190,7 @@ These are tracked outcomes from the Phase 3 backlog tasks:
   `openspec/changes/archive/2026-04-07-formdsl-iga-multipatch-interface-controls/`
   and
   `docs/exec-plans/completed/20260407-formdsl-iga-multipatch-interface-controls.md`.
-  DG-SEM multipatch compatibility diagnostics are tracked in active change
-  `openspec/changes/formdsl-dgsem-multipatch-compatibility-semantics/` and
-  active plan
-  `docs/exec-plans/active/20260407-formdsl-dgsem-multipatch-compatibility-semantics.md`.
+  DG-SEM multipatch compatibility diagnostics are completed and tracked in
+  `openspec/changes/archive/2026-04-07-formdsl-dgsem-multipatch-compatibility-semantics/`
+  and
+  `docs/exec-plans/completed/20260407-formdsl-dgsem-multipatch-compatibility-semantics.md`.
