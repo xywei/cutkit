@@ -176,3 +176,6 @@ These are tracked outcomes from the Phase 3 backlog tasks:
   `openspec/changes/archive/2026-04-07-formdsl-iga-multipatch-interface-coupling-numerics/`
   and
   `docs/exec-plans/completed/20260407-formdsl-iga-multipatch-interface-coupling-numerics.md`.
+  Per-interface coupling controls are tracked in active change
+  `openspec/changes/formdsl-iga-multipatch-interface-controls/` and active plan
+  `docs/exec-plans/active/20260407-formdsl-iga-multipatch-interface-controls.md`.
