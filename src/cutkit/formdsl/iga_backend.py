@@ -10,7 +10,7 @@ from cutkit.evals import antolin_wei_buffa_2022_2d as awb2d
 from cutkit.evals import poisson_galerkin as pg
 from cutkit.geometry import Point2D, TrimmedPanel2D
 
-from .ir import SourceComponent, SourceValue, WeakFormIR
+from .ir import MultipatchInterfaceDescriptor, SourceComponent, SourceValue, WeakFormIR
 
 _BOUNDARY_SELECTORS = {"all", "left", "right", "bottom", "top"}
 
@@ -24,6 +24,19 @@ class IGAAssemblyResult:
     bounds: tuple[float, float, float, float]
     geometry_map: str
     execution_path: str
+    interface_lowering: tuple["IGAInterfaceLowering", ...] = ()
+
+
+@dataclass(frozen=True)
+class IGAInterfaceLowering:
+    """Deterministic multipatch interface lowering metadata."""
+
+    plus_patch: str
+    minus_patch: str
+    plus_boundary: str
+    minus_boundary: str
+    orientation: str
+    orientation_sign: int
 
 
 def _term_scalar(form_ir: WeakFormIR, kind: str) -> float:
@@ -40,11 +53,85 @@ def _scalar_source_component(term_source: SourceValue) -> SourceComponent:
     return term_source
 
 
+def _orientation_sign(orientation: str) -> int:
+    if orientation == "aligned":
+        return 1
+    if orientation == "reversed":
+        return -1
+    raise ValueError(f"unsupported multipatch interface orientation: {orientation!r}")
+
+
+def _interface_canonical_key(
+    interface: MultipatchInterfaceDescriptor,
+) -> tuple[str, str, str, str, str]:
+    if interface.plus_patch <= interface.minus_patch:
+        return (
+            interface.plus_patch,
+            interface.minus_patch,
+            interface.plus_boundary,
+            interface.minus_boundary,
+            interface.orientation,
+        )
+    return (
+        interface.minus_patch,
+        interface.plus_patch,
+        interface.minus_boundary,
+        interface.plus_boundary,
+        interface.orientation,
+    )
+
+
+def _lower_multipatch_interfaces(
+    form_ir: WeakFormIR,
+) -> tuple[IGAInterfaceLowering, ...]:
+    multipatch = form_ir.multipatch
+    if multipatch is None:
+        return ()
+
+    lowered: list[tuple[tuple[str, str, str, str, str], IGAInterfaceLowering]] = []
+    for interface in multipatch.interfaces:
+        key = _interface_canonical_key(interface)
+        lowered.append(
+            (
+                key,
+                IGAInterfaceLowering(
+                    plus_patch=interface.plus_patch,
+                    minus_patch=interface.minus_patch,
+                    plus_boundary=interface.plus_boundary,
+                    minus_boundary=interface.minus_boundary,
+                    orientation=interface.orientation,
+                    orientation_sign=_orientation_sign(interface.orientation),
+                ),
+            )
+        )
+
+    lowered.sort(key=lambda item: item[0])
+    canonical_keys = [key for key, _entry in lowered]
+    for index in range(1, len(canonical_keys)):
+        if canonical_keys[index] != canonical_keys[index - 1]:
+            continue
+        raise ValueError(
+            "multipatch interfaces contain duplicate canonical descriptors"
+        )
+
+    return tuple(entry for _key, entry in lowered)
+
+
 def _normalized_geometry_map(form_ir: WeakFormIR) -> str:
     raw_geometry_map = str(form_ir.metadata.get("geometry_map", "bspline")).strip()
     if not raw_geometry_map:
         return "bspline"
     return raw_geometry_map.lower()
+
+
+def _execution_path_for_iga(*, geometry_map: str, has_multipatch: bool) -> str:
+    if has_multipatch:
+        if geometry_map == "nurbs":
+            return "nurbs_rational_multipatch_interface"
+        return "bspline_multipatch_interface"
+    if geometry_map == "nurbs":
+        return "nurbs_rational_single_patch"
+    return "bspline"
 
 
 def _parse_nurbs_weights(
@@ -427,12 +514,14 @@ def assemble_iga(
     knots_x = pg._open_uniform_knots(num_elements=resolution, degree=spline_degree)
     knots_y = pg._open_uniform_knots(num_elements=resolution, degree=spline_degree)
     geometry_map = _normalized_geometry_map(form_ir)
+    interface_lowering = _lower_multipatch_interfaces(form_ir)
     if geometry_map == "nurbs":
         nurbs_weights = _parse_nurbs_weights(form_ir.metadata, dof_count=dof_count)
     else:
         nurbs_weights = ()
-    execution_path = (
-        "nurbs_rational_single_patch" if geometry_map == "nurbs" else "bspline"
+    execution_path = _execution_path_for_iga(
+        geometry_map=geometry_map,
+        has_multipatch=bool(interface_lowering),
     )
 
     for clip in clipped:
@@ -538,4 +627,5 @@ def assemble_iga(
         bounds=effective_bounds,
         geometry_map=geometry_map,
         execution_path=execution_path,
+        interface_lowering=interface_lowering,
     )
