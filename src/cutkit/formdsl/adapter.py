@@ -267,6 +267,12 @@ def _validate_multipatch_descriptor(
             raise ValueError(
                 f"{context} interfaces[{index}] orientation {interface.orientation!r} is unsupported"
             )
+        if interface.penalty is not None and not isinstance(
+            interface.penalty, (int, float)
+        ):
+            raise ValueError(
+                f"{context} interfaces[{index}] penalty must be finite positive float"
+            )
         _normalize_interface_penalty(
             interface.penalty,
             context=f"{context} interfaces[{index}]",

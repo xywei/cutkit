@@ -648,6 +648,30 @@ def test_parse_form_weakformir_rejects_unsorted_multipatch_patch_ids() -> None:
         parse_form(form_ir, backend="iga")
 
 
+def test_parse_form_weakformir_rejects_string_interface_penalty() -> None:
+    form_ir = WeakFormIR(
+        trial_space="P1",
+        test_space="P1",
+        terms=(Term(kind="diffusion", coefficient=1.0),),
+        multipatch=MultipatchDescriptor(
+            patch_ids=("patch-a", "patch-b"),
+            interfaces=(
+                MultipatchInterfaceDescriptor(
+                    plus_patch="patch-b",
+                    minus_patch="patch-a",
+                    plus_boundary="right",
+                    minus_boundary="left",
+                    orientation="aligned",
+                    penalty=cast(float, "2.0"),
+                ),
+            ),
+        ),
+    )
+
+    with pytest.raises(ValueError, match="penalty must be finite positive float"):
+        parse_form(form_ir, backend="iga")
+
+
 def test_capability_check_strict_vs_permissive() -> None:
     panel = awb2d.build_section_6_1_1_bspline_panel(sample_count=128)
     unsupported: dict[str, object] = {
