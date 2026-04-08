@@ -7,7 +7,7 @@ from .ir import WeakFormIR
 
 _SUPPORTED_TERM_KINDS: dict[str, tuple[str, ...]] = {
     "iga": ("diffusion", "mass", "reaction", "source"),
-    "dgsem": ("diffusion", "mass", "reaction", "source"),
+    "dgsem": ("diffusion", "convection", "mass", "reaction", "source"),
 }
 _SUPPORTED_BCS: dict[str, tuple[str, ...]] = {
     "iga": ("essential", "natural"),

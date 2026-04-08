@@ -30,8 +30,12 @@ forms = [
   "ufl>=2017.1.0"
 ]
 dgsem = [
-  "grudge>=2021.1",
-  "meshmode>=2021.1"
+  "grudge==2021.1",
+  "meshmode==2021.2",
+  "loopy==2024.1",
+  "modepy==2021.1",
+  "pymbolic==2024.2.2",
+  "pytools==2024.1.21"
 ]
 perf = [
   "numpy>=2"

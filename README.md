@@ -159,6 +159,38 @@ uv run python scripts/plot_poisson_galerkin_figure_pack.py --profile quick
 
 See `docs/poisson-galerkin-solver.md` and `docs/poisson-benchmarks.md`.
 
+## FormDSL step simulations
+
+Run dealii-style step examples for end-to-end FormDSL simulations:
+
+```bash
+uv run python scripts/run_formdsl_step_001_iga_poisson.py --resolution 16
+uv run python scripts/run_formdsl_step_002_iga_multipatch_poisson.py --resolution 8
+uv run python scripts/run_formdsl_step_003_dgsem_poisson.py --resolution 24
+```
+
+Step 003 runs a DGSEM convection-diffusion prototype over a CUTKIT clipped
+overlay.
+
+DGSEM lowering inspection remains available via:
+
+```bash
+uv run python scripts/run_formdsl_dgsem_lowering_example.py --flux sipg
+```
+
+DGSEM step execution requires grudge dependencies and uses a CUTKIT clipped
+overlay from the Section 6.1.1 trimmed panel:
+
+```bash
+uv sync --extra dgsem
+uv run python scripts/run_formdsl_step_003_dgsem_poisson.py --resolution 24
+```
+
+Each step script now emits SVG plot artifacts by default under
+`.artifacts/formdsl-step-00x` (disable via `--skip-plots`).
+
+Details: `docs/formdsl-step-simulations.md`.
+
 ## Development workflow notes
 
 - Python requirement: `>=3.12`.

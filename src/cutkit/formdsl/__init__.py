@@ -14,6 +14,7 @@ from .ir import (
     Term,
     WeakFormIR,
 )
+from .solver import DGSEMExecutionMode, FormSolveResult, solve_form
 
 __all__ = [
     "BoundaryCondition",
@@ -26,4 +27,7 @@ __all__ = [
     "WeakFormIR",
     "assemble_form",
     "parse_form",
+    "DGSEMExecutionMode",
+    "FormSolveResult",
+    "solve_form",
 ]

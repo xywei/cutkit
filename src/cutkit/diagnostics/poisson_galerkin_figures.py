@@ -8,6 +8,14 @@ from typing import Any, Mapping, cast
 from xml.sax.saxutils import escape
 
 
+_FONT_FAMILY = "'IBM Plex Sans','Avenir Next','Segoe UI',sans-serif"
+_CANVAS_BACKGROUND_TOP = "#f1f7ff"
+_CANVAS_BACKGROUND_BOTTOM = "#fbf6ff"
+_GRID_COLOR = "#d6e4f7"
+_TEXT_PRIMARY = "#15253a"
+_TEXT_SECONDARY = "#3e536d"
+
+
 @dataclass(frozen=True)
 class PoissonGalerkinFigureArtifact:
     """One generated Poisson Galerkin figure artifact."""
@@ -115,9 +123,9 @@ def _diverging_color(value: float, *, vmin: float, vmax: float) -> str:
     if vmax <= vmin + 1.0e-30:
         return "#f0f0f0"
     t = (value - vmin) / (vmax - vmin)
-    low = (44, 123, 182)
-    mid = (255, 255, 191)
-    high = (215, 25, 28)
+    low = (35, 108, 171)
+    mid = (251, 248, 228)
+    high = (216, 86, 56)
     if t <= 0.5:
         return _color_blend(low, mid, t * 2.0)
     return _color_blend(mid, high, (t - 0.5) * 2.0)
@@ -158,7 +166,18 @@ def render_trimmed_geometry_svg(
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">'
     )
     lines.append(
-        f'<rect x="0" y="0" width="{width}" height="{height}" fill="#ffffff"/>'
+        "<defs>"
+        '<linearGradient id="figure-bg" x1="0" y1="0" x2="0" y2="1">'
+        f'<stop offset="0%" stop-color="{_CANVAS_BACKGROUND_TOP}"/>'
+        f'<stop offset="100%" stop-color="{_CANVAS_BACKGROUND_BOTTOM}"/>'
+        "</linearGradient>"
+        "</defs>"
+    )
+    lines.append(
+        f'<rect x="0" y="0" width="{width}" height="{height}" fill="url(#figure-bg)"/>'
+    )
+    lines.append(
+        f'<rect x="{margin_left - 8:.3f}" y="{margin_top - 8:.3f}" width="{plot_width + 16:.3f}" height="{plot_height + 16:.3f}" fill="#ffffff" stroke="#c7d8ee" stroke-width="1.0" rx="10"/>'
     )
 
     for idx in range(resolution + 1):
@@ -187,7 +206,7 @@ def render_trimmed_geometry_svg(
             plot_height=plot_height,
         )
         lines.append(
-            f'<line x1="{px0:.3f}" y1="{py0:.3f}" x2="{px1:.3f}" y2="{py1:.3f}" stroke="#efefef" stroke-width="1"/>'
+            f'<line x1="{px0:.3f}" y1="{py0:.3f}" x2="{px1:.3f}" y2="{py1:.3f}" stroke="{_GRID_COLOR}" stroke-width="1"/>'
         )
 
         qx0, qy0 = _map_point(
@@ -213,8 +232,22 @@ def render_trimmed_geometry_svg(
             plot_height=plot_height,
         )
         lines.append(
-            f'<line x1="{qx0:.3f}" y1="{qy0:.3f}" x2="{qx1:.3f}" y2="{qy1:.3f}" stroke="#efefef" stroke-width="1"/>'
+            f'<line x1="{qx0:.3f}" y1="{qy0:.3f}" x2="{qx1:.3f}" y2="{qy1:.3f}" stroke="{_GRID_COLOR}" stroke-width="1"/>'
         )
+
+    panel_fill_points = _polygon_points_attr_fast(
+        panel_polygon,
+        bounds=bounds,
+        width=width,
+        height=height,
+        margin_left=margin_left,
+        margin_top=margin_top,
+        plot_width=plot_width,
+        plot_height=plot_height,
+    )
+    lines.append(
+        f'<polygon points="{panel_fill_points}" fill="#ffefcf" fill-opacity="0.58" stroke="none"/>'
+    )
 
     boundary_points = _panel_polyline(
         panel_polygon,
@@ -227,14 +260,14 @@ def render_trimmed_geometry_svg(
         plot_height=plot_height,
     )
     lines.append(
-        f'<polyline points="{boundary_points}" fill="none" stroke="#111" stroke-width="2.4"/>'
+        f'<polyline points="{boundary_points}" fill="none" stroke="#1f3752" stroke-width="2.6"/>'
     )
 
     lines.append(
-        f'<text x="{width / 2:.3f}" y="32" text-anchor="middle" font-size="18" fill="#111">{escape(title)}</text>'
+        f'<text x="{width / 2:.3f}" y="32" text-anchor="middle" font-size="19" fill="{_TEXT_PRIMARY}" font-family="{_FONT_FAMILY}" font-weight="600">{escape(title)}</text>'
     )
     lines.append(
-        f'<text x="{width / 2:.3f}" y="{height - 18:.3f}" text-anchor="middle" font-size="13" fill="#222">resolution = {resolution}</text>'
+        f'<text x="{width / 2:.3f}" y="{height - 18:.3f}" text-anchor="middle" font-size="13" fill="{_TEXT_SECONDARY}" font-family="{_FONT_FAMILY}">resolution = {resolution}</text>'
     )
     lines.append("</svg>")
     return "\n".join(lines) + "\n"
@@ -270,9 +303,9 @@ def render_cell_classification_svg(
     plot_height = height - margin_top - margin_bottom
 
     fill_map = {
-        "outside": "#f8f8f8",
-        "inside": "#d9f0d3",
-        "trimmed": "#fdd9a0",
+        "outside": "#edf2fa",
+        "inside": "#cdeed3",
+        "trimmed": "#ffd7a3",
     }
 
     lines: list[str] = []
@@ -280,7 +313,18 @@ def render_cell_classification_svg(
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">'
     )
     lines.append(
-        f'<rect x="0" y="0" width="{width}" height="{height}" fill="#ffffff"/>'
+        "<defs>"
+        '<linearGradient id="class-bg" x1="0" y1="0" x2="0" y2="1">'
+        f'<stop offset="0%" stop-color="{_CANVAS_BACKGROUND_TOP}"/>'
+        f'<stop offset="100%" stop-color="{_CANVAS_BACKGROUND_BOTTOM}"/>'
+        "</linearGradient>"
+        "</defs>"
+    )
+    lines.append(
+        f'<rect x="0" y="0" width="{width}" height="{height}" fill="url(#class-bg)"/>'
+    )
+    lines.append(
+        f'<rect x="{margin_left - 8:.3f}" y="{margin_top - 8:.3f}" width="{plot_width + 16:.3f}" height="{plot_height + 16:.3f}" fill="#ffffff" stroke="#c7d8ee" stroke-width="1.0" rx="10"/>'
     )
 
     for clip in clips:
@@ -300,7 +344,7 @@ def render_cell_classification_svg(
         )
         color = fill_map.get(kind, "#eeeeee")
         lines.append(
-            f'<polygon points="{points_attr}" fill="{color}" stroke="#cfcfcf" stroke-width="0.8"/>'
+            f'<polygon points="{points_attr}" fill="{color}" stroke="#ccdaeb" stroke-width="0.8"/>'
         )
 
     boundary_points = _panel_polyline(
@@ -314,13 +358,13 @@ def render_cell_classification_svg(
         plot_height=plot_height,
     )
     lines.append(
-        f'<polyline points="{boundary_points}" fill="none" stroke="#111" stroke-width="2.4"/>'
+        f'<polyline points="{boundary_points}" fill="none" stroke="#1f3752" stroke-width="2.4"/>'
     )
 
     legend_x = width - 210
     legend_y = 74
     lines.append(
-        f'<rect x="{legend_x}" y="{legend_y}" width="180" height="90" fill="#ffffff" stroke="#d8d8d8"/>'
+        f'<rect x="{legend_x}" y="{legend_y}" width="180" height="90" fill="#ffffffdd" stroke="#c4d5ee" rx="8"/>'
     )
     legend_items = (
         ("inside", fill_map["inside"]),
@@ -333,16 +377,16 @@ def render_cell_classification_svg(
             f'<rect x="{legend_x + 12}" y="{y}" width="18" height="12" fill="{color}" stroke="#999"/>'
         )
         lines.append(
-            f'<text x="{legend_x + 40}" y="{y + 11}" font-size="13" fill="#222">{escape(label)}</text>'
+            f'<text x="{legend_x + 40}" y="{y + 11}" font-size="13" fill="{_TEXT_PRIMARY}" font-family="{_FONT_FAMILY}">{escape(label)}</text>'
         )
 
     inside_count = int(snapshot.inside_cell_count)
     trimmed_count = int(snapshot.trimmed_cell_count)
     lines.append(
-        f'<text x="{width / 2:.3f}" y="32" text-anchor="middle" font-size="18" fill="#111">{escape(title)}</text>'
+        f'<text x="{width / 2:.3f}" y="32" text-anchor="middle" font-size="19" fill="{_TEXT_PRIMARY}" font-family="{_FONT_FAMILY}" font-weight="600">{escape(title)}</text>'
     )
     lines.append(
-        f'<text x="{width / 2:.3f}" y="{height - 18:.3f}" text-anchor="middle" font-size="13" fill="#222">inside={inside_count}, trimmed={trimmed_count}</text>'
+        f'<text x="{width / 2:.3f}" y="{height - 18:.3f}" text-anchor="middle" font-size="13" fill="{_TEXT_SECONDARY}" font-family="{_FONT_FAMILY}">inside={inside_count}, trimmed={trimmed_count}</text>'
     )
     lines.append("</svg>")
     return "\n".join(lines) + "\n"
@@ -408,7 +452,18 @@ def render_solution_field_svg(
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">'
     )
     lines.append(
-        f'<rect x="0" y="0" width="{width}" height="{height}" fill="#ffffff"/>'
+        "<defs>"
+        '<linearGradient id="solution-bg" x1="0" y1="0" x2="0" y2="1">'
+        f'<stop offset="0%" stop-color="{_CANVAS_BACKGROUND_TOP}"/>'
+        f'<stop offset="100%" stop-color="{_CANVAS_BACKGROUND_BOTTOM}"/>'
+        "</linearGradient>"
+        "</defs>"
+    )
+    lines.append(
+        f'<rect x="0" y="0" width="{width}" height="{height}" fill="url(#solution-bg)"/>'
+    )
+    lines.append(
+        f'<rect x="{margin_left - 8:.3f}" y="{margin_top - 8:.3f}" width="{plot_width + 16:.3f}" height="{plot_height + 16:.3f}" fill="#ffffff" stroke="#c7d8ee" stroke-width="1.0" rx="10"/>'
     )
 
     for clip in active_clips:
@@ -428,7 +483,7 @@ def render_solution_field_svg(
         value = _cell_center_value(solution, clip, resolution=resolution)
         color = _diverging_color(value, vmin=vmin, vmax=vmax)
         lines.append(
-            f'<polygon points="{points_attr}" fill="{color}" stroke="#d0d0d0" stroke-width="0.6"/>'
+            f'<polygon points="{points_attr}" fill="{color}" stroke="#d5e1ef" stroke-width="0.6"/>'
         )
 
     boundary_points = _panel_polyline(
@@ -442,7 +497,7 @@ def render_solution_field_svg(
         plot_height=plot_height,
     )
     lines.append(
-        f'<polyline points="{boundary_points}" fill="none" stroke="#111" stroke-width="2.0"/>'
+        f'<polyline points="{boundary_points}" fill="none" stroke="#1f3752" stroke-width="2.1"/>'
     )
 
     bar_x = width - 56
@@ -460,20 +515,20 @@ def render_solution_field_svg(
             f'<rect x="{bar_x}" y="{y0:.3f}" width="16" height="{h:.3f}" fill="{color}" stroke="none"/>'
         )
     lines.append(
-        f'<rect x="{bar_x}" y="{bar_y:.3f}" width="16" height="{bar_h:.3f}" fill="none" stroke="#555" stroke-width="0.8"/>'
+        f'<rect x="{bar_x}" y="{bar_y:.3f}" width="16" height="{bar_h:.3f}" fill="none" stroke="#5a6980" stroke-width="0.8"/>'
     )
     lines.append(
-        f'<text x="{bar_x + 22}" y="{bar_y + 4:.3f}" font-size="12" fill="#222">{vmax:.3e}</text>'
+        f'<text x="{bar_x + 22}" y="{bar_y + 4:.3f}" font-size="12" fill="{_TEXT_PRIMARY}" font-family="{_FONT_FAMILY}">{vmax:.3e}</text>'
     )
     lines.append(
-        f'<text x="{bar_x + 22}" y="{bar_y + bar_h + 4:.3f}" font-size="12" fill="#222">{vmin:.3e}</text>'
+        f'<text x="{bar_x + 22}" y="{bar_y + bar_h + 4:.3f}" font-size="12" fill="{_TEXT_PRIMARY}" font-family="{_FONT_FAMILY}">{vmin:.3e}</text>'
     )
 
     lines.append(
-        f'<text x="{width / 2:.3f}" y="32" text-anchor="middle" font-size="18" fill="#111">{escape(title)}</text>'
+        f'<text x="{width / 2:.3f}" y="32" text-anchor="middle" font-size="19" fill="{_TEXT_PRIMARY}" font-family="{_FONT_FAMILY}" font-weight="600">{escape(title)}</text>'
     )
     lines.append(
-        f'<text x="{width / 2:.3f}" y="{height - 18:.3f}" text-anchor="middle" font-size="13" fill="#222">resolution = {resolution}</text>'
+        f'<text x="{width / 2:.3f}" y="{height - 18:.3f}" text-anchor="middle" font-size="13" fill="{_TEXT_SECONDARY}" font-family="{_FONT_FAMILY}">resolution = {resolution}</text>'
     )
     lines.append("</svg>")
     return "\n".join(lines) + "\n"

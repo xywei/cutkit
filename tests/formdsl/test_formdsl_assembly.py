@@ -1838,9 +1838,9 @@ def test_unknown_backend_reports_capability_error() -> None:
     assert error.value.diagnostic.code == "unsupported_backend"
 
 
-def test_dgsem_permissive_omits_unsupported_terms_from_lowering() -> None:
+def test_dgsem_permissive_omits_unknown_terms_from_lowering() -> None:
     result = assemble_form(
-        {"terms": [{"kind": "convection", "coefficient": 1.0}]},
+        {"terms": [{"kind": "hyperdiffusion", "coefficient": 1.0}]},
         backend="dgsem",
         overlay_payload=_overlay_contract(),
         strict=False,
@@ -1850,6 +1850,24 @@ def test_dgsem_permissive_omits_unsupported_terms_from_lowering() -> None:
     assert payload.volume_terms == ()
     assert payload.volume_lowering == ()
     assert any(d.code == "unsupported_term" for d in payload.lowering_diagnostics)
+
+
+def test_dgsem_convection_term_is_lowered() -> None:
+    result = assemble_form(
+        {
+            "terms": [
+                {"kind": "diffusion", "coefficient": 1.0},
+                {"kind": "convection", "coefficient": 0.35},
+            ],
+            "metadata": {"dg_flux": "upwind"},
+        },
+        backend="dgsem",
+        overlay_payload=_overlay_contract(),
+    )
+    payload = cast(DGSEMLoweringResult, result.payload)
+
+    assert "convection:0.35" in payload.volume_terms
+    assert any(entry.kind == "convection" for entry in payload.volume_lowering)
 
 
 def test_dgsem_overlay_contract_version_must_be_supported() -> None:

@@ -26,11 +26,15 @@ Repository-local documentation is the system of record for CUTKIT.
 - `docs/poisson-benchmarks.md`: Poisson-oriented benchmark usage and profiles
 - `docs/poisson-galerkin-solver.md`: immersed Poisson Galerkin solve + validation workflow
 - `docs/formdsl-parity-benchmarks.md`: shared IGA + DG-SEM formdsl parity benchmark usage
+- `docs/formdsl-step-simulations.md`: dealii-style FormDSL end-to-end step runs
 - `docs/formdsl-nurbs-multipatch-evaluation.md`: Phase 3 evaluation notes for NURBS mapping and multipatch rollout
 - `docs/ufl-backend-support.md`: UFL form backend support matrix and diagnostics
 - `scripts/check_docs_freshness.py`: stale docs path + markdown-anchor checker
 - `scripts/minimize_cutpanel_fuzz_cases.py`: deterministic fuzz-candidate minimizer
 - `scripts/run_formdsl_parity_benchmark.py`: run formdsl convergence + parity benchmark examples
+- `scripts/run_formdsl_step_001_iga_poisson.py`: step-001 end-to-end FormDSL IGA Poisson solve
+- `scripts/run_formdsl_step_002_iga_multipatch_poisson.py`: step-002 multipatch FormDSL IGA Poisson solve
+- `scripts/run_formdsl_step_003_dgsem_poisson.py`: step-003 FormDSL DGSEM solve prototype
 - `docs/entire-transcript-policy.md`: Entire transcript handling policy
 - `.github/workflows/weekly-janitor.yml`: scheduled repository cleanup automation
 
