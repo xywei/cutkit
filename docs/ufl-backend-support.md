@@ -78,6 +78,7 @@ deterministic conventions:
 | Term kind | iga | dgsem |
 | --- | --- | --- |
 | `diffusion` | yes | yes |
+| `convection` | no (`unsupported_term`) | yes |
 | `mass` | yes | yes |
 | `reaction` | yes | yes |
 | `source` | yes | yes |
@@ -158,6 +159,50 @@ Current family operator behavior in lowering payloads:
 | `sipg` | `bdry_trace_pair -> project -> face_mass -> inverse_mass` | `interior_trace_pairs -> project -> face_mass -> inverse_mass` | uses validated `dg_penalty` |
 | `central` | `bdry_trace_pair -> project -> face_mass` | `interior_trace_pairs -> project -> face_mass` | ignores `dg_penalty` |
 | `upwind` | `bdry_trace_pair -> project -> face_mass` | `interior_trace_pairs -> project -> face_mass` | ignores `dg_penalty` |
+
+## DG Lowering Example (No Solve Execution)
+
+Use the DGSEM lowering example script when you want to inspect the deterministic
+payload and operator chains CUTKIT emits for a form:
+
+```bash
+uv run python scripts/run_formdsl_dgsem_lowering_example.py --flux sipg
+```
+
+The script always reports `execution_mode = lowering_only`, prints volume/trace/
+flux signatures, and can optionally emit a JSON manifest via
+`--manifest-path`.
+
+## End-To-End Solve Helper
+
+`cutkit.formdsl.solve_form(...)` now provides one end-to-end linear solve helper
+for both backends:
+
+- `backend="iga"`: assembled trimmed-domain IGA matrix + CG solve.
+- `backend="dgsem"`: DG lowering plus grudge-backed execution mode:
+  - `dgsem_execution_mode="grudge"` (requires `dgsem` extra and OpenCL).
+  - symmetric systems use CG; convection-enabled systems use non-symmetric
+    solve (`bicgstab` with deterministic `cgne` fallback).
+  - The `dgsem` extra pins a grudge-compatible package window:
+    `grudge==2021.1`, `meshmode==2021.2`, `loopy==2024.1`,
+    `modepy==2021.1`, `pymbolic==2024.2.2`, `pytools==2024.1.21`.
+
+## FormDSL End-To-End Step Examples
+
+For dealii-style end-to-end runs, use the step scripts:
+
+```bash
+uv run python scripts/run_formdsl_step_001_iga_poisson.py --resolution 16
+uv run python scripts/run_formdsl_step_002_iga_multipatch_poisson.py --resolution 8
+uv run python scripts/run_formdsl_step_003_dgsem_poisson.py --resolution 24
+```
+
+These execute full simulation loops (assembly + linear solve + checks).
+Step 003 builds a real CUTKIT clipped overlay from the Section 6.1.1 trimmed
+panel before running DG lowering and a convection-diffusion solve.
+
+All step scripts also emit SVG plot artifacts by default (override path with
+`--artifact-dir`, disable with `--skip-plots`).
 
 ## Backend Parity Benchmark Example
 

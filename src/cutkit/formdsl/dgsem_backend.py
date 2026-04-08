@@ -42,6 +42,10 @@ _DIFFUSION_OPERATOR_CHAIN: tuple[DGSEMBuildingBlock, ...] = (
     "grudge.op.weak_local_div",
     "grudge.op.inverse_mass",
 )
+_CONVECTION_OPERATOR_CHAIN: tuple[DGSEMBuildingBlock, ...] = (
+    "grudge.op.weak_local_grad",
+    "grudge.op.inverse_mass",
+)
 _MASS_OPERATOR_CHAIN: tuple[DGSEMBuildingBlock, ...] = (
     "grudge.op.mass",
     "grudge.op.inverse_mass",
@@ -446,6 +450,23 @@ def lower_dgsem(
                         kind=term.kind,
                         coefficient=coefficient,
                         operator_chain=_DIFFUSION_OPERATOR_CHAIN,
+                        component=component,
+                    )
+                )
+        elif term.kind == "convection":
+            for component in component_indices:
+                volume_terms.append(
+                    (
+                        component,
+                        f"{_component_prefix(component)}"
+                        f"{term.kind}:{_format_float(coefficient)}",
+                    )
+                )
+                volume_lowering.append(
+                    DGSEMVolumeLowering(
+                        kind=term.kind,
+                        coefficient=coefficient,
+                        operator_chain=_CONVECTION_OPERATOR_CHAIN,
                         component=component,
                     )
                 )
