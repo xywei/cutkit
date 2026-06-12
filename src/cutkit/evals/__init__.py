@@ -74,6 +74,18 @@ from cutkit.evals.poisson_galerkin import (
     run_poisson_galerkin_benchmark,
     solve_trimmed_poisson_galerkin,
 )
+from cutkit.evals.nearfield_templates import (
+    DiagonalRemainderSample,
+    FanTemplateMap2D,
+    NearfieldTemplateExperiment,
+    diagonal_remainder_sample,
+    expected_scaled_laplace_self_interaction,
+    laplace_log_kernel,
+    metric_model_distance,
+    point_target_laplace_potential,
+    run_nearfield_template_experiment,
+    self_interaction_laplace,
+)
 
 __all__ = [
     "case_to_fixture_payload",
@@ -138,6 +150,16 @@ __all__ = [
     "build_poisson_galerkin_geometry_snapshot",
     "run_poisson_galerkin_benchmark",
     "solve_trimmed_poisson_galerkin",
+    "DiagonalRemainderSample",
+    "FanTemplateMap2D",
+    "NearfieldTemplateExperiment",
+    "diagonal_remainder_sample",
+    "expected_scaled_laplace_self_interaction",
+    "laplace_log_kernel",
+    "metric_model_distance",
+    "point_target_laplace_potential",
+    "run_nearfield_template_experiment",
+    "self_interaction_laplace",
     "FormDslParityBenchmark",
     "FormDslParityRow",
     "FormDslMultipatchStressBenchmark",
