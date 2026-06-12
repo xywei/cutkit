@@ -84,6 +84,110 @@ The reusable part would be template-space singular model integrals or correction
 operators. The runtime payload remains map coefficients, Jacobian data, source
 coefficients, target metadata, and smooth-remainder moment/interpolation data.
 
+## Metric-Field Expansion Tables
+
+The table-building objective is to separate fixed singular template integrals
+from per-chart smooth geometry coefficients. For a self or adjacent chart
+interaction, use local source/target coordinates near the singular set and write
+`z' = z + delta`. The singular distance model is
+
+```text
+|T(z') - T(z)|^2 = delta^T M(z) delta + higher-order smooth terms,
+M(z) = DT(z)^T DT(z).
+```
+
+Choose a positive-definite reference metric `M0` for one metric bin, chart
+family, or local average, and write
+
+```text
+M(z) = M0 + Delta M(z).
+```
+
+Then the logarithmic singular factor can be expanded as
+
+```text
+log(delta^T M(z) delta)
+= log(delta^T M0 delta)
+  + log(1 + (delta^T Delta M(z) delta)/(delta^T M0 delta)).
+```
+
+If the metric family is binned or normalized so that
+
+```text
+abs((delta^T Delta M(z) delta)/(delta^T M0 delta)) < 1,
+```
+
+then
+
+```text
+log(delta^T M(z) delta)
+= log(delta^T M0 delta)
+  + sum_{k>=1} (-1)^(k+1)/k
+    ((delta^T Delta M(z) delta)/(delta^T M0 delta))^k.
+```
+
+Thus the kernel singular part has the schematic expansion
+
+```text
+G_sing(z, z + delta)
+~= sum_alpha c_alpha(z) S_alpha(delta; M0),
+```
+
+where `S_alpha` are fixed singular template functions for the selected reference
+metric and `c_alpha(z)` are smooth functions of the entries of `Delta M(z)`.
+The expansion can be truncated either by polynomial order in `Delta M`, by
+interpolation in metric-entry space, or by a learned/empirical low-rank basis.
+
+For a bilinear self interaction with template basis functions `psi_i` and
+`phi_j`, the singular contribution becomes
+
+```text
+A_ij^sing ~= sum_alpha integral integral
+    psi_i(z) phi_j(z') c_alpha(z) S_alpha(z'-z; M0)
+    J(z) J(z') dz' dz.
+```
+
+Expand the smooth per-chart factor in a template basis `p_beta`:
+
+```text
+c_alpha(z) J(z) J(z') ~= sum_beta q_{alpha beta} p_beta(z, z').
+```
+
+Then
+
+```text
+A_ij^sing ~= sum_{alpha,beta} q_{alpha beta} T_{ij alpha beta},
+T_{ij alpha beta} = integral integral
+    psi_i(z) phi_j(z') p_beta(z, z') S_alpha(z'-z; M0) dz' dz.
+```
+
+The tensors `T_{ij alpha beta}` are precomputed on fixed template domains. At
+runtime, each folded chart only supplies the coefficients `q_{alpha beta}` from
+its smooth metric/Jacobian fields and any smooth-remainder representation.
+
+For the fan map
+
+```text
+T(r,t) = (1-r)V + r C(t),
+```
+
+the metric entries are explicit:
+
+```text
+T_r = C(t) - V,
+T_t = r C'(t),
+
+M(r,t) = [ |C(t)-V|^2             r (C(t)-V).C'(t) ]
+         [ r (C(t)-V).C'(t)      r^2 |C'(t)|^2      ].
+```
+
+For straight, Bezier, or mildly curved polynomial `C(t)`, these entries are
+smooth low-parameter functions of `(r,t)`, the seed `V`, and curve coefficients.
+This is the mathematical reason precomputed template tables can apply to each
+chart piece: the singular table is fixed after choosing `M0`, while observed
+folded-decomposition geometry should enter through a small smooth expansion of
+`M`, `J`, and the nonsingular remainder.
+
 ## Feasibility Result
 
 The answer is qualified yes. Singular or nearly singular folded-piece
