@@ -4,25 +4,36 @@ This note records the first mathematical check for issue 61: whether folded
 decomposition charts can support a reusable near-field template story for later
 box-code or Volumential work.
 
-## Fan Map
+## Bezier Fan Chart
 
-For one straight-edge folded 2D piece, use the fan chart
+For the mathematical model, start with the chart type expected from CAD-backed
+folded decomposition: a fan from a seed point `V` to a smooth Bezier trim curve
+`C(t)`. A degree-`p` Bezier edge is
 
 $$
-T(r,t) = (1-r)V + r C(t),
-\qquad C(t) = (1-t)P_0 + tP_1,
-\qquad 0 \le r,t \le 1.
+C(t) = \sum_{a=0}^p B_a^p(t)P_a,
+\qquad B_a^p(t)=\binom{p}{a}(1-t)^{p-a}t^a,
+\qquad 0\le t\le 1.
+$$
+
+The folded chart is
+
+$$
+T(r,t) = (1-r)V + rC(t),
+\qquad 0\le r,t\le 1.
 $$
 
 Its Jacobian is
 
 $$
-J(r,t) = r \det(C(t)-V, C'(t)) = r \det(P_0-V, P_1-V).
+J(r,t) = r\det(C(t)-V,C'(t)).
 $$
 
 The factor `r` is the Duffy-style apex degeneracy already used by
 `cutkit.quadrature.folded2d`. It is not a new singularity for physical
-integration; it cancels area at the apex.
+integration; it cancels area at the apex. The straight-edge case is only the
+degree-1 specialization and should be treated as a smoke-test fixture, not as
+the primary derivation.
 
 ## Mapped Kernel
 
@@ -86,13 +97,13 @@ $$
 
 The reusable part would be template-space singular model integrals or correction
 operators. The runtime payload remains map coefficients, Jacobian data, source
-coefficients, target metadata, and correction moment/interpolation data. For the
-straight fan map, `T(r,t)` is bilinear in template variables, so subtracting only
-the local metric model leaves an `O(|delta|)` correction whose first derivative
-at the diagonal can depend on approach direction. A smooth-remainder expansion
-should therefore either include higher-order distance terms in the singular model
-or treat this first prototype as a leading singular split plus a bounded local
-correction.
+coefficients, target metadata, and correction moment/interpolation data. For a
+Bezier fan map, `T(r,t)` is polynomial in `(r,t)` and contains mixed higher-order
+terms from `rC(t)`. Subtracting only the local metric model leaves an
+`O(|delta|)` correction whose first derivative at the diagonal can depend on
+approach direction. A smooth-remainder expansion should therefore either include
+higher-order distance terms in the singular model or treat this first prototype
+as a leading singular split plus a bounded local correction.
 
 ## Metric-Field Expansion Tables
 
@@ -184,7 +195,7 @@ runtime, each folded chart only supplies the coefficients `q_{alpha beta}` from
 its smooth metric/Jacobian fields and any higher-order correction or remainder
 representation.
 
-For the fan map
+For the Bezier fan map
 
 $$
 T(r,t) = (1-r)V + rC(t),
@@ -205,12 +216,12 @@ r(C(t)-V)\cdot C'(t) & r^2|C'(t)|^2
 \end{bmatrix}.
 $$
 
-For straight, Bezier, or mildly curved polynomial `C(t)`, these entries are
-smooth low-parameter functions of `(r,t)`, the seed `V`, and curve coefficients.
-This is the mathematical reason precomputed template tables can apply to each
-chart piece: the singular table is fixed after choosing `M0`, while observed
-folded-decomposition geometry should enter through a small smooth expansion of
-`M`, `J`, and the higher-order correction data.
+For Bezier or piecewise-Bezier CAD trims, these entries are smooth
+low-parameter functions of `(r,t)`, the seed `V`, and the Bezier control points
+`P_a`. This is the mathematical reason precomputed template tables can apply to
+each chart piece: the singular table is fixed after choosing `M0`, while
+observed folded-decomposition geometry should enter through a small smooth
+expansion of `M`, `J`, and the higher-order correction data.
 
 ## Feasibility Result
 
@@ -246,16 +257,18 @@ For each geometry and interaction case, record:
 - how many metric-field expansion modes are needed for the observed folded
   decomposition cases.
 
-The first geometry family is CAD-independent: straight fan pieces, then
-quadratic Bezier arcs and mildly curved cubics, with seed locations chosen to
-produce positive, negative, and folded orientations. OpenCascade should only be
-used later as a stress-test backend.
+The first geometry family should be CAD-independent but CAD-realistic: quadratic
+and cubic Bezier fan charts with seed locations chosen to produce positive,
+negative, and folded orientations. Straight fan pieces are useful only as
+low-level smoke tests. OpenCascade should be used later as a source of
+stress-test Bezier/NURBS-derived fixtures, not as a dependency of the numerical
+question.
 
 ## Prototype
 
 `cutkit.evals.nearfield_templates` implements:
 
-- `FanTemplateMap2D` for the analytic fan map.
+- `FanTemplateMap2D` for the current straight-edge smoke-test fan map.
 - `point_target_laplace_potential(...)` for point-target source integrals with
   polynomial template densities.
 - `self_interaction_laplace(...)` for a direct high-order mapped self integral.
@@ -268,8 +281,8 @@ The script wrapper is:
 uv run python scripts/run_nearfield_template_experiment.py --order 12
 ```
 
-The experiment checks the exact scale law for the 2D log kernel. If the fan is
-scaled by `lambda`, then
+The current smoke-test experiment checks the exact scale law for the 2D log
+kernel. If the fan is scaled by `lambda`, then
 
 $$
 I_\lambda = \lambda^4\left(I - \frac{\log(\lambda)A^2}{2\pi}\right),
