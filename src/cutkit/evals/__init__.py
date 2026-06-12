@@ -85,6 +85,7 @@ from cutkit.evals.nearfield_templates import (
     point_target_laplace_potential,
     run_nearfield_template_experiment,
     self_interaction_laplace,
+    template_density_mass,
 )
 
 __all__ = [
@@ -160,6 +161,7 @@ __all__ = [
     "point_target_laplace_potential",
     "run_nearfield_template_experiment",
     "self_interaction_laplace",
+    "template_density_mass",
     "FormDslParityBenchmark",
     "FormDslParityRow",
     "FormDslMultipatchStressBenchmark",

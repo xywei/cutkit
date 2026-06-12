@@ -9,7 +9,9 @@ from cutkit.evals import (
     point_target_laplace_potential,
     run_nearfield_template_experiment,
     self_interaction_laplace,
+    template_density_mass,
 )
+from cutkit.quadrature import gauss_legendre_01
 
 
 def test_fan_map_area_and_metric_are_consistent() -> None:
@@ -43,6 +45,55 @@ def test_self_interaction_obeys_log_kernel_scale_law() -> None:
         value,
         fan.signed_area,
         scale_factor,
+    )
+
+    assert scaled == pytest.approx(expected, abs=1.0e-13)
+
+
+def test_self_interaction_rejects_overlapping_template_nodes() -> None:
+    fan = FanTemplateMap2D(
+        vertex=(0.0, 0.0),
+        edge_start=(1.0, 0.0),
+        edge_end=(0.35, 0.9),
+    )
+
+    with pytest.raises(ValueError, match="must not overlap"):
+        self_interaction_laplace(fan, order=3, source_order=5)
+
+
+def test_scaled_self_interaction_uses_density_weighted_masses() -> None:
+    fan = FanTemplateMap2D(
+        vertex=(0.0, 0.0),
+        edge_start=(1.0, 0.0),
+        edge_end=(0.35, 0.9),
+    )
+
+    def source_density(r: float, t: float) -> float:
+        return 1.0 + r
+
+    def target_density(r: float, t: float) -> float:
+        return 1.0 - 0.25 * t
+
+    scale_factor = 1.4
+    value = self_interaction_laplace(
+        fan,
+        order=4,
+        source_order=5,
+        source_density=source_density,
+        target_density=target_density,
+    )
+    scaled = self_interaction_laplace(
+        fan.scaled(scale_factor),
+        order=4,
+        source_order=5,
+        source_density=source_density,
+        target_density=target_density,
+    )
+    expected = expected_scaled_laplace_self_interaction(
+        value,
+        template_density_mass(fan, order=4, density=source_density),
+        scale_factor,
+        target_mass=template_density_mass(fan, order=4, density=target_density),
     )
 
     assert scaled == pytest.approx(expected, abs=1.0e-13)
@@ -92,6 +143,19 @@ def test_point_target_path_converges_for_near_disjoint_target() -> None:
     )
 
     assert abs(fine - reference) < abs(coarse - reference)
+
+
+def test_point_target_path_rejects_coincident_source_node() -> None:
+    fan = FanTemplateMap2D(
+        vertex=(0.0, 0.0),
+        edge_start=(1.0, 0.0),
+        edge_end=(0.35, 0.9),
+    )
+    nodes, _weights = gauss_legendre_01(3)
+    target = fan.point(nodes[1], nodes[1])
+
+    with pytest.raises(ValueError, match="coincides with a source quadrature node"):
+        point_target_laplace_potential(fan, target, order=3)
 
 
 def test_baseline_experiment_records_feasibility_checks() -> None:

@@ -81,12 +81,18 @@ Therefore
 $$
 G(T(z),T(z+\delta))
 = -\frac{1}{2\pi}\log\sqrt{\delta^T M(z)\delta}
-+ \text{smooth remainder}.
++ \text{lower-order correction}.
 $$
 
 The reusable part would be template-space singular model integrals or correction
 operators. The runtime payload remains map coefficients, Jacobian data, source
-coefficients, target metadata, and smooth-remainder moment/interpolation data.
+coefficients, target metadata, and correction moment/interpolation data. For the
+straight fan map, `T(r,t)` is bilinear in template variables, so subtracting only
+the local metric model leaves an `O(|delta|)` correction whose first derivative
+at the diagonal can depend on approach direction. A smooth-remainder expansion
+should therefore either include higher-order distance terms in the singular model
+or treat this first prototype as a leading singular split plus a bounded local
+correction.
 
 ## Metric-Field Expansion Tables
 
@@ -96,7 +102,7 @@ interaction, use local source/target coordinates near the singular set and write
 `z' = z + delta`. The singular distance model is
 
 $$
-|T(z')-T(z)|^2 = \delta^T M(z)\delta + \text{higher-order smooth terms},
+|T(z')-T(z)|^2 = \delta^T M(z)\delta + \text{higher-order chart terms},
 \qquad M(z)=DT(z)^TDT(z).
 $$
 
@@ -142,6 +148,9 @@ where `S_alpha` are fixed singular template functions for the selected reference
 metric and `c_alpha(z)` are smooth functions of the entries of `Delta M(z)`.
 The expansion can be truncated either by polynomial order in `Delta M`, by
 interpolation in metric-entry space, or by a learned/empirical low-rank basis.
+For full smooth-remainder tables near a chart diagonal, the singular model should
+also include enough higher-order chart-distance terms to remove direction-
+dependent local corrections.
 
 For a bilinear self interaction with template basis functions `psi_i` and
 `phi_j`, the singular contribution becomes
@@ -172,7 +181,8 @@ $$
 
 The tensors `T_{ij alpha beta}` are precomputed on fixed template domains. At
 runtime, each folded chart only supplies the coefficients `q_{alpha beta}` from
-its smooth metric/Jacobian fields and any smooth-remainder representation.
+its smooth metric/Jacobian fields and any higher-order correction or remainder
+representation.
 
 For the fan map
 
@@ -200,7 +210,7 @@ smooth low-parameter functions of `(r,t)`, the seed `V`, and curve coefficients.
 This is the mathematical reason precomputed template tables can apply to each
 chart piece: the singular table is fixed after choosing `M0`, while observed
 folded-decomposition geometry should enter through a small smooth expansion of
-`M`, `J`, and the nonsingular remainder.
+`M`, `J`, and the higher-order correction data.
 
 ## Feasibility Result
 
@@ -215,7 +225,7 @@ because the folded maps have smooth, low-parameter structure away from collapsed
 seed faces, the metric field `M(z)` should vary smoothly over the template and
 across the geometry families produced by folded decomposition. A functional
 expansion in the metric data, for example moments, interpolation coefficients,
-or a low-rank basis in `M` and the smooth remainder, may cover enough practical
+or a low-rank basis in `M` and the correction terms, may cover enough practical
 cut-piece cases to make reusable near-field corrections worthwhile.
 
 The open numerical question is therefore whether the smooth dependence on `M`,
@@ -229,7 +239,7 @@ For each geometry and interaction case, record:
 - reference value;
 - ordinary pulled-forward tensor-product quadrature error;
 - template singular-correction error;
-- smooth-remainder approximation error;
+- higher-order correction/remainder approximation error;
 - dependence on quadrature order;
 - dependence on seed location and curve coefficients;
 - size, rank, and smoothness of geometry-parameterized correction data;

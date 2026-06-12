@@ -10,6 +10,7 @@ from cutkit.quadrature import gauss_legendre_01
 
 Point2D = tuple[float, float]
 TemplateDensity2D = Callable[[float, float], float]
+_COINCIDENT_TOL = 1.0e-14
 
 
 def unit_template_density(_r: float, _t: float) -> float:
@@ -32,6 +33,19 @@ def _cross(lhs: Point2D, rhs: Point2D) -> float:
 
 def _scale_point(point: Point2D, scale: float) -> Point2D:
     return (scale * point[0], scale * point[1])
+
+
+def _rules_share_nodes(
+    lhs: tuple[float, ...],
+    rhs: tuple[float, ...],
+    *,
+    atol: float = _COINCIDENT_TOL,
+) -> bool:
+    for left in lhs:
+        for right in rhs:
+            if abs(left - right) <= atol:
+                return True
+    return False
 
 
 @dataclass(frozen=True)
@@ -183,6 +197,11 @@ def self_interaction_laplace(
 
     target_nodes, target_weights = gauss_legendre_01(order)
     source_nodes, source_weights = gauss_legendre_01(source_order)
+    if _rules_share_nodes(target_nodes, source_nodes):
+        raise ValueError(
+            "source_order quadrature nodes must not overlap target order nodes "
+            "for direct self-interaction reference quadrature"
+        )
     total = 0.0
 
     for target_r, target_wr in zip(target_nodes, target_weights, strict=True):
@@ -213,6 +232,28 @@ def self_interaction_laplace(
     return total
 
 
+def template_density_mass(
+    fan: FanTemplateMap2D,
+    *,
+    order: int,
+    density: TemplateDensity2D | None = None,
+) -> float:
+    """Return ``integral density(r,t) * J(r,t) dr dt`` on one fan chart."""
+
+    if order < 1:
+        raise ValueError("order must be positive")
+    if density is None:
+        density = unit_template_density
+
+    nodes, weights = gauss_legendre_01(order)
+    total = 0.0
+    for r, wr in zip(nodes, weights, strict=True):
+        jacobian = fan.signed_jacobian(r)
+        for t, wt in zip(nodes, weights, strict=True):
+            total += density(r, t) * jacobian * wr * wt
+    return total
+
+
 def point_target_laplace_potential(
     fan: FanTemplateMap2D,
     target: Point2D,
@@ -233,6 +274,11 @@ def point_target_laplace_potential(
         jacobian = fan.signed_jacobian(r)
         for t, wt in zip(nodes, weights, strict=True):
             source = fan.point(r, t)
+            if hypot(target[0] - source[0], target[1] - source[1]) <= _COINCIDENT_TOL:
+                raise ValueError(
+                    "point target coincides with a source quadrature node; "
+                    "use a singular point-target reference rule"
+                )
             total += (
                 laplace_log_kernel(target, source)
                 * source_density(r, t)
@@ -245,15 +291,19 @@ def point_target_laplace_potential(
 
 def expected_scaled_laplace_self_interaction(
     base_interaction: float,
-    signed_area: float,
+    source_mass: float,
     scale_factor: float,
+    *,
+    target_mass: float | None = None,
 ) -> float:
     """Return the exact 2D log-kernel scale law for a scaled fan piece."""
 
     if scale_factor <= 0.0:
         raise ValueError("scale_factor must be positive")
+    if target_mass is None:
+        target_mass = source_mass
     return scale_factor**4 * (
-        base_interaction - log(scale_factor) * signed_area * signed_area / (2.0 * pi)
+        base_interaction - log(scale_factor) * target_mass * source_mass / (2.0 * pi)
     )
 
 
