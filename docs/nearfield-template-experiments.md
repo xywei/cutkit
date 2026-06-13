@@ -49,72 +49,87 @@ $$
 u(x) = \int_{[0,1]^2} G(x,T_e(r,t))\rho(T_e(r,t))J_e(r,t)\,dr\,dt.
 $$
 
-This is the cheapest diagnostic path because it isolates source-piece mapping,
-source density, and target location before introducing target basis functions.
-For target pieces with a second map `T_f(eta)`, the bilinear template integral is
+This is the primary target model for the box-code experiment. The source is a
+folded piece, but targets are physical-space discretization nodes in the source
+box and neighboring near-field boxes. There is no target folded piece in the
+first near-field experiment.
+
+For reusable tables, express the target relative to the same physical box or
+chart payload. If `x0` is a chart/box reference point and `H` is a box-scale map,
+write
 
 $$
-A_{fe} = \int_{[0,1]^2}\int_{[0,1]^2}
-\psi_f(\eta)G(T_f(\eta),T_e(\xi))\phi_e(\xi)
-J_f(\eta)J_e(\xi)\,d\xi\,d\eta.
+x = x_0 + H\tau,
 $$
 
-For the self-piece case, this specializes to
+where `tau` is the template-space location of a target node in the containing or
+neighboring box. The source-to-point integral is then a fixed-domain integral in
+the source chart coordinates and the target offset parameter `tau`:
 
 $$
-I = \int_{[0,1]^2}\int_{[0,1]^2}
-G(T(r,t),T(r',t'))J(r,t)J(r',t')\,dr\,dt\,dr'\,dt'.
+u(\tau) = \int_{[0,1]^2}G(x_0+H\tau,T_e(\xi))\rho(T_e(\xi))J_e(\xi)\,d\xi.
 $$
 
-The experiment should classify interactions as:
+The experiment should classify target/source geometry as:
 
-- self piece, `e = f`;
-- edge-adjacent pieces sharing a boundary segment;
-- vertex or seed-adjacent pieces;
-- near but disjoint pieces;
-- well-separated pieces, where ordinary tensor-product quadrature should already work.
+- target node on or very near the source folded piece;
+- target node in the source piece's containing box;
+- target node in an edge-neighboring box;
+- target node in a vertex-neighboring box;
+- well-separated target node, where ordinary tensor-product quadrature should already work.
 
-## Singular Split
+## Point-Target Singular Split
 
-Near a non-apex diagonal point `z=(r,t)`, write `delta = z' - z`. Then
-
-$$
-T(z+\delta)-T(z) = DT(z)\delta + O(|\delta|^2),
-$$
+For a target point near the source chart, let `z_x` be a closest or projected
+template coordinate with `T(z_x)` near `x`, and write `xi = z_x + delta`. Then
 
 $$
-|T(z+\delta)-T(z)| = \sqrt{\delta^T M(z)\delta}\,(1+O(|\delta|)),
-\qquad M(z) = DT(z)^TDT(z).
+T(z_x+\delta)-T(z_x) = DT(z_x)\delta + O(|\delta|^2),
 $$
 
-Therefore
+$$
+|T(z_x+\delta)-T(z_x)| =
+\sqrt{\delta^T M(z_x)\delta}\,(1+O(|\delta|)),
+\qquad M(z_x) = DT(z_x)^TDT(z_x).
+$$
+
+For an on-surface or asymptotically close target, this gives the leading model
 
 $$
-G(T(z),T(z+\delta))
-= -\frac{1}{2\pi}\log\sqrt{\delta^T M(z)\delta}
+G(x,T(z_x+\delta))
+= -\frac{1}{2\pi}\log\sqrt{\delta^T M(z_x)\delta}
 + \text{lower-order correction}.
+$$
+
+For an off-surface target, include the normal/offset residual `d = x-T(z_x)`:
+
+$$
+|x-T(z_x+\delta)|^2
+= |d-DT(z_x)\delta|^2 + \text{higher-order chart terms}.
 $$
 
 The reusable part would be template-space singular model integrals or correction
 operators. The runtime payload remains map coefficients, Jacobian data, source
-coefficients, target metadata, and correction moment/interpolation data. For a
-Bezier fan map, `T(r,t)` is polynomial in `(r,t)` and contains mixed higher-order
-terms from `rC(t)`. Subtracting only the local metric model leaves an
-`O(|delta|)` correction whose first derivative at the diagonal can depend on
-approach direction. A smooth-remainder expansion should therefore either include
-higher-order distance terms in the singular model or treat this first prototype
-as a leading singular split plus a bounded local correction.
+coefficients, target-node offsets, and correction moment/interpolation data. For
+a Bezier fan map, `T(r,t)` is polynomial in `(r,t)` and contains mixed
+higher-order terms from `rC(t)`. Subtracting only the local metric model leaves
+an `O(|delta|)` correction whose first derivative at the singular point can
+depend on approach direction. A smooth-remainder expansion should therefore
+either include higher-order distance terms in the singular model or treat this
+first prototype as a leading singular split plus a bounded local correction.
 
 ## Metric-Field Expansion Tables
 
 The table-building objective is to separate fixed singular template integrals
-from per-chart smooth geometry coefficients. For a self or adjacent chart
-interaction, use local source/target coordinates near the singular set and write
-`z' = z + delta`. The singular distance model is
+from per-chart smooth geometry and per-target offset coefficients. For a target
+node represented by offset coordinates `tau`, use local source coordinates near
+the closest chart point and write `xi = z_x + delta`. The on-surface singular
+distance model is
 
 $$
-|T(z')-T(z)|^2 = \delta^T M(z)\delta + \text{higher-order chart terms},
-\qquad M(z)=DT(z)^TDT(z).
+|T(z_x+\delta)-T(z_x)|^2
+= \delta^T M(z_x)\delta + \text{higher-order chart terms},
+\qquad M(z_x)=DT(z_x)^TDT(z_x).
 $$
 
 Choose a positive-definite reference metric `M0` for one metric bin, chart
@@ -151,49 +166,50 @@ $$
 Thus the kernel singular part has the schematic expansion
 
 $$
-G_{\mathrm{sing}}(z,z+\delta)
-\approx \sum_\alpha c_\alpha(z)S_\alpha(\delta;M_0),
+G_{\mathrm{sing}}(x,T(z_x+\delta))
+\approx \sum_\alpha c_\alpha(z_x,\tau)S_\alpha(\delta;M_0),
 $$
 
 where `S_alpha` are fixed singular template functions for the selected reference
-metric and `c_alpha(z)` are smooth functions of the entries of `Delta M(z)`.
-The expansion can be truncated either by polynomial order in `Delta M`, by
-interpolation in metric-entry space, or by a learned/empirical low-rank basis.
+metric and `c_alpha(z_x,tau)` are smooth functions of the entries of
+`Delta M(z_x)` and the target offset data. The expansion can be truncated either
+by polynomial order in `Delta M`, by interpolation in metric/offset space, or by
+a learned/empirical low-rank basis.
 For full smooth-remainder tables near a chart diagonal, the singular model should
 also include enough higher-order chart-distance terms to remove direction-
 dependent local corrections.
 
-For a bilinear self interaction with template basis functions `psi_i` and
-`phi_j`, the singular contribution becomes
+For one target node and one source density expansion mode `rho_j`, the singular
+contribution becomes
 
 $$
-A_{ij}^{\mathrm{sing}} \approx \sum_\alpha \int\!\int
-\psi_i(z)\phi_j(z')c_\alpha(z)S_\alpha(z'-z;M_0)
-J(z)J(z')\,dz'\,dz.
+u_j^{\mathrm{sing}}(\tau) \approx \sum_\alpha \int_{[0,1]^2}
+\rho_j(\xi)c_\alpha(z_x,\tau)S_\alpha(\xi-z_x;M_0)J(\xi)\,d\xi.
 $$
 
-Expand the smooth per-chart factor in a template basis `p_beta`:
+Expand the smooth per-chart/per-target factor in a template basis `p_beta`:
 
 $$
-c_\alpha(z)J(z)J(z') \approx \sum_\beta q_{\alpha\beta}p_\beta(z,z').
+c_\alpha(z_x,\tau)J(\xi) \approx \sum_\beta q_{\alpha\beta}(\tau)p_\beta(\xi).
 $$
 
 Then
 
 $$
-A_{ij}^{\mathrm{sing}} \approx
-\sum_{\alpha,\beta}q_{\alpha\beta}T_{ij\alpha\beta},
+u_j^{\mathrm{sing}}(\tau) \approx
+\sum_{\alpha,\beta}q_{\alpha\beta}(\tau)T_{j\alpha\beta},
 $$
 
 $$
-T_{ij\alpha\beta} = \int\!\int
-\psi_i(z)\phi_j(z')p_\beta(z,z')S_\alpha(z'-z;M_0)\,dz'\,dz.
+T_{j\alpha\beta} = \int_{[0,1]^2}
+\rho_j(\xi)p_\beta(\xi)S_\alpha(\xi-z_x;M_0)\,d\xi.
 $$
 
-The tensors `T_{ij alpha beta}` are precomputed on fixed template domains. At
-runtime, each folded chart only supplies the coefficients `q_{alpha beta}` from
-its smooth metric/Jacobian fields and any higher-order correction or remainder
-representation.
+The tensors `T_{j alpha beta}` are precomputed on fixed source template domains,
+or tabulated over a small target-offset grid. At runtime, each folded chart and
+target node only supply the coefficients `q_{alpha beta}(tau)` from smooth
+metric/Jacobian fields, target offset data, and any higher-order correction or
+remainder representation.
 
 For the Bezier fan map
 
@@ -271,7 +287,6 @@ question.
 - `FanTemplateMap2D` for the current straight-edge smoke-test fan map.
 - `point_target_laplace_potential(...)` for point-target source integrals with
   polynomial template densities.
-- `self_interaction_laplace(...)` for a direct high-order mapped self integral.
 - `diagonal_remainder_sample(...)` for the metric singular split.
 - `run_nearfield_template_experiment(...)` for the baseline feasibility check.
 
@@ -282,15 +297,18 @@ uv run python scripts/run_nearfield_template_experiment.py --order 12
 ```
 
 The current smoke-test experiment checks the exact scale law for the 2D log
-kernel. If the fan is scaled by `lambda`, then
+kernel. If both the source fan and physical target point are scaled by `lambda`,
+then
 
 $$
-I_\lambda = \lambda^4\left(I - \frac{\log(\lambda)A^2}{2\pi}\right),
+u_\lambda(\lambda x)
+= \lambda^2\left(u(x) - \frac{\log(\lambda)m_\rho}{2\pi}\right),
 $$
 
-where `A` is the signed area of the unscaled fan piece. It also records diagonal
-remainder samples that shrink as the source/target template coordinates coalesce
-and a point-target low-order-vs-reference error.
+where `m_rho` is the density-weighted signed source mass on the unscaled fan
+piece. It also records diagonal remainder samples that shrink as the source and
+target template coordinates coalesce and a point-target low-order-vs-reference
+error.
 
 ## Next Decision
 

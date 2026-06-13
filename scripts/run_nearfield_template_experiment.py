@@ -35,17 +35,20 @@ def main() -> int:
     print("field | value")
     print("--- | ---")
     print(f"order | {result.order}")
-    print(f"source_order | {result.source_order}")
     print(f"near_point_target | {result.near_point_target}")
     print(f"point_target_reference | {result.point_target_reference:.16e}")
     print(f"point_target_low_order | {result.point_target_low_order:.16e}")
     print(f"point_target_abs_error | {result.point_target_abs_error:.16e}")
     print(f"signed_area | {result.signed_area:.16e}")
-    print(f"self_interaction | {result.self_interaction:.16e}")
+    print(f"density_mass | {result.density_mass:.16e}")
     print(f"scale_factor | {result.scale_factor:.16e}")
-    print(f"scaled_self_interaction | {result.scaled_self_interaction:.16e}")
+    print(f"scaled_near_point_target | {result.scaled_near_point_target}")
     print(
-        f"expected_scaled_self_interaction | {result.expected_scaled_self_interaction:.16e}"
+        f"scaled_point_target_potential | {result.scaled_point_target_potential:.16e}"
+    )
+    print(
+        "expected_scaled_point_target_potential | "
+        f"{result.expected_scaled_point_target_potential:.16e}"
     )
     print(f"scaled_abs_error | {result.scaled_abs_error:.16e}")
     print("")

@@ -5,10 +5,9 @@ import pytest
 from cutkit.evals import (
     FanTemplateMap2D,
     diagonal_remainder_sample,
-    expected_scaled_laplace_self_interaction,
+    expected_scaled_laplace_point_potential,
     point_target_laplace_potential,
     run_nearfield_template_experiment,
-    self_interaction_laplace,
     template_density_mass,
 )
 from cutkit.quadrature import gauss_legendre_01
@@ -28,40 +27,30 @@ def test_fan_map_area_and_metric_are_consistent() -> None:
     assert metric[0][1] == pytest.approx(metric[1][0])
 
 
-def test_self_interaction_obeys_log_kernel_scale_law() -> None:
+def test_point_target_potential_obeys_log_kernel_scale_law() -> None:
     fan = FanTemplateMap2D(
         vertex=(0.0, 0.0),
         edge_start=(1.0, 0.0),
         edge_end=(0.35, 0.9),
     )
     scale_factor = 2.25
-    value = self_interaction_laplace(fan, order=5, source_order=6)
-    scaled = self_interaction_laplace(
+    target = (0.8, 0.7)
+    value = point_target_laplace_potential(fan, target, order=6)
+    scaled = point_target_laplace_potential(
         fan.scaled(scale_factor),
-        order=5,
-        source_order=6,
+        (scale_factor * target[0], scale_factor * target[1]),
+        order=6,
     )
-    expected = expected_scaled_laplace_self_interaction(
+    expected = expected_scaled_laplace_point_potential(
         value,
-        fan.signed_area,
+        template_density_mass(fan, order=6),
         scale_factor,
     )
 
     assert scaled == pytest.approx(expected, abs=1.0e-13)
 
 
-def test_self_interaction_rejects_overlapping_template_nodes() -> None:
-    fan = FanTemplateMap2D(
-        vertex=(0.0, 0.0),
-        edge_start=(1.0, 0.0),
-        edge_end=(0.35, 0.9),
-    )
-
-    with pytest.raises(ValueError, match="must not overlap"):
-        self_interaction_laplace(fan, order=3, source_order=5)
-
-
-def test_scaled_self_interaction_uses_density_weighted_masses() -> None:
+def test_scaled_point_target_potential_uses_density_weighted_mass() -> None:
     fan = FanTemplateMap2D(
         vertex=(0.0, 0.0),
         edge_start=(1.0, 0.0),
@@ -71,29 +60,24 @@ def test_scaled_self_interaction_uses_density_weighted_masses() -> None:
     def source_density(r: float, t: float) -> float:
         return 1.0 + r
 
-    def target_density(r: float, t: float) -> float:
-        return 1.0 - 0.25 * t
-
     scale_factor = 1.4
-    value = self_interaction_laplace(
+    target = (0.8, 0.7)
+    value = point_target_laplace_potential(
         fan,
+        target,
         order=4,
-        source_order=5,
         source_density=source_density,
-        target_density=target_density,
     )
-    scaled = self_interaction_laplace(
+    scaled = point_target_laplace_potential(
         fan.scaled(scale_factor),
+        (scale_factor * target[0], scale_factor * target[1]),
         order=4,
-        source_order=5,
         source_density=source_density,
-        target_density=target_density,
     )
-    expected = expected_scaled_laplace_self_interaction(
+    expected = expected_scaled_laplace_point_potential(
         value,
         template_density_mass(fan, order=4, density=source_density),
         scale_factor,
-        target_mass=template_density_mass(fan, order=4, density=target_density),
     )
 
     assert scaled == pytest.approx(expected, abs=1.0e-13)
@@ -163,6 +147,10 @@ def test_baseline_experiment_records_feasibility_checks() -> None:
 
     assert result.scaled_abs_error < 1.0e-13
     assert result.point_target_abs_error > 0.0
+    assert result.scaled_point_target_potential == pytest.approx(
+        result.expected_scaled_point_target_potential,
+        abs=1.0e-13,
+    )
     assert result.diagonal_remainders[-1].delta == pytest.approx(1.0e-3)
     assert abs(result.diagonal_remainders[-1].remainder) < abs(
         result.diagonal_remainders[0].remainder

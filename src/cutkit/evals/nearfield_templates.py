@@ -35,19 +35,6 @@ def _scale_point(point: Point2D, scale: float) -> Point2D:
     return (scale * point[0], scale * point[1])
 
 
-def _rules_share_nodes(
-    lhs: tuple[float, ...],
-    rhs: tuple[float, ...],
-    *,
-    atol: float = _COINCIDENT_TOL,
-) -> bool:
-    for left in lhs:
-        for right in rhs:
-            if abs(left - right) <= atol:
-                return True
-    return False
-
-
 @dataclass(frozen=True)
 class FanTemplateMap2D:
     """Straight-edge folded fan chart ``T(r, t) = (1-r)V + r C(t)``."""
@@ -126,21 +113,21 @@ class DiagonalRemainderSample:
 
 @dataclass(frozen=True)
 class NearfieldTemplateExperiment:
-    """Summary of one fan-chart self-interaction experiment."""
+    """Summary of one fan-chart point-target experiment."""
 
     fan: FanTemplateMap2D
     order: int
-    source_order: int
     near_point_target: Point2D
     point_target_reference: float
     point_target_low_order: float
     point_target_abs_error: float
-    self_interaction: float
-    signed_area: float
-    scale_factor: float
-    scaled_self_interaction: float
-    expected_scaled_self_interaction: float
+    scaled_near_point_target: Point2D
+    scaled_point_target_potential: float
+    expected_scaled_point_target_potential: float
     scaled_abs_error: float
+    signed_area: float
+    density_mass: float
+    scale_factor: float
     diagonal_remainders: tuple[DiagonalRemainderSample, ...]
 
 
@@ -172,64 +159,6 @@ def metric_model_distance(
     if distance_squared <= 0.0:
         raise ValueError("metric model distance must be positive")
     return sqrt(distance_squared)
-
-
-def self_interaction_laplace(
-    fan: FanTemplateMap2D,
-    *,
-    order: int,
-    source_order: int | None = None,
-    source_density: TemplateDensity2D | None = None,
-    target_density: TemplateDensity2D | None = None,
-) -> float:
-    """Approximate the mapped self interaction on one fan chart."""
-
-    if order < 1:
-        raise ValueError("order must be positive")
-    if source_order is None:
-        source_order = order + 1
-    if source_order < 1:
-        raise ValueError("source_order must be positive")
-    if source_density is None:
-        source_density = unit_template_density
-    if target_density is None:
-        target_density = unit_template_density
-
-    target_nodes, target_weights = gauss_legendre_01(order)
-    source_nodes, source_weights = gauss_legendre_01(source_order)
-    if _rules_share_nodes(target_nodes, source_nodes):
-        raise ValueError(
-            "source_order quadrature nodes must not overlap target order nodes "
-            "for direct self-interaction reference quadrature"
-        )
-    total = 0.0
-
-    for target_r, target_wr in zip(target_nodes, target_weights, strict=True):
-        target_j = fan.signed_jacobian(target_r)
-        for target_t, target_wt in zip(target_nodes, target_weights, strict=True):
-            target = fan.point(target_r, target_t)
-            target_weight = (
-                target_density(target_r, target_t) * target_j * target_wr * target_wt
-            )
-            for source_r, source_wr in zip(source_nodes, source_weights, strict=True):
-                source_j = fan.signed_jacobian(source_r)
-                for source_t, source_wt in zip(
-                    source_nodes, source_weights, strict=True
-                ):
-                    source = fan.point(source_r, source_t)
-                    source_weight = (
-                        source_density(source_r, source_t)
-                        * source_j
-                        * source_wr
-                        * source_wt
-                    )
-                    total += (
-                        laplace_log_kernel(target, source)
-                        * target_weight
-                        * source_weight
-                    )
-
-    return total
 
 
 def template_density_mass(
@@ -289,21 +218,17 @@ def point_target_laplace_potential(
     return total
 
 
-def expected_scaled_laplace_self_interaction(
-    base_interaction: float,
+def expected_scaled_laplace_point_potential(
+    base_potential: float,
     source_mass: float,
     scale_factor: float,
-    *,
-    target_mass: float | None = None,
 ) -> float:
-    """Return the exact 2D log-kernel scale law for a scaled fan piece."""
+    """Return the exact 2D log-kernel scale law for a scaled source and target."""
 
     if scale_factor <= 0.0:
         raise ValueError("scale_factor must be positive")
-    if target_mass is None:
-        target_mass = source_mass
-    return scale_factor**4 * (
-        base_interaction - log(scale_factor) * target_mass * source_mass / (2.0 * pi)
+    return scale_factor**2 * (
+        base_potential - log(scale_factor) * source_mass / (2.0 * pi)
     )
 
 
@@ -355,12 +280,6 @@ def run_nearfield_template_experiment(
         edge_start=(1.0, 0.0),
         edge_end=(0.35, 0.9),
     )
-    source_order = order + 1
-    self_value = self_interaction_laplace(
-        fan,
-        order=order,
-        source_order=source_order,
-    )
     near_point_target = (0.47, 0.42)
 
     def point_density(r: float, t: float) -> float:
@@ -378,14 +297,21 @@ def run_nearfield_template_experiment(
         order=max(order // 2, 2),
         source_density=point_density,
     )
-    scaled_value = self_interaction_laplace(
+    scaled_target = _scale_point(near_point_target, scale_factor)
+    scaled_value = point_target_laplace_potential(
         fan.scaled(scale_factor),
-        order=order,
-        source_order=source_order,
+        scaled_target,
+        order=max(order + 8, 16),
+        source_density=point_density,
     )
-    expected_scaled = expected_scaled_laplace_self_interaction(
-        self_value,
-        fan.signed_area,
+    density_mass = template_density_mass(
+        fan,
+        order=max(order + 8, 16),
+        density=point_density,
+    )
+    expected_scaled = expected_scaled_laplace_point_potential(
+        point_reference,
+        density_mass,
         scale_factor,
     )
     remainders = tuple(
@@ -395,16 +321,16 @@ def run_nearfield_template_experiment(
     return NearfieldTemplateExperiment(
         fan=fan,
         order=order,
-        source_order=source_order,
         near_point_target=near_point_target,
         point_target_reference=point_reference,
         point_target_low_order=point_low_order,
         point_target_abs_error=abs(point_low_order - point_reference),
-        self_interaction=self_value,
-        signed_area=fan.signed_area,
-        scale_factor=scale_factor,
-        scaled_self_interaction=scaled_value,
-        expected_scaled_self_interaction=expected_scaled,
+        scaled_near_point_target=scaled_target,
+        scaled_point_target_potential=scaled_value,
+        expected_scaled_point_target_potential=expected_scaled,
         scaled_abs_error=abs(scaled_value - expected_scaled),
+        signed_area=fan.signed_area,
+        density_mass=density_mass,
+        scale_factor=scale_factor,
         diagonal_remainders=remainders,
     )

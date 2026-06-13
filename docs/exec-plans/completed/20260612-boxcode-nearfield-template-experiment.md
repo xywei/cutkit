@@ -8,7 +8,7 @@ template corrections for box-code and Volumential-style workflows.
 ## Scope
 
 - Derive the mapped-kernel form for a 2D fan folded piece.
-- Include both point-target and target-piece bilinear near-field forms.
+- Focus the near-field form on point targets in physical space.
 - Identify singular factors that can be separated from smooth geometry payloads.
 - Frame the reuse hypothesis as a functional expansion in smooth metric fields
   `M(z)`, not just as raw runtime geometry data.
@@ -24,9 +24,9 @@ template corrections for box-code and Volumential-style workflows.
 ## Acceptance Criteria
 
 - The derivation states the mapped self-interaction form and its split.
-- The derivation records the point-target form, bilinear form, interaction
-  taxonomy, and measurement criteria from issue 61.
-- The prototype records a self or adjacent template experiment with a direct
+- The derivation records the point-target form, target/source geometry taxonomy,
+  and measurement criteria from issue 61.
+- The prototype records a point-target template experiment with a direct
   high-order reference value.
 - Tests check the experiment against an analytic or independently computed
   invariant.
@@ -53,8 +53,8 @@ template corrections for box-code and Volumential-style workflows.
 - The practical reuse hypothesis is that a functional expansion in `M(z)` and
   smooth-remainder data covers the folded-decomposition cases with few modes.
 - The first prototype covers analytic straight fan maps, point-target
-  integrals, bilinear self interactions, a log-kernel scale-law check, and a
-  diagonal metric-remainder sample.
+  integrals, a log-kernel scale-law check, and a diagonal metric-remainder
+  sample.
 
 ## Validation
 
