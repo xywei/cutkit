@@ -160,16 +160,28 @@ high-order correction or interpolation data.
 ## Metric-Field Expansion Tables
 
 The table-building objective is to separate fixed singular template integrals
-from per-chart smooth geometry and per-target offset coefficients. For a target
-node represented by offset coordinates `tau`, use local source coordinates near
-the closest chart point and write `xi = z_x + delta`. The high-order singular
-distance model is
+from per-chart smooth geometry and per-target offset coefficients. The table is
+not built from the metric term alone. It is built from the high-order
+target-to-source displacement polynomial `P_K`.
+
+For a target node represented by offset coordinates `tau`, write source points
+near the closest chart point as `xi = z_x + delta`. The singular distance model is
 
 $$
 |x-T(z_x+\delta)|^2 \approx |P_K(\delta;z_x,d)|^2.
 $$
 
-For `K=1` and an on-surface target, this reduces to the metric model
+The coefficients of `P_K` are the runtime geometry payload:
+
+$$
+\mathcal J_K(z_x,d)
+= \left(d,\{\partial^\alpha T(z_x):1\le |\alpha|\le K\}\right).
+$$
+
+This includes both on-surface and off-surface targets. On-surface targets have
+`d=0`; off-surface targets have nonzero `d`, which may include both normal and
+tangential offset components. The metric field is only the first quadratic part
+of this larger jet. In the special case `K=1` and `d=0`, the model reduces to
 
 $$
 \begin{aligned}
@@ -178,48 +190,50 @@ M(z_x) &= DT(z_x)^TDT(z_x).
 \end{aligned}
 $$
 
-The higher-order table strategy uses the full finite jet, not just `M(z_x)`. The
-metric field remains the first term and a useful organizing parameter, but the
-practical expansion variables are the coefficients of `P_K` plus the target
-offset `d`.
-
-Choose a reference jet, beginning with a positive-definite reference metric `M0`
-and reference higher-order coefficients for one metric/curvature bin, chart
-family, or local average. For the first metric term, write
+That special case is useful for sanity checks, but it is not the intended table
+construction. The practical table construction chooses a reference jet
+$\mathcal J_0$ for a geometry/target-offset bin and expands the actual jet around
+it:
 
 $$
-M(z) = M_0 + \Delta M(z).
+\mathcal J_K(z_x,d) = \mathcal J_0 + \Delta\mathcal J(z_x,d).
 $$
 
-Then the metric contribution to the logarithmic singular factor can be expanded as
+Equivalently, write the displacement polynomial as a reference model plus a
+smooth perturbation:
 
 $$
 \begin{aligned}
-\log(\delta^T M(z)\delta)
-&= \log(\delta^T M_0\delta) \\
-&\quad + \log\left(1+\frac{\delta^T\Delta M(z)\delta}{\delta^T M_0\delta}\right).
+P_K(\delta;z_x,d)
+&= P_K^0(\delta) + \Delta P_K(\delta;z_x,d).
 \end{aligned}
 $$
 
-If the metric family is binned or normalized so that
-
-$$
-\left|\frac{\delta^T\Delta M(z)\delta}{\delta^T M_0\delta}\right| < 1,
-$$
-
-then
+Then the log kernel can be expanded around the reference displacement:
 
 $$
 \begin{aligned}
-\log(\delta^T M(z)\delta)
-&= \log(\delta^T M_0\delta) \\
-&\quad + \sum_{k\ge 1}\frac{(-1)^{k+1}}{k}\left(\frac{\delta^T\Delta M(z)\delta}{\delta^T M_0\delta}\right)^k.
+\log |P_K(\delta;z_x,d)|
+&= \log |P_K^0(\delta)| \\
+&\quad + \frac{1}{2}\log\left(1+R_K(\delta;z_x,d)\right),
 \end{aligned}
 $$
 
-The same expansion idea applies to the full high-order polynomial distance by
-expanding the coefficients of `P_K` around the reference jet. Thus the kernel
-singular part has the schematic expansion
+where
+
+$$
+\begin{aligned}
+R_K(\delta;z_x,d)
+&= \frac{N_K(\delta;z_x,d)}{|P_K^0(\delta)|^2}, \\
+N_K(\delta;z_x,d)
+&= 2P_K^0(\delta)\cdot\Delta P_K(\delta;z_x,d) \\
+&\quad + |\Delta P_K(\delta;z_x,d)|^2.
+\end{aligned}
+$$
+
+When each bin is chosen so the perturbation ratio is controlled, this expression
+can be expanded in powers, interpolation modes, or a low-rank basis in the jet
+perturbation coefficients. The resulting singular model has the schematic form
 
 $$
 \begin{aligned}
@@ -228,12 +242,11 @@ G_K^{\mathrm{sing}}(x,z_x,\delta)
 \end{aligned}
 $$
 
-where $\mathcal J_0$ denotes the selected reference jet. The fixed functions
-`S_alpha` depend only on template displacement and the reference jet, while
-`c_alpha(z_x,tau)` are smooth functions of metric entries, higher-order chart
-derivatives, and target offset data. The expansion can be truncated by polynomial
-order in the jet perturbation, by interpolation in jet/offset space, or by a
-learned/empirical low-rank basis.
+Here `S_alpha` are fixed template functions for the selected reference jet, and
+`c_alpha(z_x,tau)` are smooth functions of the target offset `d`, the metric
+entries, and all higher-order chart derivatives included in `P_K`. For Bezier
+fan charts, these jet coefficients are smooth functions of the seed point and
+Bezier control points.
 
 For one target node and one source density expansion mode `rho_j`, the singular
 contribution becomes
@@ -247,13 +260,17 @@ u_j^{\mathrm{sing}}(\tau)
 \end{aligned}
 $$
 
-Expand the smooth per-chart/per-target factor in a template basis `p_beta`:
+If the smooth per-chart/per-target factor is also expanded in a template basis
+`p_beta`,
 
 $$
-c_\alpha(z_x,\tau)J(\xi) \approx \sum_\beta q_{\alpha\beta}(\tau)p_\beta(\xi).
+\begin{aligned}
+c_\alpha(z_x,\tau)J(\xi)
+&\approx \sum_\beta q_{\alpha\beta}(\tau)p_\beta(\xi),
+\end{aligned}
 $$
 
-Then
+then the runtime evaluation uses precomputed source-template tables:
 
 $$
 \begin{aligned}
@@ -273,7 +290,7 @@ $$
 The tensors `T_{j alpha beta}` are precomputed on fixed source template domains,
 or tabulated over a small target-offset grid. At runtime, each folded chart and
 target node only supply the coefficients `q_{alpha beta}(tau)` from smooth
-metric/Jacobian fields, target offset data, and any higher-order correction or
+jet/Jacobian fields, target offset data, and any higher-order correction or
 remainder representation.
 
 For the Bezier fan map
