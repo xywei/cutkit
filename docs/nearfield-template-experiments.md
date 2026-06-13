@@ -97,8 +97,17 @@ d &= x - T(z_x).
 $$
 
 Here `delta` is the local source displacement away from the nearest source point,
-and `d` is the physical target offset from that point. Instead of keeping only
-the first metric term, use a high-order Taylor jet of the chart around `z_x`:
+and `d` is the physical target offset from that point. The kernel depends on the
+physical displacement from the source point to the target:
+
+$$
+x - T(\xi) = x - T(z_x+\delta).
+$$
+
+The purpose of the singular split is to approximate this displacement accurately
+near `delta=0`, while keeping the approximation expressed on the fixed source
+template. Instead of keeping only the first metric term, replace the chart by its
+order-`K` Taylor jet around `z_x`:
 
 $$
 \begin{aligned}
@@ -109,7 +118,9 @@ T(z_x+\delta)
 \end{aligned}
 $$
 
-Define the order-`K` displacement polynomial
+Substituting this jet into `x - T(z_x+delta)` gives a polynomial approximation to
+the target-to-source displacement. This is the critical object to tabulate
+against:
 
 $$
 \begin{aligned}
@@ -118,6 +129,10 @@ P_K(\delta;z_x,d)
 &\quad \frac{1}{\alpha!}\partial^\alpha T(z_x)\delta^\alpha.
 \end{aligned}
 $$
+
+Thus `P_K` is not an extra geometric map; it is the high-order local model of
+the physical vector `x - T(xi)`. Its coefficients are exactly the chart jet at
+`z_x` plus the target offset `d`.
 
 The singular model for the point-target kernel is then
 
