@@ -293,13 +293,13 @@ target node only supply the coefficients `q_{alpha beta}(tau)` from smooth
 jet/Jacobian fields, target offset data, and any higher-order correction or
 remainder representation.
 
-## Gaussian Window Split
+## Gaussian Window And Asymptotic Local Part
 
-A more controlled near-field experiment is to split the kernel before building
-tables. Choose a length scale `sigma`, usually tied to the local box size or fan
-diameter, and a smooth radial window `w_sigma(r)` that is near one at `r=0` and
-rapidly decays to numerical zero for `r` larger than a few `sigma`. For the 2D
-Laplace kernel, write
+A more controlled near-field experiment is to split the kernel before deciding
+what must be tabled. Choose a length scale `sigma`, usually tied to the local box
+size or fan diameter, and a smooth radial window `w_sigma(r)` that is near one at
+`r=0` and rapidly decays to numerical zero for `r` larger than a few `sigma`.
+For the 2D Laplace kernel, write
 
 $$
 \begin{aligned}
@@ -333,16 +333,24 @@ $$
 Because `G_{sing,sigma}` is compactly supported to numerical tolerance, this
 term matters only when the physical target point lies inside the fan piece or
 within the chosen window radius of it. For target nodes in neighboring boxes that
-are outside this support, the singular table contribution is skipped and the
+are outside this support, the singular local contribution is skipped and the
 ordinary folded quadrature of the smooth part is sufficient.
 
-This changes the table problem substantially. The expensive singular table only
-needs to cover a restricted local target set:
+This changes the hard problem substantially. The windowed singular part only
+needs a special local treatment on a restricted target set:
 
 - target points on or inside the source fan;
 - target points within a few `sigma` of the fan boundary;
 - target offsets whose support intersects the fan under the high-order local
   displacement model `P_K`.
+
+Following the DMK-style strategy, this local treatment should not be ordinary
+folded quadrature of the singular kernel. It should use an analytic or
+semi-analytic asymptotic expansion of the windowed singular integral. In local
+coordinates, the expansion is built from `P_K`, the Gaussian-window scale, and
+smooth expansions of the density and Jacobian. Precomputation, if used, should
+target reusable asymptotic moments/coefficient maps for this local expansion,
+not a generic table for the whole near-field integral.
 
 There is an additional simplification for targets inside the source cut region.
 Folded decomposition does not require a fixed seed; for a point target `x` inside
@@ -368,16 +376,16 @@ $$
 
 which is integrable in the Duffy coordinate. This means inside-target cases may
 not need a general reference-jet table at all: they can use target-centered
-folded/Duffy quadrature as the singular treatment. The remaining table problem is
-then concentrated on targets just outside the fan, near boundaries, or otherwise
-too close for the smooth quadrature but not eligible for target-centered
-refolding.
+folded/Duffy coordinates together with the local asymptotic/windowed singular
+treatment. The remaining difficult cases are targets just outside the fan, near
+boundaries, or otherwise too close for the smooth quadrature but not eligible for
+target-centered refolding.
 
-The smooth remainder no longer needs singular quadrature or reference-jet tables;
-it is evaluated directly with the same signed folded quadrature machinery used
-for far-field source clouds. The open design choices are the window family, the
-scale `sigma`, and the criterion used to skip the singular table for targets
-outside the window support.
+The smooth remainder no longer needs singular quadrature or local asymptotics; it
+is evaluated directly with the same signed folded quadrature machinery used for
+far-field source clouds. The open design choices are the window family, the scale
+`sigma`, the asymptotic expansion order, and the criterion used to skip the local
+singular treatment for targets outside the window support.
 
 For the Bezier fan map
 
@@ -415,14 +423,13 @@ target offset vary smoothly across the folded-decomposition chart family.
 
 The answer is more favorable with a Gaussian-window split. Singular or nearly
 singular source-folded-piece to physical-point interactions can be moved to fixed
-source template domains, and the tabled part can be restricted to targets inside
-or very close to the fan piece. For targets inside the cut region, a
-target-centered Duffy refolding may handle the singularity directly, reducing the
-need for tabulation even further. The reusable object is still not a finite exact
-table independent of geometry. It is a local family of reference-jet tables plus
-interpolation, expansion, or low-rank coefficients for the runtime displacement
-jet, focused on the near-boundary/outside cases that remain after the Duffy and
-window-support tests.
+source template domains, and the local singular treatment can be restricted to
+targets inside or very close to the fan piece. For targets inside the cut region,
+target-centered Duffy refolding can place the singularity at the apex. The
+reusable object is therefore not a broad near-field table. It is more likely a
+small set of asymptotic expansion formulas, moments, or coefficient maps for the
+windowed local singular integral, plus direct folded quadrature for the smooth
+remainder.
 
 The practical hypothesis is now about the compactness of the full point-target
 payload, not only the metric field. For each near target, the relevant runtime
@@ -438,18 +445,19 @@ collapsed seed faces, these jet coefficients should vary smoothly across the
 folded-decomposition cases produced by CAD-like trims. A functional expansion in
 the jet data, target-offset data, and Jacobian/density factors may therefore
 cover enough practical cases to make precomputed near-field tables worthwhile.
-The Gaussian-window split improves the odds because the table does not need to
-represent weakly near or well-separated target interactions; those move to the
-smooth folded-quadrature path. Target-centered refolding improves the odds again
-for interior targets because the singularity is placed at the Duffy apex instead
-of being represented by a generic local jet table.
+The Gaussian-window split improves the odds because the local asymptotic
+treatment does not need to represent weakly near or well-separated target
+interactions; those move to the smooth folded-quadrature path. Target-centered
+refolding improves the odds again for interior targets because the singularity is
+placed at the Duffy apex instead of being represented by a generic local jet
+table.
 
 The open numerical question is whether the observed set of jets and target
 offsets is compact or low-rank enough after binning by reference jet
 $\mathcal J_0$.
-If many bins or many expansion modes are required even after windowing, the
-technique may not be worthwhile even though the template formulation is
-mathematically valid.
+If many asymptotic terms, bins, or local coefficient modes are required even
+after windowing and target-centered refolding, the technique may not be
+worthwhile even though the template formulation is mathematically valid.
 
 ## Measurements
 
@@ -459,21 +467,23 @@ For each geometry and interaction case, record:
 - ordinary pulled-forward tensor-product quadrature error;
 - template singular-correction error;
 - Gaussian-window smooth-part quadrature error;
-- higher-order correction/remainder approximation error;
+- Gaussian-window singular asymptotic expansion error;
+- higher-order correction/remainder approximation error after the asymptotic
+  local part is removed;
 - sensitivity to the window scale `sigma` and support cutoff;
 - dependence on quadrature order;
 - dependence on target offset, including on-surface, near-surface, containing-box,
   and neighbor-box target nodes;
 - dependence on seed location and Bezier curve coefficients;
-- size, rank, and smoothness of the reference-jet correction data;
-- how many reference-jet bins and jet-expansion modes are needed for the observed
-  folded-decomposition cases;
+- size, rank, and smoothness of the local asymptotic coefficient data;
+- how many window/asymptotic orders, bins, and jet modes are needed for the
+  observed folded-decomposition cases;
 - whether metric-only organization is sufficient for any subfamily, or whether
   higher-order jet coefficients dominate the correction size.
 - how often source-box and neighbor-box target nodes actually require the
-  singular table after the window-support test.
+  singular local treatment after the window-support test.
 - among supported targets, how many can use target-centered Duffy refolding
-  instead of a reference-jet table.
+  instead of a more general local expansion.
 
 The first geometry family should be CAD-independent but CAD-realistic: quadratic
 and cubic Bezier fan charts with seed locations chosen to produce positive,
@@ -520,8 +530,9 @@ The idea is feasible as a CUTKIT experiment, with these limits:
 
 - Far-field source clouds can remain ordinary signed quadrature sources.
 - Near-field correction reuse should target a Gaussian-windowed point-target
-  singular table for targets inside or very close to each fan piece. The smooth
-  remainder should use ordinary folded-decomposition quadrature. Interior targets
-  should first try target-centered Duffy refolding before falling back to tables.
+  local asymptotic expansion for targets inside or very close to each fan piece.
+  The smooth remainder should use ordinary folded-decomposition quadrature.
+  Interior targets should first try target-centered Duffy refolding before falling
+  back to the more general local expansion.
 - Volumential should still own tree/list composition; CUTKIT should export the
   local geometry/operator payloads needed by those lists.
