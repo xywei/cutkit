@@ -320,30 +320,39 @@ $$
 
 For Bezier or piecewise-Bezier CAD trims, these entries are smooth
 low-parameter functions of `(r,t)`, the seed `V`, and the Bezier control points
-`P_a`. This is the mathematical reason precomputed template tables can apply to
-each chart piece: the singular table is fixed after choosing `M0`, while
-observed folded-decomposition geometry should enter through a small smooth
-expansion of `M`, `J`, and the higher-order correction data.
+`P_a`. They are the first terms of the larger displacement-jet payload. The
+mathematical reason precomputed template tables may apply is not that `M` alone
+is universal, but that the full finite jet $\mathcal J_K$, the Jacobian, and the
+target offset vary smoothly across the folded-decomposition chart family.
 
 ## Feasibility Result
 
-The answer is qualified yes. Singular or nearly singular folded-piece
-interactions can be moved to fixed template domains, but not to a finite exact
-table independent of geometry. The singular coordinate form is reusable; the
-metric and higher-order geometry terms enter through smooth geometry-dependent
-payloads.
+The answer is qualified yes. Singular or nearly singular source-folded-piece to
+physical-point interactions can be moved to fixed source template domains. The
+reusable object is not a finite exact table independent of geometry. It is a
+family of reference-jet tables plus interpolation, expansion, or low-rank
+coefficients for the runtime displacement jet.
 
-The practical hypothesis is stronger than carrying `M(z)` pointwise at runtime:
-because the folded maps have smooth, low-parameter structure away from collapsed
-seed faces, the metric field `M(z)` should vary smoothly over the template and
-across the geometry families produced by folded decomposition. A functional
-expansion in the metric data, for example moments, interpolation coefficients,
-or a low-rank basis in `M` and the correction terms, may cover enough practical
-cut-piece cases to make reusable near-field corrections worthwhile.
+The practical hypothesis is now about the compactness of the full point-target
+payload, not only the metric field. For each near target, the relevant runtime
+data is
 
-The open numerical question is therefore whether the smooth dependence on `M`,
-seed location, and curve coefficients is compact enough to approximate by such a
-functional expansion for useful geometry families.
+$$
+\mathcal J_K(z_x,d),\quad J(\xi),\quad \rho(\xi),\quad \tau,
+$$
+
+where $\mathcal J_K$ contains the target offset and all chart derivatives used by
+`P_K`. Because Bezier fan maps have smooth, low-parameter structure away from
+collapsed seed faces, these jet coefficients should vary smoothly across the
+folded-decomposition cases produced by CAD-like trims. A functional expansion in
+the jet data, target-offset data, and Jacobian/density factors may therefore
+cover enough practical cases to make precomputed near-field tables worthwhile.
+
+The open numerical question is whether the observed set of jets and target
+offsets is compact or low-rank enough after binning by reference jet
+$\mathcal J_0$.
+If many bins or many expansion modes are required, the technique may not be
+worthwhile even though the template formulation is mathematically valid.
 
 ## Measurements
 
@@ -354,10 +363,14 @@ For each geometry and interaction case, record:
 - template singular-correction error;
 - higher-order correction/remainder approximation error;
 - dependence on quadrature order;
-- dependence on seed location and curve coefficients;
-- size, rank, and smoothness of geometry-parameterized correction data;
-- how many metric-field expansion modes are needed for the observed folded
-  decomposition cases.
+- dependence on target offset, including on-surface, near-surface, containing-box,
+  and neighbor-box target nodes;
+- dependence on seed location and Bezier curve coefficients;
+- size, rank, and smoothness of the reference-jet correction data;
+- how many reference-jet bins and jet-expansion modes are needed for the observed
+  folded-decomposition cases;
+- whether metric-only organization is sufficient for any subfamily, or whether
+  higher-order jet coefficients dominate the correction size.
 
 The first geometry family should be CAD-independent but CAD-realistic: quadratic
 and cubic Bezier fan charts with seed locations chosen to produce positive,
@@ -403,8 +416,8 @@ error.
 The idea is feasible as a CUTKIT experiment, with these limits:
 
 - Far-field source clouds can remain ordinary signed quadrature sources.
-- Near-field correction reuse should target template singular bases plus
-  functional expansions in the smooth metric field `M(z)` and higher geometry
-  terms.
+- Near-field correction reuse should target point-target template singular bases
+  plus functional expansions in the smooth high-order displacement jet, target
+  offset, Jacobian, and density data.
 - Volumential should still own tree/list composition; CUTKIT should export the
   local geometry/operator payloads needed by those lists.
