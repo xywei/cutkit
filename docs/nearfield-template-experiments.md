@@ -344,6 +344,35 @@ needs to cover a restricted local target set:
 - target offsets whose support intersects the fan under the high-order local
   displacement model `P_K`.
 
+There is an additional simplification for targets inside the source cut region.
+Folded decomposition does not require a fixed seed; for a point target `x` inside
+the cut region, choose the decomposition anchor to be `x` itself and refold the
+local source panel around that target. Each resulting fan has the form
+
+$$
+\begin{aligned}
+T_x(r,t) &= (1-r)x + rC(t).
+\end{aligned}
+$$
+
+The point singularity is then exactly at the Duffy apex `r=0`, and the Jacobian
+contributes the usual factor `r`. For the logarithmic kernel, the local integrand
+has the form
+
+$$
+\begin{aligned}
+G(x,T_x(r,t))J_x(r,t)
+&\sim -\frac{1}{2\pi}\log(r|C(t)-x|)\,r\,\det(C(t)-x,C'(t)),
+\end{aligned}
+$$
+
+which is integrable in the Duffy coordinate. This means inside-target cases may
+not need a general reference-jet table at all: they can use target-centered
+folded/Duffy quadrature as the singular treatment. The remaining table problem is
+then concentrated on targets just outside the fan, near boundaries, or otherwise
+too close for the smooth quadrature but not eligible for target-centered
+refolding.
+
 The smooth remainder no longer needs singular quadrature or reference-jet tables;
 it is evaluated directly with the same signed folded quadrature machinery used
 for far-field source clouds. The open design choices are the window family, the
@@ -387,10 +416,13 @@ target offset vary smoothly across the folded-decomposition chart family.
 The answer is more favorable with a Gaussian-window split. Singular or nearly
 singular source-folded-piece to physical-point interactions can be moved to fixed
 source template domains, and the tabled part can be restricted to targets inside
-or very close to the fan piece. The reusable object is still not a finite exact
+or very close to the fan piece. For targets inside the cut region, a
+target-centered Duffy refolding may handle the singularity directly, reducing the
+need for tabulation even further. The reusable object is still not a finite exact
 table independent of geometry. It is a local family of reference-jet tables plus
 interpolation, expansion, or low-rank coefficients for the runtime displacement
-jet.
+jet, focused on the near-boundary/outside cases that remain after the Duffy and
+window-support tests.
 
 The practical hypothesis is now about the compactness of the full point-target
 payload, not only the metric field. For each near target, the relevant runtime
@@ -408,7 +440,9 @@ the jet data, target-offset data, and Jacobian/density factors may therefore
 cover enough practical cases to make precomputed near-field tables worthwhile.
 The Gaussian-window split improves the odds because the table does not need to
 represent weakly near or well-separated target interactions; those move to the
-smooth folded-quadrature path.
+smooth folded-quadrature path. Target-centered refolding improves the odds again
+for interior targets because the singularity is placed at the Duffy apex instead
+of being represented by a generic local jet table.
 
 The open numerical question is whether the observed set of jets and target
 offsets is compact or low-rank enough after binning by reference jet
@@ -438,6 +472,8 @@ For each geometry and interaction case, record:
   higher-order jet coefficients dominate the correction size.
 - how often source-box and neighbor-box target nodes actually require the
   singular table after the window-support test.
+- among supported targets, how many can use target-centered Duffy refolding
+  instead of a reference-jet table.
 
 The first geometry family should be CAD-independent but CAD-realistic: quadratic
 and cubic Bezier fan charts with seed locations chosen to produce positive,
@@ -485,6 +521,7 @@ The idea is feasible as a CUTKIT experiment, with these limits:
 - Far-field source clouds can remain ordinary signed quadrature sources.
 - Near-field correction reuse should target a Gaussian-windowed point-target
   singular table for targets inside or very close to each fan piece. The smooth
-  remainder should use ordinary folded-decomposition quadrature.
+  remainder should use ordinary folded-decomposition quadrature. Interior targets
+  should first try target-centered Duffy refolding before falling back to tables.
 - Volumential should still own tree/list composition; CUTKIT should export the
   local geometry/operator payloads needed by those lists.
