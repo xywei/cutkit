@@ -293,6 +293,63 @@ target node only supply the coefficients `q_{alpha beta}(tau)` from smooth
 jet/Jacobian fields, target offset data, and any higher-order correction or
 remainder representation.
 
+## Gaussian Window Split
+
+A more controlled near-field experiment is to split the kernel before building
+tables. Choose a length scale `sigma`, usually tied to the local box size or fan
+diameter, and a smooth radial window `w_sigma(r)` that is near one at `r=0` and
+rapidly decays to numerical zero for `r` larger than a few `sigma`. For the 2D
+Laplace kernel, write
+
+$$
+\begin{aligned}
+G(x,y) &= G_{\mathrm{sing},\sigma}(x,y) + G_{\mathrm{smooth},\sigma}(x,y), \\
+G_{\mathrm{sing},\sigma}(x,y) &= w_\sigma(|x-y|)G(x,y), \\
+G_{\mathrm{smooth},\sigma}(x,y) &= \left(1-w_\sigma(|x-y|)\right)G(x,y).
+\end{aligned}
+$$
+
+The smooth part can be handled by ordinary folded-decomposition quadrature on
+the source fan:
+
+$$
+\begin{aligned}
+u_{\mathrm{smooth},\sigma}(x)
+&= \int_{[0,1]^2}G_{\mathrm{smooth},\sigma}(x,T(\xi)) \\
+&\quad \times \rho(T(\xi))J(\xi)\,d\xi.
+\end{aligned}
+$$
+
+The singular-windowed part is numerically local:
+
+$$
+\begin{aligned}
+u_{\mathrm{sing},\sigma}(x)
+&= \int_{[0,1]^2}G_{\mathrm{sing},\sigma}(x,T(\xi)) \\
+&\quad \times \rho(T(\xi))J(\xi)\,d\xi.
+\end{aligned}
+$$
+
+Because `G_{sing,sigma}` is compactly supported to numerical tolerance, this
+term matters only when the physical target point lies inside the fan piece or
+within the chosen window radius of it. For target nodes in neighboring boxes that
+are outside this support, the singular table contribution is skipped and the
+ordinary folded quadrature of the smooth part is sufficient.
+
+This changes the table problem substantially. The expensive singular table only
+needs to cover a restricted local target set:
+
+- target points on or inside the source fan;
+- target points within a few `sigma` of the fan boundary;
+- target offsets whose support intersects the fan under the high-order local
+  displacement model `P_K`.
+
+The smooth remainder no longer needs singular quadrature or reference-jet tables;
+it is evaluated directly with the same signed folded quadrature machinery used
+for far-field source clouds. The open design choices are the window family, the
+scale `sigma`, and the criterion used to skip the singular table for targets
+outside the window support.
+
 For the Bezier fan map
 
 $$
@@ -327,11 +384,13 @@ target offset vary smoothly across the folded-decomposition chart family.
 
 ## Feasibility Result
 
-The answer is qualified yes. Singular or nearly singular source-folded-piece to
-physical-point interactions can be moved to fixed source template domains. The
-reusable object is not a finite exact table independent of geometry. It is a
-family of reference-jet tables plus interpolation, expansion, or low-rank
-coefficients for the runtime displacement jet.
+The answer is more favorable with a Gaussian-window split. Singular or nearly
+singular source-folded-piece to physical-point interactions can be moved to fixed
+source template domains, and the tabled part can be restricted to targets inside
+or very close to the fan piece. The reusable object is still not a finite exact
+table independent of geometry. It is a local family of reference-jet tables plus
+interpolation, expansion, or low-rank coefficients for the runtime displacement
+jet.
 
 The practical hypothesis is now about the compactness of the full point-target
 payload, not only the metric field. For each near target, the relevant runtime
@@ -347,12 +406,16 @@ collapsed seed faces, these jet coefficients should vary smoothly across the
 folded-decomposition cases produced by CAD-like trims. A functional expansion in
 the jet data, target-offset data, and Jacobian/density factors may therefore
 cover enough practical cases to make precomputed near-field tables worthwhile.
+The Gaussian-window split improves the odds because the table does not need to
+represent weakly near or well-separated target interactions; those move to the
+smooth folded-quadrature path.
 
 The open numerical question is whether the observed set of jets and target
 offsets is compact or low-rank enough after binning by reference jet
 $\mathcal J_0$.
-If many bins or many expansion modes are required, the technique may not be
-worthwhile even though the template formulation is mathematically valid.
+If many bins or many expansion modes are required even after windowing, the
+technique may not be worthwhile even though the template formulation is
+mathematically valid.
 
 ## Measurements
 
@@ -361,7 +424,9 @@ For each geometry and interaction case, record:
 - reference value;
 - ordinary pulled-forward tensor-product quadrature error;
 - template singular-correction error;
+- Gaussian-window smooth-part quadrature error;
 - higher-order correction/remainder approximation error;
+- sensitivity to the window scale `sigma` and support cutoff;
 - dependence on quadrature order;
 - dependence on target offset, including on-surface, near-surface, containing-box,
   and neighbor-box target nodes;
@@ -371,6 +436,8 @@ For each geometry and interaction case, record:
   folded-decomposition cases;
 - whether metric-only organization is sufficient for any subfamily, or whether
   higher-order jet coefficients dominate the correction size.
+- how often source-box and neighbor-box target nodes actually require the
+  singular table after the window-support test.
 
 The first geometry family should be CAD-independent but CAD-realistic: quadratic
 and cubic Bezier fan charts with seed locations chosen to produce positive,
@@ -416,8 +483,8 @@ error.
 The idea is feasible as a CUTKIT experiment, with these limits:
 
 - Far-field source clouds can remain ordinary signed quadrature sources.
-- Near-field correction reuse should target point-target template singular bases
-  plus functional expansions in the smooth high-order displacement jet, target
-  offset, Jacobian, and density data.
+- Near-field correction reuse should target a Gaussian-windowed point-target
+  singular table for targets inside or very close to each fan piece. The smooth
+  remainder should use ordinary folded-decomposition quadrature.
 - Volumential should still own tree/list composition; CUTKIT should export the
   local geometry/operator payloads needed by those lists.
