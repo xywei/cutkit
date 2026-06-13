@@ -11,16 +11,20 @@ folded decomposition: a fan from a seed point `V` to a smooth Bezier trim curve
 `C(t)`. A degree-`p` Bezier edge is
 
 $$
-C(t) = \sum_{a=0}^p B_a^p(t)P_a,
-\qquad B_a^p(t)=\binom{p}{a}(1-t)^{p-a}t^a,
+\begin{aligned}
+C(t) &= \sum_{a=0}^p B_a^p(t)P_a, \\
+B_a^p(t) &= \binom{p}{a}(1-t)^{p-a}t^a,
 \qquad 0\le t\le 1.
+\end{aligned}
 $$
 
 The folded chart is
 
 $$
-T(r,t) = (1-r)V + rC(t),
+\begin{aligned}
+T(r,t) &= (1-r)V + rC(t),
 \qquad 0\le r,t\le 1.
+\end{aligned}
 $$
 
 Its Jacobian is
@@ -80,72 +84,106 @@ The experiment should classify target/source geometry as:
 
 ## Point-Target Singular Split
 
-For a target point near the source chart, let `z_x` be a closest or projected
-template coordinate with `T(z_x)` near `x`, and write `xi = z_x + delta`. Then
+For a target point near the source chart, choose a template coordinate `z_x`
+whose mapped source point `T(z_x)` is closest to `x`, or otherwise represents the
+local source point responsible for the near-singular behavior. Write nearby
+source coordinates as
 
 $$
-T(z_x+\delta)-T(z_x) = DT(z_x)\delta + O(|\delta|^2),
+\begin{aligned}
+\xi &= z_x + \delta, \\
+d &= x - T(z_x).
+\end{aligned}
 $$
 
-$$
-|T(z_x+\delta)-T(z_x)| =
-\sqrt{\delta^T M(z_x)\delta}\,(1+O(|\delta|)),
-\qquad M(z_x) = DT(z_x)^TDT(z_x).
-$$
-
-For an on-surface or asymptotically close target, this gives the leading model
+Here `delta` is the local source displacement away from the nearest source point,
+and `d` is the physical target offset from that point. Instead of keeping only
+the first metric term, use a high-order Taylor jet of the chart around `z_x`:
 
 $$
-G(x,T(z_x+\delta))
-= -\frac{1}{2\pi}\log\sqrt{\delta^T M(z_x)\delta}
-+ \text{lower-order correction}.
+\begin{aligned}
+T(z_x+\delta)
+&= T(z_x) + \sum_{1\le |\alpha|\le K} \\
+&\quad \frac{1}{\alpha!}\partial^\alpha T(z_x)\delta^\alpha \\
+&\quad + R_{K+1}(\delta).
+\end{aligned}
 $$
 
-For an off-surface target, include the normal/offset residual `d = x-T(z_x)`:
+Define the order-`K` displacement polynomial
 
 $$
-|x-T(z_x+\delta)|^2
-= |d-DT(z_x)\delta|^2 + \text{higher-order chart terms}.
+\begin{aligned}
+P_K(\delta;z_x,d)
+&= d - \sum_{1\le |\alpha|\le K} \\
+&\quad \frac{1}{\alpha!}\partial^\alpha T(z_x)\delta^\alpha.
+\end{aligned}
 $$
 
-The reusable part would be template-space singular model integrals or correction
-operators. The runtime payload remains map coefficients, Jacobian data, source
-coefficients, target-node offsets, and correction moment/interpolation data. For
-a Bezier fan map, `T(r,t)` is polynomial in `(r,t)` and contains mixed
-higher-order terms from `rC(t)`. Subtracting only the local metric model leaves
-an `O(|delta|)` correction whose first derivative at the singular point can
-depend on approach direction. A smooth-remainder expansion should therefore
-either include higher-order distance terms in the singular model or treat this
-first prototype as a leading singular split plus a bounded local correction.
+The singular model for the point-target kernel is then
+
+$$
+\begin{aligned}
+G_K^{\mathrm{sing}}(x,z_x,\delta)
+&= -\frac{1}{2\pi}\log |P_K(\delta;z_x,d)|.
+\end{aligned}
+$$
+
+For an on-surface target, `d=0`. For an off-surface target, `d` carries the
+normal and tangential target offset. Increasing `K` moves curvature and mixed
+terms from the remainder into the singular model. If `C(t)` is a degree-`p`
+Bezier curve, the fan map `T(r,t)=(1-r)V+rC(t)` is a polynomial of total degree
+`p+1` in `(r,t)`, so the Taylor jet terminates once `K >= p+1`. For
+rational/NURBS-derived charts, `K` is a truncation order chosen by the requested
+accuracy.
+
+The reusable part is a family of template-space singular model integrals or
+correction operators parameterized by the finite jet data
+$\{\partial^\alpha T(z_x)\}$ and the target offset `d`. The runtime payload remains
+map coefficients, Jacobian data, source coefficients, target-node offsets, and
+high-order correction or interpolation data.
 
 ## Metric-Field Expansion Tables
 
 The table-building objective is to separate fixed singular template integrals
 from per-chart smooth geometry and per-target offset coefficients. For a target
 node represented by offset coordinates `tau`, use local source coordinates near
-the closest chart point and write `xi = z_x + delta`. The on-surface singular
+the closest chart point and write `xi = z_x + delta`. The high-order singular
 distance model is
 
 $$
-|T(z_x+\delta)-T(z_x)|^2
-= \delta^T M(z_x)\delta + \text{higher-order chart terms},
-\qquad M(z_x)=DT(z_x)^TDT(z_x).
+|x-T(z_x+\delta)|^2 \approx |P_K(\delta;z_x,d)|^2.
 $$
 
-Choose a positive-definite reference metric `M0` for one metric bin, chart
-family, or local average, and write
+For `K=1` and an on-surface target, this reduces to the metric model
+
+$$
+\begin{aligned}
+|P_1(\delta;z_x,0)|^2 &= \delta^T M(z_x)\delta, \\
+M(z_x) &= DT(z_x)^TDT(z_x).
+\end{aligned}
+$$
+
+The higher-order table strategy uses the full finite jet, not just `M(z_x)`. The
+metric field remains the first term and a useful organizing parameter, but the
+practical expansion variables are the coefficients of `P_K` plus the target
+offset `d`.
+
+Choose a reference jet, beginning with a positive-definite reference metric `M0`
+and reference higher-order coefficients for one metric/curvature bin, chart
+family, or local average. For the first metric term, write
 
 $$
 M(z) = M_0 + \Delta M(z).
 $$
 
-Then the logarithmic singular factor can be expanded as
+Then the metric contribution to the logarithmic singular factor can be expanded as
 
 $$
+\begin{aligned}
 \log(\delta^T M(z)\delta)
-= \log(\delta^T M_0\delta)
-+ \log\left(1+
-\frac{\delta^T\Delta M(z)\delta}{\delta^T M_0\delta}\right).
+&= \log(\delta^T M_0\delta) \\
+&\quad + \log\left(1+\frac{\delta^T\Delta M(z)\delta}{\delta^T M_0\delta}\right).
+\end{aligned}
 $$
 
 If the metric family is binned or normalized so that
@@ -157,34 +195,41 @@ $$
 then
 
 $$
+\begin{aligned}
 \log(\delta^T M(z)\delta)
-= \log(\delta^T M_0\delta)
-+ \sum_{k\ge 1}\frac{(-1)^{k+1}}{k}
-\left(\frac{\delta^T\Delta M(z)\delta}{\delta^T M_0\delta}\right)^k.
+&= \log(\delta^T M_0\delta) \\
+&\quad + \sum_{k\ge 1}\frac{(-1)^{k+1}}{k}\left(\frac{\delta^T\Delta M(z)\delta}{\delta^T M_0\delta}\right)^k.
+\end{aligned}
 $$
 
-Thus the kernel singular part has the schematic expansion
+The same expansion idea applies to the full high-order polynomial distance by
+expanding the coefficients of `P_K` around the reference jet. Thus the kernel
+singular part has the schematic expansion
 
 $$
-G_{\mathrm{sing}}(x,T(z_x+\delta))
-\approx \sum_\alpha c_\alpha(z_x,\tau)S_\alpha(\delta;M_0),
+\begin{aligned}
+G_K^{\mathrm{sing}}(x,z_x,\delta)
+&\approx \sum_\alpha c_\alpha(z_x,\tau)S_\alpha(\delta;\mathcal J_0).
+\end{aligned}
 $$
 
-where `S_alpha` are fixed singular template functions for the selected reference
-metric and `c_alpha(z_x,tau)` are smooth functions of the entries of
-`Delta M(z_x)` and the target offset data. The expansion can be truncated either
-by polynomial order in `Delta M`, by interpolation in metric/offset space, or by
-a learned/empirical low-rank basis.
-For full smooth-remainder tables near a chart diagonal, the singular model should
-also include enough higher-order chart-distance terms to remove direction-
-dependent local corrections.
+where $\mathcal J_0$ denotes the selected reference jet. The fixed functions
+`S_alpha` depend only on template displacement and the reference jet, while
+`c_alpha(z_x,tau)` are smooth functions of metric entries, higher-order chart
+derivatives, and target offset data. The expansion can be truncated by polynomial
+order in the jet perturbation, by interpolation in jet/offset space, or by a
+learned/empirical low-rank basis.
 
 For one target node and one source density expansion mode `rho_j`, the singular
 contribution becomes
 
 $$
-u_j^{\mathrm{sing}}(\tau) \approx \sum_\alpha \int_{[0,1]^2}
-\rho_j(\xi)c_\alpha(z_x,\tau)S_\alpha(\xi-z_x;M_0)J(\xi)\,d\xi.
+\begin{aligned}
+u_j^{\mathrm{sing}}(\tau)
+&\approx \sum_\alpha \int_{[0,1]^2} \\
+&\quad \rho_j(\xi)c_\alpha(z_x,\tau) \\
+&\quad \times S_\alpha(\xi-z_x;\mathcal J_0)J(\xi)\,d\xi.
+\end{aligned}
 $$
 
 Expand the smooth per-chart/per-target factor in a template basis `p_beta`:
@@ -196,13 +241,18 @@ $$
 Then
 
 $$
-u_j^{\mathrm{sing}}(\tau) \approx
-\sum_{\alpha,\beta}q_{\alpha\beta}(\tau)T_{j\alpha\beta},
+\begin{aligned}
+u_j^{\mathrm{sing}}(\tau)
+&\approx \sum_{\alpha,\beta}q_{\alpha\beta}(\tau)T_{j\alpha\beta}.
+\end{aligned}
 $$
 
 $$
-T_{j\alpha\beta} = \int_{[0,1]^2}
-\rho_j(\xi)p_\beta(\xi)S_\alpha(\xi-z_x;M_0)\,d\xi.
+\begin{aligned}
+T_{j\alpha\beta}
+&= \int_{[0,1]^2} \\
+&\quad \rho_j(\xi)p_\beta(\xi)S_\alpha(\xi-z_x;\mathcal J_0)\,d\xi.
+\end{aligned}
 $$
 
 The tensors `T_{j alpha beta}` are precomputed on fixed source template domains,
@@ -220,16 +270,20 @@ $$
 the metric entries are explicit:
 
 $$
-T_r = C(t)-V,
-\qquad T_t = rC'(t),
+\begin{aligned}
+T_r &= C(t)-V, \\
+T_t &= rC'(t).
+\end{aligned}
 $$
 
 $$
 M(r,t) =
-\begin{bmatrix}
+\left[
+\begin{matrix}
 |C(t)-V|^2 & r(C(t)-V)\cdot C'(t) \\
 r(C(t)-V)\cdot C'(t) & r^2|C'(t)|^2
-\end{bmatrix}.
+\end{matrix}
+\right].
 $$
 
 For Bezier or piecewise-Bezier CAD trims, these entries are smooth
@@ -301,8 +355,10 @@ kernel. If both the source fan and physical target point are scaled by `lambda`,
 then
 
 $$
+\begin{aligned}
 u_\lambda(\lambda x)
-= \lambda^2\left(u(x) - \frac{\log(\lambda)m_\rho}{2\pi}\right),
+&= \lambda^2\left(u(x) - \frac{\log(\lambda)m_\rho}{2\pi}\right).
+\end{aligned}
 $$
 
 where `m_rho` is the density-weighted signed source mass on the unscaled fan
