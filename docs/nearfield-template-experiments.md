@@ -421,6 +421,34 @@ quadrature to be efficient. Those cases still need boundary-aware moment tables,
 target-centered Duffy fallback, smaller boxes, or a residual window that sees only
 one feature.
 
+There is a useful intermediate case before falling back to singular boundary
+moments. The complement contribution
+
+$$
+u_{\mathrm{comp}}(x)=\int_{B\setminus\Omega}K(x,y)p_j(y)\,dy
+$$
+
+is smooth as a function of `x` throughout the physical cut cell, even when `x` is
+very close to the cut boundary and direct quadrature of the nearly singular
+integrand is expensive. This is the same opportunity used by QBX: choose an
+expansion center `c` inside `Omega_B`, separated from the complement by a safe
+radius, compute a local expansion of `u_comp` about `c`, and evaluate that
+expansion at near-boundary target nodes covered by the expansion ball.
+
+In this version, the complement term becomes:
+
+1. folded quadrature of expansion coefficients at a center with safe separation
+   from `B \setminus Omega`;
+2. local Taylor, harmonic, or kernel-specific QBX evaluation at the physical
+   target nodes;
+3. subtraction from the full-box singular table.
+
+This preserves the main advantage of the complement route: the singularity is
+still handled by the full-box table, while the geometry-dependent complement is
+handled through smooth coefficient integrals. The expansion center and order must
+be chosen so the expansion ball covers the target but does not cross the
+complement source region.
+
 Target-centered Duffy refolding is useful as a diagnostic or single-target
 fallback, but it should not be treated as the main reusable strategy. Folded
 decomposition does not require a fixed seed; for one point target `x` inside the
@@ -573,7 +601,10 @@ models. Its expected sweet spot is a cut-box target that is interior to
 `Omega cap B` but close enough to the cut boundary that direct folded quadrature
 of the singular kernel is poor. The full-box singular table supplies the singular
 moment exactly for the ambient basis, and the complement integral should converge
-as a smooth folded integral as long as the complement is target-separated.
+as a smooth folded integral as long as the complement is target-separated. For
+near-boundary targets where direct complement quadrature is nearly singular, test
+the complement-QBX variant: compute expansion coefficients from folded complement
+quadrature at a separated center and evaluate the expansion at the target.
 
 For each geometry and interaction case, record:
 
@@ -600,6 +631,9 @@ For each geometry and interaction case, record:
 - whether a full-box singular moment minus a smooth folded complement integral is
   more accurate or cheaper than direct boundary-aware residual tables for
   target-separated cut-box interactions;
+- whether complement-QBX expansions remove the close-to-boundary resolution
+  burden in the complement integral, and how expansion center placement/order
+  should be chosen relative to the cut boundary;
 - whether metric-only organization is sufficient for any subfamily, or whether
   higher-order jet coefficients dominate the correction size.
 - how often source-box and neighbor-box target nodes actually require the

@@ -506,15 +506,43 @@ target lies on the physical boundary, when the complement closure contains the
 target, or when the target-complement distance is small relative to the requested
 accuracy and quadrature order.
 
+For the small-distance case, the preferred fix is a QBX-style expansion of the
+complement potential rather than direct high-resolution quadrature at the target.
+Although the integrand `K(x,y)` is nearly singular when `x` approaches the cut
+boundary, the complement potential is smooth on the physical side away from the
+complement sources. Choose an expansion center `c` in `Omega_B` and a radius `r`
+such that
+
+$$
+|x-c| < r < \operatorname{dist}(c, B\setminus\Omega).
+$$
+
+Then compute local expansion coefficients for
+
+$$
+u_{\mathrm{comp}}(x)=\int_{B\setminus\Omega}K(x,y)p_\alpha(y)\,dy
+$$
+
+by folded quadrature over the complement with target/center `c`, where the
+coefficient integrands are smooth. The expansion is then evaluated at the actual
+near-boundary target `x` and subtracted from the full-box singular moment.
+
+This is a volume-potential analogue of QBX: the expansion is not used to represent
+the singular self term on `Omega_B`; that part is already in the full-box table.
+It is used only to avoid nearly singular evaluation of the smooth complement
+field near the boundary.
+
 Routing for this route is:
 
 1. If the target is target-separated from the complement, use full-box table minus
    folded complement.
-2. If the target lies on one smooth boundary feature, use smooth-boundary moments
-   or a boundary table instead.
-3. If the target lies on an edge, corner, or vertex, route to the corresponding
+2. If the target is close to the complement boundary but covered by a safe
+   expansion ball, use full-box table minus complement-QBX evaluation.
+3. If no safe complement expansion center exists and the target lies on one
+   smooth boundary feature, use smooth-boundary moments or a boundary table.
+4. If the target lies on an edge, corner, or vertex, route to the corresponding
    wedge/cone model or refine.
-4. If multiple complement pieces approach the target, shrink the box/window,
+5. If multiple complement pieces approach the target, shrink the box/window,
    subdivide the geometry, or use a target-centered fallback.
 
 The complement folded quadrature should use open quadrature rules on fan or cone
@@ -527,8 +555,9 @@ the smooth interior of each complement piece.
 This route is attractive for List 1 matrix generation because the singular part
 is geometry independent and can reuse the same full-box tables as uncut boxes.
 The geometry-dependent object is the complement moment matrix, which is smooth
-under the separation condition and can be built by folded quadrature or compressed
-over cut-geometry parameters.
+under the separation condition and can be built by folded quadrature, by
+QBX-style local expansion coefficients, or compressed over cut-geometry
+parameters.
 
 ## Precomputed Smooth-Boundary Moment Scheme
 
