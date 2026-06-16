@@ -24,6 +24,8 @@ Repository-local documentation is the system of record for CUTKIT.
 - `docs/volumential-handoff.md`: CUTKIT far/near primitive handoff contract for volumential workflows
 - `docs/meshmode-cut-overlay.md`: meshmode cut-overlay contract and validation semantics
 - `docs/nearfield-template-experiments.md`: folded fan near-field template derivation and prototype
+- `docs/nearfield-dmk-split-report.md`: DMK-style smooth/local split experiment results
+- `docs/nearfield-local-model-catalogue.md`: local residual model catalogue and moment expansions
 - `docs/poisson-benchmarks.md`: Poisson-oriented benchmark usage and profiles
 - `docs/poisson-galerkin-solver.md`: immersed Poisson Galerkin solve + validation workflow
 - `docs/formdsl-parity-benchmarks.md`: shared IGA + DG-SEM formdsl parity benchmark usage

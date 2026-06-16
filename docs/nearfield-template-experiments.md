@@ -345,17 +345,87 @@ needs a special local treatment on a restricted target set:
   displacement model `P_K`.
 
 Following the DMK-style strategy, this local treatment should not be ordinary
-folded quadrature of the singular kernel. It should use an analytic or
-semi-analytic asymptotic expansion of the windowed singular integral. In local
-coordinates, the expansion is built from `P_K`, the Gaussian-window scale, and
+folded quadrature of the singular kernel. Jiang and Greengard's continuous DMK
+construction splits the finest-level local interaction into Gaussian-sum
+convolutions, accelerated by separation of variables, plus a highly localized
+correction handled by Taylor/asymptotic expansion of the source density and
+low-dimensional radial or spherical moments. For CUTKIT, the analogous local
+coordinates should build those moments from `P_K`, the Gaussian-window scale, and
 smooth expansions of the density and Jacobian. Precomputation, if used, should
 target reusable asymptotic moments/coefficient maps for this local expansion,
 not a generic table for the whole near-field integral.
 
-There is an additional simplification for targets inside the source cut region.
-Folded decomposition does not require a fixed seed; for a point target `x` inside
-the cut region, choose the decomposition anchor to be `x` itself and refold the
-local source panel around that target. Each resulting fan has the form
+One important difference from the continuous DMK setting is the role of physical
+boundaries. DMK's continuous-source derivation treats smooth densities on a
+rectangular box, so artificial leaf-box boundaries do not introduce local jumps
+and physical boundary effects are compatible with smooth tapering or extension of
+the density. A CUTKIT cut boundary is rigid: the effective density is multiplied
+by a domain indicator and can jump across the trim. The first experiment should
+therefore try the DMK-inspired split directly in folded-decomposition
+coordinates: evaluate the smoothed kernel with ordinary folded quadrature and
+evaluate the localized correction only for targets whose window support reaches a
+source fan. Measurements should then decide whether a special boundary-aware
+local expansion is actually required for windows intersecting the cut boundary,
+or whether direct local folded quadrature is adequate at the requested
+accuracies.
+
+### Full-Box Minus Complement Route
+
+A complementary route is available for cut boxes when the source density is
+represented on the ambient box basis. Let `B` be a source leaf box and let
+`Omega_B = Omega cap B`. For a target `x in Omega_B` and a local source mode
+`p_j(y)`, the desired cut-box moment is
+
+$$
+I_j^{\Omega_B}(x)
+= \int_{\Omega_B}K(x,y)p_j(y)\,dy.
+$$
+
+If a Volumential-style or boxcode-style singular table already provides the
+full-box moment
+
+$$
+I_j^B(x)=\int_B K(x,y)p_j(y)\,dy,
+$$
+
+then
+
+$$
+I_j^{\Omega_B}(x)
+= I_j^B(x)-I_j^{B\setminus\Omega}(x),
+\qquad
+I_j^{B\setminus\Omega}(x)
+=\int_{B\setminus\Omega}K(x,y)p_j(y)\,dy.
+$$
+
+The first term contains the point singularity and is handled by the existing
+interior-box table. The second term is smooth when the target is separated from
+the complement `B \setminus Omega`. In that case, folded decomposition can
+integrate the complement with ordinary high-order quadrature, using open rules on
+fan coordinates so no quadrature node lands on a boundary endpoint or fan apex
+that could coincide with the target.
+
+This identity turns a singular cut-cell integral into:
+
+1. one reusable singular full-box table lookup;
+2. one smooth folded-complement integral over the outside-of-domain portion of the
+   same box;
+3. a subtraction in the same source basis and target normalization.
+
+It is especially attractive for local List 1 matrices on cut boxes because the
+full-box table is geometry independent and the geometry dependence moves to a
+smooth complement payload. It is not a replacement for boundary-singular local
+models when the target lies on the cut boundary, the complement closure contains
+the target, or the target-complement distance is too small for ordinary folded
+quadrature to be efficient. Those cases still need boundary-aware moment tables,
+target-centered Duffy fallback, smaller boxes, or a residual window that sees only
+one feature.
+
+Target-centered Duffy refolding is useful as a diagnostic or single-target
+fallback, but it should not be treated as the main reusable strategy. Folded
+decomposition does not require a fixed seed; for one point target `x` inside the
+cut region, one can choose the decomposition anchor to be `x` itself and refold
+the local source panel around that target. Each resulting fan has the form
 
 $$
 \begin{aligned}
@@ -374,18 +444,23 @@ G(x,T_x(r,t))J_x(r,t)
 \end{aligned}
 $$
 
-which is integrable in the Duffy coordinate. This means inside-target cases may
-not need a general reference-jet table at all: they can use target-centered
-folded/Duffy coordinates together with the local asymptotic/windowed singular
-treatment. The remaining difficult cases are targets just outside the fan, near
-boundaries, or otherwise too close for the smooth quadrature but not eligible for
-target-centered refolding.
+which is integrable in the Duffy coordinate, but not smooth. High-order accuracy
+can still require many radial nodes, and the refolding must be rebuilt for each
+target point. This makes target-centered Duffy unsuitable as the primary
+near-field template mechanism. The main experiment should instead test whether a
+shared DMK-inspired local correction, parameterized by target offsets and chart
+jets, can amortize over many physical target nodes. Target-centered Duffy remains
+a useful reference calculation for validating the local correction on individual
+interior targets.
 
 The smooth remainder no longer needs singular quadrature or local asymptotics; it
 is evaluated directly with the same signed folded quadrature machinery used for
 far-field source clouds. The open design choices are the window family, the scale
 `sigma`, the asymptotic expansion order, and the criterion used to skip the local
-singular treatment for targets outside the window support.
+singular treatment for targets outside the window support. This DMK-style split
+is the preferred experiment direction: ordinary folded decomposition handles the
+smoothed kernel, while only the highly localized residual needs special local
+treatment.
 
 For the Bezier fan map
 
@@ -419,17 +494,26 @@ mathematical reason precomputed template tables may apply is not that `M` alone
 is universal, but that the full finite jet $\mathcal J_K$, the Jacobian, and the
 target offset vary smoothly across the folded-decomposition chart family.
 
+The seed point should also be treated as an experimental degree of freedom.
+CUTKIT's current 2D folded quadrature chooses a deterministic strictly interior
+anchor for robustness, but near-field quality may improve with other stable
+choices. The first alternative should be simple: use the barycenter of the trim
+nodes or sampled curve nodes as `V`, then compare it with the current interior
+anchor. Later seed-quality criteria can minimize fan aspect ratio, Jacobian
+variation, signed-weight cancellation, or the spread of the local jet payloads.
+
 ## Feasibility Result
 
 The answer is more favorable with a Gaussian-window split. Singular or nearly
 singular source-folded-piece to physical-point interactions can be moved to fixed
 source template domains, and the local singular treatment can be restricted to
-targets inside or very close to the fan piece. For targets inside the cut region,
-target-centered Duffy refolding can place the singularity at the apex. The
-reusable object is therefore not a broad near-field table. It is more likely a
-small set of asymptotic expansion formulas, moments, or coefficient maps for the
-windowed local singular integral, plus direct folded quadrature for the smooth
-remainder.
+targets inside or very close to the fan piece. The preferred decomposition is
+therefore not a broad near-field table. It is a DMK-inspired split: direct folded
+quadrature for the smoothed kernel and a compact local correction for the
+singular residual. When the local window lies in a smooth interior neighborhood,
+the correction should be analytically derived from Taylor/asymptotic moments. If
+the local window intersects a rigid cut boundary, the correction may need
+boundary-aware precomputation over folded fan templates.
 
 The practical hypothesis is now about the compactness of the full point-target
 payload, not only the metric field. For each near target, the relevant runtime
@@ -448,18 +532,48 @@ cover enough practical cases to make precomputed near-field tables worthwhile.
 The Gaussian-window split improves the odds because the local asymptotic
 treatment does not need to represent weakly near or well-separated target
 interactions; those move to the smooth folded-quadrature path. Target-centered
-refolding improves the odds again for interior targets because the singularity is
-placed at the Duffy apex instead of being represented by a generic local jet
-table.
+Duffy refolding should be used only as a validation baseline or fallback because
+it is target-specific and leaves a nonsmooth integrable kernel.
 
 The open numerical question is whether the observed set of jets and target
 offsets is compact or low-rank enough after binning by reference jet
 $\mathcal J_0$.
-If many asymptotic terms, bins, or local coefficient modes are required even
-after windowing and target-centered refolding, the technique may not be
-worthwhile even though the template formulation is mathematically valid.
+If many asymptotic terms, bins, boundary-aware tables, or local coefficient modes
+are required even after windowing, the technique may not be worthwhile even
+though the template formulation is mathematically valid.
 
 ## Measurements
+
+The first DMK-style smooth/local split sweep is summarized in
+`docs/nearfield-dmk-split-report.md`. It confirms that ordinary folded
+decomposition is effective for the smoothed kernel: at `order=24`, the smoothed
+folded-quadrature error was at least about `70x` smaller than direct full-log
+quadrature error across the tested interior, boundary-near, and vertex-near
+targets. The residual-inclusive follow-up shows that direct ordinary folded
+quadrature of the compact local residual is the remaining bottleneck: its error
+tracks the direct full-log error while the smooth-part error is near `1e-7`
+relative. The next unresolved question is therefore which special residual path
+to implement first: analytic/asymptotic interior moments or boundary-aware
+precomputed folded-fan corrections for trim-intersecting windows.
+
+The first analytic-moment check used the full-space leading residual moment
+`sigma^2 rho(x)/4`. It works for interior windows when the target is well away
+from the trim: at `order=24`, interior analytic local relative errors were
+`2.6e-6` to `6.4e-4` for `sigma=0.08`. The same formula fails for
+trim-intersecting windows, where median analytic local relative errors were
+`0.31` for `sigma=0.08`, `0.79` for `sigma=0.16`, and `1.41` for `sigma=0.32`.
+The next implementation should therefore classify whether the residual window is
+interior to the source region. Interior windows can use analytic moments;
+trim-intersecting windows need boundary-aware corrections. The detailed local
+model catalogue and moment expansions are recorded in
+`docs/nearfield-local-model-catalogue.md`.
+
+The full-box-minus-complement route should be tested alongside these residual
+models. Its expected sweet spot is a cut-box target that is interior to
+`Omega cap B` but close enough to the cut boundary that direct folded quadrature
+of the singular kernel is poor. The full-box singular table supplies the singular
+moment exactly for the ambient basis, and the complement integral should converge
+as a smooth folded integral as long as the complement is target-separated.
 
 For each geometry and interaction case, record:
 
@@ -474,16 +588,25 @@ For each geometry and interaction case, record:
 - dependence on quadrature order;
 - dependence on target offset, including on-surface, near-surface, containing-box,
   and neighbor-box target nodes;
-- dependence on seed location and Bezier curve coefficients;
+- dependence on seed location and Bezier curve coefficients, starting with the
+  current robust interior anchor versus the barycenter of trim or sampled curve
+  nodes;
 - size, rank, and smoothness of the local asymptotic coefficient data;
 - how many window/asymptotic orders, bins, and jet modes are needed for the
   observed folded-decomposition cases;
+- whether the localized singular residual can be handled by analytic interior
+  moments, or whether boundary-aware precomputed fan-template corrections are
+  needed when the window intersects a trim boundary;
+- whether a full-box singular moment minus a smooth folded complement integral is
+  more accurate or cheaper than direct boundary-aware residual tables for
+  target-separated cut-box interactions;
 - whether metric-only organization is sufficient for any subfamily, or whether
   higher-order jet coefficients dominate the correction size.
 - how often source-box and neighbor-box target nodes actually require the
   singular local treatment after the window-support test.
-- among supported targets, how many can use target-centered Duffy refolding
-  instead of a more general local expansion.
+- how much accuracy target-centered Duffy refolding provides as a single-target
+  baseline for the same node count, and when it is too expensive to use as a
+  fallback.
 
 The first geometry family should be CAD-independent but CAD-realistic: quadratic
 and cubic Bezier fan charts with seed locations chosen to produce positive,
@@ -532,7 +655,10 @@ The idea is feasible as a CUTKIT experiment, with these limits:
 - Near-field correction reuse should target a Gaussian-windowed point-target
   local asymptotic expansion for targets inside or very close to each fan piece.
   The smooth remainder should use ordinary folded-decomposition quadrature.
-  Interior targets should first try target-centered Duffy refolding before falling
-  back to the more general local expansion.
+  The singular residual should use analytic moments where the local window is
+  interior to the source region; if it intersects a trim boundary, test whether
+  boundary-aware precomputed folded-fan corrections are necessary.
+  Target-centered Duffy refolding should be kept as a single-target validation
+  baseline or fallback, not as the main reusable correction strategy.
 - Volumential should still own tree/list composition; CUTKIT should export the
   local geometry/operator payloads needed by those lists.
