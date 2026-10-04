@@ -23,6 +23,14 @@ Options:
 - `--profile quick|dense`
 - `--backend-mode jplus|folded`
 - `--manifest-path <path>` for machine-readable output
+- `--allow-fail` to report tolerance failures without a failing exit status
+
+Both the PR smoke workflow and the scheduled dense workflow use `--allow-fail`.
+Their green status confirms that the benchmark command completed, not that its
+numerical tolerances passed. A tolerance failure emits a GitHub Actions warning
+(or a stderr warning locally); inspect `overall_passed` and the scheduled JSON
+manifest's `passed` field for numerical acceptance. Without `--allow-fail`, failed
+tolerances return exit status 1.
 
 ## What Is Measured
 

@@ -5,7 +5,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
+import sys
 
 from cutkit.evals import run_poisson_benchmarks
 
@@ -70,6 +72,17 @@ def main() -> int:
             encoding="utf-8",
         )
         print(f"wrote manifest: {args.manifest_path}")
+
+    if not result.passed and args.allow_fail:
+        message = (
+            f"Poisson benchmark tolerances failed ({result.profile}, "
+            f"{result.planar.backend_mode}); --allow-fail keeps this run "
+            "non-gating. A successful command is not numerical acceptance."
+        )
+        if os.environ.get("GITHUB_ACTIONS") == "true":
+            print(f"::warning::{message}")
+        else:
+            print(f"WARNING: {message}", file=sys.stderr)
 
     if result.passed or args.allow_fail:
         return 0
